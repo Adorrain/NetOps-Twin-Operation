@@ -1,0 +1,309 @@
+import React, { useState, useRef } from 'react';
+import { Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
+import { useAppStore } from '../../stores';
+
+const inferRole = (device) => {
+  const name = String(device?.name || '').toLowerCase(); // 转换为小写以便于匹配
+  if (device?.role) return device.role.toLowerCase();
+  
+  // 关键字匹配 (中文和英文)
+  if (name.includes('核心') || name.includes('core')) return 'core';
+  if (name.includes('汇聚') || name.includes('agg') || name.includes('distribution')) return 'aggregation';
+  if (name.includes('接入') || name.includes('access') || name.includes('edge')) return 'access';
+  if (name.includes('防火墙') || name.includes('firewall') || name.includes('fw')) return 'firewall';
+  
+  const t = (device?.device_type || device?.type || '').toLowerCase();
+  if (t === 'router') return 'core'; // 如果未指定，默认将路由器视为核心设备
+  if (t === 'switch' || t === 'l2_switch') return 'access';
+  if (t === 'l3_switch') return 'aggregation';
+  if (t === 'firewall') return 'firewall';
+  
+  return 'terminal';
+};
+
+const ConfigUploader = ({ onConfigLoaded }) => {
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState('idle');
+  const [errorMessage, setErrorMessage] = useState('');
+  const fileInputRef = useRef(null);
+  const { setLoading, addNotification, setNetworkTopology } = useAppStore();
+  
+  const UPLOAD_TIMEOUT_MS = 300000; // 5 minutes
+  const API_BASE = 'http://localhost:8000/api';
+
+  const fetchWithTimeout = async (url, options, timeoutMs) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      return res;
+    } finally {
+      clearTimeout(id);
+    }
+  };
+
+  // 处理文件上传
+  const handleFileUpload = async (file) => {
+    if (!file.name.endsWith('.yaml') && !file.name.endsWith('.yml') && !file.name.endsWith('.json')) {
+      setErrorMessage('请上传 YAML 或 JSON 配置文件');
+      setUploadStatus('error');
+      return;
+    }
+    
+    setUploadStatus('loading');
+    setLoading('config-upload', true);
+    setErrorMessage('');
+    
+    try {
+      // 1. 后端写入并获取解析结果 (后端写入与解析)
+      const fd = new FormData();
+      fd.append('file', file);
+      
+      let cfg;
+      try {
+        const res = await fetchWithTimeout(`${API_BASE}/network/topology/upload`, { method: 'POST', body: fd }, UPLOAD_TIMEOUT_MS);
+        if (!res.ok) {
+            const errData = await res.json();
+            throw new Error(errData.detail || '后端上传失败');
+        }
+        cfg = await res.json();
+      } catch (err) {
+        throw new Error('后端处理失败: ' + err.message);
+      }
+
+      // 构建前端拓扑对象
+      // 自动计算布局 (如果后端没有返回 position)
+      const calculateLayout = (devices) => {
+          // 简单的分层布局算法
+          const core = devices.filter(d => inferRole(d) === 'core');
+          const agg = devices.filter(d => inferRole(d) === 'aggregation');
+          const access = devices.filter(d => inferRole(d) === 'access');
+          const others = devices.filter(d => !['core', 'aggregation', 'access'].includes(inferRole(d)));
+          
+          const layout = {};
+          const spacingX = 6;
+          
+          // 核心层 (顶部)
+          core.forEach((d, i) => {
+             layout[d.id] = { x: (i - (core.length-1)/2) * spacingX, y: 0, z: -5 };
+          });
+          
+          // 汇聚层 (中间)
+          agg.forEach((d, i) => {
+             layout[d.id] = { x: (i - (agg.length-1)/2) * spacingX, y: 0, z: 2 };
+          });
+          
+          // 接入层 (底部)
+          access.forEach((d, i) => {
+             layout[d.id] = { x: (i - (access.length-1)/2) * spacingX, y: 0, z: 9 };
+          });
+          
+          // 其他 (终端等) - 接入层下方
+          others.forEach((d, i) => {
+             layout[d.id] = { x: (i - (others.length-1)/2) * (spacingX/2), y: 0, z: 15 };
+          });
+          
+          return layout;
+      };
+
+      const computedLayout = calculateLayout(cfg.devices || []);
+
+      const devices = (cfg.devices || []).map((d) => ({
+        id: String(d.id), // 确保 ID 为字符串
+        name: d.name,
+        role: inferRole(d),
+        deviceType: d.device_type || d.type || 'unknown',
+        // 优先使用 YAML 中的 position，否则使用自动计算的布局，最后随机兜底
+        position: d.position || computedLayout[d.id] || { x: Math.random() * 20 - 10, y: 0, z: Math.random() * 20 - 10 },
+        // 修复：如果状态缺失或未明确为 down/offline，默认状态为 'online'
+        status: (d.status === 'down' || d.status === 'offline') ? 'offline' : 'online',
+        configuration: {
+            ...d.configuration,
+            ospf: d.ospf, // 将根级的 ospf 映射进去
+            vlans: d.vlans || (d.interfaces || []).flatMap(i => i.vlan ? [i.vlan] : []) // 尝试从接口提取 VLAN
+        },
+        metrics: d.metrics || { 
+            cpuUsage: Math.floor(Math.random() * 30), 
+            memoryUsage: Math.floor(Math.random() * 40), 
+            diskUsage: 20, 
+            networkIn: 0, 
+            networkOut: 0, 
+            uptime: 0, 
+            lastUpdated: new Date() 
+        },
+        ipAddress: d.mgmt_ip || d.ip,
+        macAddress: d.mac_address,
+        description: d.description,
+        interfaces: d.interfaces || [],
+        ospf: d.ospf, // 顶层字段也保留
+        vlans: d.vlans
+      }));
+
+      const connections = (cfg.links || cfg.connections || []).map((c) => ({
+        id: c.id,
+        sourceDeviceId: String(c.src_device_id || c.source || c.sourceDeviceId),
+        targetDeviceId: String(c.dst_device_id || c.target || c.targetDeviceId),
+        connectionType: c.type || 'ethernet',
+        status: c.status || 'up',
+        from: String(c.src_device_id || c.source || c.sourceDeviceId), // 确保 3D 组件需要的字段存在并转为 String
+        to: String(c.dst_device_id || c.target || c.targetDeviceId), // 确保 3D 组件需要的字段存在并转为 String
+        bandwidth: c.bandwidth || 1000,
+        latency: c.latency || 1,
+        packetLoss: c.packet_loss || 0
+      }));
+
+      const topo = {
+        id: 'imported-topology',
+        name: cfg.topology?.name || cfg.name || '导入的拓扑',
+        description: cfg.description,
+        devices,
+        connections,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      setNetworkTopology(topo); // 直接更新 store
+      if (onConfigLoaded) onConfigLoaded(topo);
+      setUploadStatus('success');
+      
+      addNotification({ type: 'success', title: '配置已加载', message: `拓扑就绪: ${topo.name}` });
+      
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setTimeout(() => { setUploadStatus('idle'); }, 3000);
+
+    } catch (error) {
+      const msg = error.message;
+      setErrorMessage(msg);
+      setUploadStatus('error');
+      addNotification({ type: 'error', title: '加载失败', message: msg });
+    } finally {
+      setLoading('config-upload', false);
+    }
+  };
+  
+  // 拖拽处理
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+  
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+  
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      handleFileUpload(files[0]);
+    }
+  };
+  
+  // 文件选择处理
+  const handleFileSelect = (e) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      handleFileUpload(files[0]);
+    }
+  };
+  
+  return (
+    <div className="max-w-3xl w-full mx-auto p-6 bg-slate-900/50 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl animate-fade-in">
+      <h3 className="flex items-center gap-3 text-xl font-bold text-white mb-6">
+        <div className="p-2 bg-blue-500/20 rounded-lg">
+           <Upload className="w-6 h-6 text-blue-400" />
+        </div>
+        上传网络配置
+      </h3>
+      
+      {/* 拖拽上传区域 */}
+      <div
+        className={`relative border-2 border-dashed rounded-xl p-12 transition-all duration-300 flex flex-col items-center justify-center min-h-[300px] group ${
+          isDragging 
+            ? 'border-blue-500 bg-blue-500/10 scale-[1.02]' 
+            : uploadStatus === 'error'
+              ? 'border-red-500/50 bg-red-500/5'
+              : uploadStatus === 'success'
+                ? 'border-green-500/50 bg-green-500/5'
+                : 'border-slate-600 bg-slate-800/30 hover:border-blue-400/50 hover:bg-slate-800/50'
+        }`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".yaml,.yml,.json"
+          onChange={handleFileSelect}
+          style={{ display: 'none' }}
+        />
+        
+        {uploadStatus === 'loading' && (
+          <div className="text-center animate-pulse">
+            <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-blue-400 font-medium">正在解析配置...</p>
+          </div>
+        )}
+        
+        {uploadStatus === 'success' && (
+          <div className="text-center animate-bounce-short">
+            <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+            <p className="text-green-400 font-medium text-lg">配置加载成功！</p>
+          </div>
+        )}
+        
+        {uploadStatus === 'error' && (
+          <div className="text-center">
+            <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+            <p className="text-red-400 font-medium text-lg mb-2">配置加载失败</p>
+            <p className="text-red-300/70 text-sm max-w-md mx-auto">{errorMessage}</p>
+          </div>
+        )}
+        
+        {uploadStatus === 'idle' && (
+          <div className="text-center">
+            <div className="w-20 h-20 bg-slate-700/50 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform duration-300">
+               <FileText className="w-10 h-10 text-slate-400 group-hover:text-blue-400 transition-colors" />
+            </div>
+            <p className="text-lg text-slate-200 font-medium mb-2">将配置文件拖拽至此处</p>
+            <p className="text-slate-500 text-sm mb-6">或者</p>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium shadow-lg shadow-blue-500/20 transition-all active:scale-95"
+            >
+              浏览文件
+            </button>
+            <p className="mt-6 text-xs text-slate-500">
+              支持 YAML (.yaml, .yml) 和 JSON (.json) 格式
+            </p>
+          </div>
+        )}
+      </div>
+      
+      {/* 配置格式说明 */}
+      <div className="mt-8 bg-slate-800/30 rounded-xl p-6 border border-slate-700/30">
+        <h4 className="text-sm font-bold text-slate-300 uppercase tracking-wide mb-4">配置格式指南</h4>
+        <ul className="space-y-2 text-sm text-slate-400">
+          <li className="flex items-start gap-2">
+            <span className="text-blue-400">•</span>
+            <span><code className="bg-slate-700/50 px-1.5 py-0.5 rounded text-slate-200">topology</code>: 拓扑信息 (name, type)</span>
+          </li>
+          <li className="flex items-start gap-2">
+             <span className="text-blue-400">•</span>
+             <span><code className="bg-slate-700/50 px-1.5 py-0.5 rounded text-slate-200">devices</code>: 设备列表 (id, name, role, device_type, mgmt_ip 等)</span>
+          </li>
+          <li className="flex items-start gap-2">
+             <span className="text-blue-400">•</span>
+             <span><code className="bg-slate-700/50 px-1.5 py-0.5 rounded text-slate-200">links</code>: 链路列表 (id, src_device, dst_device 等)</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+  );
+};
+
+export default ConfigUploader;
