@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useAppStore } from '../../stores';
-import { DeviceStatus, ConnectionStatus } from '../../types';
+import { DeviceStatus } from '../../types';
 import SparkLine from './charts/SparkLine';
 import { Activity, Server, Zap, AlertTriangle, CheckCircle } from 'lucide-react';
 

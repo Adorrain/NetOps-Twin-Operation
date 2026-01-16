@@ -1,19 +1,38 @@
 import networkx as nx
+import time
 from typing import List, Dict, Any, Optional
 from app.models.topology import TopologyData, Device, Link
 
 class SimulationService:
     def __init__(self, topology_data: TopologyData):
         self.topology = topology_data
-        self.graph = self._build_graph()
         self.device_map = {d.id: d for d in self.topology.devices}
+        self.graph = self._build_graph()
         self.ip_map = self._build_ip_map()
+
+    def _get_device_interfaces(self, device: Device) -> List[Any]:
+        """Helper to safely get interfaces list"""
+        interfaces = getattr(device, 'interfaces', None)
+        if interfaces is None and hasattr(device, 'model_extra') and device.model_extra:
+            interfaces = device.model_extra.get('interfaces')
+        return interfaces or []
+
+    def _save_device_interfaces(self, device: Device, interfaces: List[Any]):
+        """Helper to safely save interfaces list"""
+        if hasattr(device, 'interfaces'):
+             setattr(device, 'interfaces', interfaces)
+        
+        if hasattr(device, 'model_extra') and isinstance(device.model_extra, dict):
+            device.model_extra['interfaces'] = interfaces
+            
+        setattr(device, 'interfaces', interfaces)
 
     def _build_graph(self) -> nx.Graph:
         """
         构建网络图 (无向图)
         仅添加状态为 'up' 的设备和链路
         并且检查链路两端的接口状态是否为 'up'
+        以及检查两端 VLAN 是否一致
         """
         G = nx.Graph()
         
@@ -25,79 +44,105 @@ class SimulationService:
         # 添加边 (链路)
         for link in self.topology.links:
             # 1. 检查两端设备是否都在图中 (即都为 up)
-            if link.src_device_id not in G or link.dst_device_id not in G:
+            if link.src_device not in G or link.dst_device not in G:
                 continue
 
             # 2. 检查链路本身状态
-            if link.status != 'up':
+            if str(link.status).lower() not in ('up', 'active'):
                 continue
 
             # 3. 检查两端接口状态
-            # 获取端口名称 (兼容 extra 字段)
-            src_port = getattr(link, 'src_port', None) or link.dict().get('src_port')
-            dst_port = getattr(link, 'dst_port', None) or link.dict().get('dst_port')
+            src_port = getattr(link, 'src_interface', None) or link.dict().get('src_interface')
+            dst_port = getattr(link, 'dst_interface', None) or link.dict().get('dst_interface')
 
-            src_iface_up = self._is_interface_up(link.src_device_id, src_port)
-            dst_iface_up = self._is_interface_up(link.dst_device_id, dst_port)
+            src_iface_up = self._is_interface_up(link.src_device, src_port)
+            dst_iface_up = self._is_interface_up(link.dst_device, dst_port)
 
-            if src_iface_up and dst_iface_up:
-                # 权重默认为1，可根据带宽调整 (带宽越大权重越小)
+            if not (src_iface_up and dst_iface_up):
+                continue
+
+            # 4. 检查 VLAN 一致性
+            src_vlan_info = self._get_interface_vlan_info(link.src_device, src_port)
+            dst_vlan_info = self._get_interface_vlan_info(link.dst_device, dst_port)
+            
+            is_connected = False
+            
+            src_mode = src_vlan_info.get('mode', 'access')
+            dst_mode = dst_vlan_info.get('mode', 'access')
+            
+            src_vlan = src_vlan_info.get('vlan', 1)
+            dst_vlan = dst_vlan_info.get('vlan', 1)
+
+            # 优化逻辑：如果任意一端是 Trunk，默认允许通过（除非未来做更细的 allowed vlan 检查）
+            if src_mode == 'trunk' or dst_mode == 'trunk':
+                is_connected = True
+            else:
+                # 都是 Access，必须 VLAN ID 一致
+                if str(src_vlan) == str(dst_vlan):
+                    is_connected = True
+            
+            if is_connected:
+                # 权重默认为1，可根据带宽调整
                 weight = 1
                 if link.bandwidth:
-                    # 简单逻辑：10G -> 1, 1G -> 10, 100M -> 100
                     if '10G' in link.bandwidth: weight = 1
                     elif '1G' in link.bandwidth: weight = 10
                     elif '100M' in link.bandwidth: weight = 100
                 
-                G.add_edge(link.src_device_id, link.dst_device_id, weight=weight, **link.dict())
+                G.add_edge(link.src_device, link.dst_device, weight=weight, **link.dict())
         
         return G
 
-    def _is_interface_up(self, device_id: str, port_name: str) -> bool:
-        """
-        检查指定设备的接口状态是否为 'up'
-        如果接口不存在，默认视为 'up' (简化逻辑)
-        """
+    def _get_interface_vlan_info(self, device_id: str, port_name: str) -> Dict[str, Any]:
+        """获取接口的 VLAN 详细信息"""
         if not port_name:
-            return True
-
+            return {'vlan': 1, 'mode': 'access'}
+            
         device = self.device_map.get(device_id)
         if not device:
-            return False
-        
-        # interfaces 可能是 dict 列表或对象列表
-        interfaces = getattr(device, 'interfaces', []) or device.dict().get('interfaces', [])
+            return {'vlan': 1, 'mode': 'access'}
+            
+        interfaces = self._get_device_interfaces(device)
         
         for iface in interfaces:
-            # 统一获取 name 和 status
             if isinstance(iface, dict):
-                i_name = iface.get('name')
-                i_status = iface.get('status', 'up')
+                name = iface.get('name')
+                vlan = iface.get('vlan', 1)
+                mode = iface.get('mode', 'access')
             else:
-                i_name = getattr(iface, 'name', None)
-                i_status = getattr(iface, 'status', 'up')
-
-            if i_name == port_name:
-                return i_status == 'up'
+                name = getattr(iface, 'name', None)
+                vlan = getattr(iface, 'vlan', 1)
+                mode = getattr(iface, 'mode', 'access')
+                
+            if name == port_name:
+                return {'vlan': vlan, 'mode': mode}
         
+        return {'vlan': 1, 'mode': 'access'}
+
+    def _is_interface_up(self, device_id: str, port_name: str) -> bool:
+        """检查接口状态"""
+        if not port_name: return True
+        device = self.device_map.get(device_id)
+        if not device: return False
+        
+        interfaces = self._get_device_interfaces(device)
+        for iface in interfaces:
+            name = iface.get('name') if isinstance(iface, dict) else getattr(iface, 'name', None)
+            status = iface.get('status', 'up') if isinstance(iface, dict) else getattr(iface, 'status', 'up')
+            
+            if name == port_name:
+                return str(status).lower() == 'up'
         return True
 
     def _build_ip_map(self) -> Dict[str, str]:
-        """
-        构建 IP -> DeviceID 的映射表
-        包括管理 IP 和接口 IP
-        """
+        """构建 IP -> DeviceID 映射"""
         ip_map = {}
         for device in self.topology.devices:
-            # 1. 管理 IP
             if device.mgmt_ip:
-                # 简单处理 CIDR，只取 IP 部分 (e.g., 192.168.1.1/24 -> 192.168.1.1)
                 ip = device.mgmt_ip.split('/')[0]
                 ip_map[ip] = device.id
             
-            # 2. 接口 IP (如果有 interfaces 字段)
-            # Device model extra="allow", so interfaces might be in __dict__ or extra fields
-            interfaces = getattr(device, 'interfaces', []) or device.dict().get('interfaces', [])
+            interfaces = self._get_device_interfaces(device)
             for iface in interfaces:
                 if isinstance(iface, dict) and iface.get('ip'):
                     ip = iface['ip'].split('/')[0]
@@ -105,50 +150,27 @@ class SimulationService:
                 elif hasattr(iface, 'ip') and iface.ip:
                      ip = iface.ip.split('/')[0]
                      ip_map[ip] = device.id
-        
         return ip_map
 
     def get_device_by_ip(self, ip: str) -> Optional[str]:
         return self.ip_map.get(ip)
 
     def ping(self, src_device_id: str, target_ip: str) -> Dict[str, Any]:
-        """
-        模拟 Ping 操作
-        """
-        # 1. 解析目标 IP
+        """模拟 Ping"""
         dst_device_id = self.get_device_by_ip(target_ip)
         
         if not dst_device_id:
-            return {
-                "success": False,
-                "message": f"Target IP {target_ip} not reachable (IP not found in topology)",
-                "rtt": None
-            }
-            
+            return {"success": False, "message": f"Target IP {target_ip} not reachable", "rtt": None}
         if src_device_id not in self.graph:
-            return {
-                "success": False,
-                "message": f"Source device {src_device_id} is down or not found",
-                "rtt": None
-            }
-
+            return {"success": False, "message": f"Source device {src_device_id} is down", "rtt": None}
         if dst_device_id not in self.graph:
-             return {
-                "success": False,
-                "message": f"Target device {dst_device_id} is down",
-                "rtt": None
-            }
+             return {"success": False, "message": f"Target device {dst_device_id} is down", "rtt": None}
 
-        # 2. 计算最短路径
         try:
             path = nx.shortest_path(self.graph, source=src_device_id, target=dst_device_id)
-            
-            # 3. 模拟 RTT
-            # 基础延迟 2ms + 每跳 1ms + 随机抖动
             import random
             hops = len(path) - 1
             base_rtt = 2 + hops * 1 + random.uniform(0, 2)
-            
             return {
                 "success": True,
                 "message": f"Reply from {target_ip}: bytes=32 time={base_rtt:.2f}ms TTL={64-hops}",
@@ -156,36 +178,22 @@ class SimulationService:
                 "path": path,
                 "hops": hops
             }
-            
         except nx.NetworkXNoPath:
-            return {
-                "success": False,
-                "message": "Request timed out (No path to host)",
-                "rtt": None
-            }
+            return {"success": False, "message": "Request timed out (No path to host)", "rtt": None}
 
     def traceroute(self, src_device_id: str, target_ip: str) -> Dict[str, Any]:
-        """
-        模拟 Traceroute
-        """
+        """模拟 Traceroute"""
         dst_device_id = self.get_device_by_ip(target_ip)
-        
-        if not dst_device_id:
-             return {"success": False, "hops": [], "message": f"Target IP {target_ip} unknown"}
-
+        if not dst_device_id: return {"success": False, "hops": [], "message": f"Target IP {target_ip} unknown"}
         if src_device_id not in self.graph or dst_device_id not in self.graph:
              return {"success": False, "hops": [], "message": "Source or Target device is down"}
 
         try:
-            # 使用 Dijkstra 算法找到带权重的最短路径
             path = nx.dijkstra_path(self.graph, source=src_device_id, target=dst_device_id)
-            
             hops_data = []
             for i, node_id in enumerate(path):
                 device = self.device_map.get(node_id)
-                # 模拟每跳延迟
-                rtt = (i + 1) * 1.5  # 简单累加
-                
+                rtt = (i + 1) * 1.5
                 hops_data.append({
                     "hop": i + 1,
                     "device_id": node_id,
@@ -193,17 +201,9 @@ class SimulationService:
                     "ip": device.mgmt_ip if device else "unknown",
                     "rtt": f"{rtt:.2f} ms"
                 })
-                
-            return {
-                "success": True, 
-                "hops": hops_data,
-                "path": path
-            }
-            
+            return {"success": True, "hops": hops_data, "path": path}
         except nx.NetworkXNoPath:
             return {"success": False, "hops": [], "message": "Destination unreachable"}
-
-    # --- 状态修改方法 (返回修改后的 TopologyData) ---
 
     def update_device_status(self, device_id: str, status: str) -> TopologyData:
         for d in self.topology.devices:
@@ -213,7 +213,6 @@ class SimulationService:
         return self.topology
 
     def update_link_status(self, link_id: str, status: str) -> TopologyData:
-        # 如果提供了 ID 直接匹配
         for l in self.topology.links:
             if l.id == link_id:
                 l.status = status
@@ -221,165 +220,164 @@ class SimulationService:
         return self.topology
         
     def find_and_update_link(self, src_id: str, dst_id: str, status: str) -> TopologyData:
-        # 查找连接两端的链路 (无向)
         for l in self.topology.links:
-            if (l.src_device_id == src_id and l.dst_device_id == dst_id) or \
-               (l.src_device_id == dst_id and l.dst_device_id == src_id):
+            if (l.src_device == src_id and l.dst_device == dst_id) or \
+               (l.src_device == dst_id and l.dst_device == src_id):
                 l.status = status
         return self.topology
 
     def update_interface_status(self, device_id: str, iface_name: str, status: str) -> TopologyData:
         for d in self.topology.devices:
             if d.id == device_id:
-                # 查找接口
-                interfaces = getattr(d, 'interfaces', []) or []
-                found = False
+                interfaces = self._get_device_interfaces(d)
                 for iface in interfaces:
-                    # interfaces 可能是 dict 或 object
                     name = iface.get('name') if isinstance(iface, dict) else getattr(iface, 'name', '')
                     if name == iface_name:
-                        if isinstance(iface, dict):
-                            iface['status'] = status
-                        else:
-                            iface.status = status
-                        found = True
+                        if isinstance(iface, dict): iface['status'] = status
+                        else: iface.status = status
                         break
-                
-                # 如果没找到且 interfaces 是空的，可能需要初始化结构 (简化处理: 暂时只处理已有接口)
-                if not found:
-                    pass # Interface not found
+                self._save_device_interfaces(d, interfaces)
                 break
         return self.topology
 
     def assign_vlan(self, device_id: str, port: str, vlan_id: int) -> TopologyData:
         for d in self.topology.devices:
             if d.id == device_id:
-                # 1. 更新接口的 VLAN
-                interfaces = getattr(d, 'interfaces', []) or []
+                # 1. Update Interface
+                interfaces = self._get_device_interfaces(d)
+                port_found = False
+                for iface in interfaces:
+                    name = iface.get('name') if isinstance(iface, dict) else getattr(iface, 'name', '')
+                    if name == port:
+                        port_found = True
+                        if isinstance(iface, dict):
+                            iface['vlan'] = vlan_id
+                            iface['mode'] = 'access' # Force Access when assigning specific ID
+                        else:
+                            iface.vlan = vlan_id
+                            iface.mode = 'access'
+                self._save_device_interfaces(d, interfaces)
+                
+                # 2. Update Device Global VLANs
+                current_vlans = getattr(d, 'vlans', None)
+                if current_vlans is None and hasattr(d, 'model_extra') and d.model_extra:
+                    current_vlans = d.model_extra.get('vlans')
+                if not isinstance(current_vlans, list): current_vlans = []
+
+                if not any(v.get('vlan_id') == vlan_id for v in current_vlans if isinstance(v, dict)):
+                     current_vlans.append({'vlan_id': vlan_id, 'name': f'VLAN{vlan_id}'})
+                     
+                setattr(d, 'vlans', current_vlans)
+                if hasattr(d, 'model_extra') and isinstance(d.model_extra, dict):
+                    d.model_extra['vlans'] = current_vlans
+                break
+        return self.topology
+
+    def remove_vlan(self, device_id: str, port: str) -> TopologyData:
+        for d in self.topology.devices:
+            if d.id == device_id:
+                interfaces = self._get_device_interfaces(d)
                 for iface in interfaces:
                     name = iface.get('name') if isinstance(iface, dict) else getattr(iface, 'name', '')
                     if name == port:
                         if isinstance(iface, dict):
-                            iface['vlan'] = vlan_id
+                            iface.pop('vlan', None)
+                            iface['mode'] = 'access' # Revert to default access (vlan 1 implied)
                         else:
-                            iface.vlan = vlan_id
-                
-                # 2. 确保设备配置里有这个 VLAN (Access/Trunk)
-                # 简化逻辑：直接在 extra 字段里记录 vlans 列表
-                current_vlans = getattr(d, 'vlans', []) or []
-                if isinstance(current_vlans, list):
-                     # 检查是否已存在
-                     if not any(v.get('vlan_id') == vlan_id for v in current_vlans if isinstance(v, dict)):
-                         current_vlans.append({'vlan_id': vlan_id, 'name': f'VLAN{vlan_id}'})
-                         # Pydantic model update
-                         if hasattr(d, 'vlans'):
-                             d.vlans = current_vlans
-                         else:
-                             # 如果是 extra field，可能在 __dict__
-                             d.__dict__['vlans'] = current_vlans
+                            if hasattr(iface, 'vlan'): delattr(iface, 'vlan')
+                            if hasattr(iface, 'mode'): iface.mode = 'access'
+                self._save_device_interfaces(d, interfaces)
                 break
         return self.topology
 
-    def update_ospf_config(self, device_id: str, area: int) -> TopologyData:
+    def update_ospf_config(self, device_id: str, area: int, router_id: Optional[str] = None) -> TopologyData:
         for d in self.topology.devices:
             if d.id == device_id:
-                # 假设 ospf 配置存储在 ospf 字段或 configuration.ospf
-                # 统一更新顶层 ospf 字段
-                if not hasattr(d, 'ospf') or d.ospf is None:
-                    d.ospf = {}
+                config = d.configuration or {}
+                ospf = config.get('ospf', {})
+                if not isinstance(ospf, dict): ospf = {}
                 
-                if isinstance(d.ospf, dict):
-                    d.ospf['area'] = area
-                else:
-                    # 如果是对象模型，视具体定义而定，这里假设是 Dict
-                    d.ospf = {'area': area}
+                ospf['area'] = area
+                if router_id:
+                    ospf['routerId'] = router_id
+                elif 'routerId' not in ospf:
+                     rid = d.mgmt_ip.split('/')[0] if d.mgmt_ip else "1.1.1.1"
+                     ospf['routerId'] = rid
+
+                config['ospf'] = ospf
+                d.configuration = config
+                
+                self.reset_ospf(device_id)
                 break
         return self.topology
 
     def reset_ospf(self, device_id: str) -> TopologyData:
-        """
-        模拟 OSPF 进程重置
-        实际上只是触发一个状态变更事件，不修改持久化配置
-        """
-        # 实际逻辑可能涉及短暂将邻居状态置为 Init/2-Way，这里简化为无操作，仅返回当前拓扑
-        # 前端/日志会记录这个操作
+        for d in self.topology.devices:
+            if d.id == device_id:
+                config = d.configuration or {}
+                ospf = config.get('ospf', {})
+                if not isinstance(ospf, dict): ospf = {}
+                
+                ospf['last_reset_time'] = time.time()
+                config['ospf'] = ospf
+                d.configuration = config
+                break
         return self.topology
 
     def get_ospf_neighbors(self, device_id: str) -> List[Dict[str, Any]]:
-        """
-        获取 OSPF 邻居列表 (模拟)
-        """
         neighbors = []
-        
-        # 1. 检查本端是否启用了 OSPF
-        source_device = self.device_map.get(device_id)
-        if not source_device:
-            return []
-            
-        # 检查 ospf 配置
-        src_ospf = getattr(source_device, 'ospf', None) or source_device.dict().get('ospf')
-        if not src_ospf:
-            # 尝试从 configuration 中获取
-            config = getattr(source_device, 'configuration', {}) or {}
-            src_ospf = config.get('ospf')
-            
-        if not src_ospf:
-            return [] # 本端未启用 OSPF
+        src_dev = self.device_map.get(device_id)
+        if not src_dev: return []
 
-        # 2. 遍历所有连接
-        for link in self.topology.links:
-            neighbor_id = None
-            if link.src_device_id == device_id:
-                neighbor_id = link.dst_device_id
-            elif link.dst_device_id == device_id:
-                neighbor_id = link.src_device_id
+        def get_ospf_data(d):
+            if d.configuration and isinstance(d.configuration.get('ospf'), dict):
+                return d.configuration['ospf']
+            if hasattr(d, 'model_extra') and d.model_extra:
+                if isinstance(d.model_extra.get('configuration'), dict):
+                     return d.model_extra['configuration'].get('ospf', {})
+                return d.model_extra.get('ospf', {})
+            return {}
+
+        src_ospf = get_ospf_data(src_dev)
+        if not src_ospf: return []
             
-            if neighbor_id:
-                neighbor_dev = self.device_map.get(neighbor_id)
-                if not neighbor_dev:
-                    continue
-                    
-                # 检查对端是否启用 OSPF
-                dst_ospf = getattr(neighbor_dev, 'ospf', None) or neighbor_dev.dict().get('ospf')
-                if not dst_ospf:
-                    config = getattr(neighbor_dev, 'configuration', {}) or {}
-                    dst_ospf = config.get('ospf')
-                
-                if dst_ospf:
-                    # 确定邻居状态
-                    state = "Full"
-                    if source_device.status != 'up' or neighbor_dev.status != 'up' or link.status != 'up':
-                        state = "Down"
-                    
-                    # 获取对端 Router ID (模拟)
-                    router_id = dst_ospf.get('router_id') or dst_ospf.get('routerId') or neighbor_dev.mgmt_ip or "0.0.0.0"
-                    
-                    neighbors.append({
-                        "neighbor_id": neighbor_id,
-                        "neighbor_name": neighbor_dev.name,
-                        "address": neighbor_dev.mgmt_ip,
-                        "router_id": router_id,
-                        "state": state,
-                        "interface": getattr(link, 'src_port', 'eth0') if link.src_device_id == device_id else getattr(link, 'dst_port', 'eth0'),
-                        "area": dst_ospf.get('area', 0),
-                        "priority": dst_ospf.get('priority', 1)
-                    })
+        last_reset = src_ospf.get('last_reset_time', 0)
+        time_since_reset = time.time() - last_reset
         
+        if time_since_reset < 2: return []
+            
+        if device_id in self.graph:
+            for neighbor_id in self.graph.neighbors(device_id):
+                dst_dev = self.device_map.get(neighbor_id)
+                if not dst_dev: continue
+                
+                dst_ospf = get_ospf_data(dst_dev)
+                if not dst_ospf: continue
+                
+                src_area = int(src_ospf.get('area', 0))
+                dst_area = int(dst_ospf.get('area', 0))
+
+                state = "Full"
+                details = "Adjacency established"
+                
+                if src_area != dst_area:
+                     state = "Init (Area Mismatch)"
+                     details = f"Local Area {src_area} != Remote Area {dst_area}"
+                else:
+                    if time_since_reset < 5: state = "Init"
+                    elif time_since_reset < 8: state = "2-Way"
+                    elif time_since_reset < 12: state = "ExStart"
+                    elif time_since_reset < 15: state = "Exchange"
+                    elif time_since_reset < 18: state = "Loading"
+                    else: state = "Full"
+
+                neighbors.append({
+                    "neighbor_id": neighbor_id,
+                    "router_id": dst_ospf.get('routerId', '0.0.0.0'),
+                    "address": dst_dev.mgmt_ip,
+                    "interface": "Unknown",
+                    "state": state,
+                    "area": str(dst_area),
+                    "details": details
+                })
         return neighbors
-
-    def simulate_ddos(self, target_id: str) -> TopologyData:
-        for d in self.topology.devices:
-            if d.id == target_id:
-                # 设置高负载指标
-                if not hasattr(d, 'metrics') or d.metrics is None:
-                    d.metrics = {}
-                
-                # 更新 metrics (这里只是更新数据模型，前端收到后渲染红色/高负载)
-                d.metrics = {
-                    'cpuUsage': 99,       # camelCase for frontend consistency
-                    'memoryUsage': 95,
-                    'networkIn': 10000, 
-                    'networkOut': 10000
-                }
-                break
-        return self.topology

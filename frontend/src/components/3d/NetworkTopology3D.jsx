@@ -28,13 +28,12 @@ function normalizeTopology(raw) {
 const RackDevice = ({ size, color, ports = false, isServer = false, statusColor }) => {
   return (
     <group>
-      {/* 机箱主体 - 金属质感 */}
+      {/* 机箱主体 - 金属质感 (降低金属度以适应本地光照) */}
       <RoundedBox args={size} radius={0.05} smoothness={4}>
-        <meshPhysicalMaterial 
-          color="#1e293b" // 深色机身
-          roughness={0.3}
-          metalness={0.8}
-          clearcoat={0.5}
+        <meshStandardMaterial 
+          color="#475569" // 提亮颜色 (Slate-600)
+          roughness={0.4}
+          metalness={0.3} // 降低金属度，避免在无 HDR 环境下变黑
         />
       </RoundedBox>
       
@@ -168,7 +167,7 @@ const TerminalDevice = ({ size, color, statusColor }) => {
  * ===========================
  */
 function DeviceMesh({ device, onClick }) {
-  const { position, type, deviceType, role, name, status, metrics } = device;
+  const { position = { x: 0, y: 0, z: 0 }, type, deviceType, role, name, status, metrics } = device;
   
   // 尺寸配置
   const config = {
@@ -477,10 +476,12 @@ export default function NetworkTopology3D({ topology, onDeviceClick }) {
           camera={{ position: [15, 12, 15], fov: 45 }}
           dpr={[1, 2]} // 优化高分屏
         >
-          {/* 环境与光照 */}
-          <ambientLight intensity={0.5} />
-          <pointLight position={[10, 10, 10]} intensity={1} castShadow />
-          <Environment preset="city" /> 
+          {/* 环境与光照 - 均衡亮度版 */}
+          <ambientLight intensity={1.5} />
+          <hemisphereLight intensity={1.0} groundColor="#1e293b" skyColor="#ffffff" />
+          <directionalLight position={[10, 10, 5]} intensity={2.5} castShadow />
+          <pointLight position={[-10, 10, -10]} intensity={2.0} />
+          {/* <Environment preset="city" /> */} 
 
           <Suspense fallback={<Html center><div className="text-white">Loading 3D Engine...</div></Html>}>
             <Scene topology={topology} onDeviceClick={onDeviceClick} />
@@ -489,12 +490,12 @@ export default function NetworkTopology3D({ topology, onDeviceClick }) {
           {/* 后处理特效 (美化部分) */}
           <EffectComposer disableNormalPass>
             <Bloom 
-                luminanceThreshold={1} // 只有非常亮的东西才发光 (toneMapped=false 材质)
+                luminanceThreshold={1.2} 
                 mipmapBlur 
-                intensity={1.5} 
+                intensity={1.0} 
                 radius={0.6}
             />
-            <Vignette eskil={false} offset={0.1} darkness={1.1} />
+            <Vignette eskil={false} offset={0.1} darkness={0.6} />
           </EffectComposer>
 
           <OrbitControls 

@@ -19,7 +19,7 @@ def load_topology_from_yaml(file_path: str) -> TopologyData:
     topology_meta = data.get('topology', {})
 
     # Create model
-    # Note: Pydantic aliases (src_device -> src_device_id) handle the renaming
+    # Note: Fields match exactly now (src_device, dst_device)
     
     topology_data = TopologyData(
         topology=topology_meta,

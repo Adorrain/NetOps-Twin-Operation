@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAppStore } from '../../stores';
 import { DeviceStatus, DeviceType, ConnectionStatus } from '../../types';
-import { Terminal, Network, Activity, Layers, Play, RefreshCw, CheckCircle, AlertCircle, ShieldAlert, Route, Zap, X } from 'lucide-react';
+import { Terminal, Network, Activity, Layers, Play, RefreshCw, CheckCircle, AlertCircle, ShieldAlert, Route, Zap, X, Trash2 } from 'lucide-react';
 import SparkLine from './charts/SparkLine';
 
 const API_BASE = 'http://localhost:8000/api';
@@ -47,7 +47,7 @@ const api = {
     updateOspf: (deviceId, data) => fetch(`${API_BASE}/ops/ospf/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ device_id: deviceId, area: data.area })
+        body: JSON.stringify({ device_id: deviceId, area: data.area, routerId: data.routerId })
     }).then(res => res.json()),
 
     resetOspf: (deviceId) => fetch(`${API_BASE}/ops/ospf/reset`, {
@@ -326,9 +326,9 @@ const OpsConsole = () => {
     try {
         const res = await api.updateDevice(deviceId, { status: newDeviceStatus });
         if (res.success) {
-             const device = res.data;
-             const topo = { ...networkTopology, devices: networkTopology.devices.map(d => d.id === deviceId ? device : d), updatedAt: new Date() };
-             setNetworkTopology(topo);
+            const device = res.data;
+            const topo = { ...networkTopology, devices: networkTopology.devices.map(d => d.id === deviceId ? { ...device, position: d.position } : d), updatedAt: new Date() };
+            setNetworkTopology(topo);
              updateDeviceStatus(deviceId, newDeviceStatus);
              const devName = getDeviceName(deviceId);
              addNotification({ type: 'info', title: '设备状态', message: `${devName} 更新为 ${newDeviceStatus}` });
@@ -353,7 +353,7 @@ const OpsConsole = () => {
         if (res.success) {
              const device = res.data;
              const topo = { ...networkTopology };
-             topo.devices = topo.devices.map(d => d.id === ifaceDeviceId ? device : d);
+             topo.devices = topo.devices.map(d => d.id === ifaceDeviceId ? { ...device, position: d.position } : d);
              topo.updatedAt = new Date();
              setNetworkTopology(topo);
              
@@ -378,6 +378,9 @@ const OpsConsole = () => {
     if (dev && dev.configuration?.ospf) {
         setOspfRouterId(dev.configuration.ospf.routerId || '');
         setOspfArea(dev.configuration.ospf.area || 0);
+    } else {
+        setOspfRouterId('');
+        setOspfArea(0);
     }
   };
 
@@ -390,7 +393,7 @@ const OpsConsole = () => {
         if (res.success) {
             const device = res.data;
             const topo = { ...networkTopology };
-            topo.devices = topo.devices.map(d => d.id === ospfDeviceId ? device : d);
+            topo.devices = topo.devices.map(d => d.id === ospfDeviceId ? { ...device, position: d.position } : d);
             setNetworkTopology(topo);
             
             const devName = getDeviceName(ospfDeviceId);
@@ -417,10 +420,16 @@ const OpsConsole = () => {
         
         if (res.success) {
             addLog('warning', `OSPF 邻居状态改变: ${devName} 所有邻居 Down`);
+            addNotification({ type: 'info', title: 'OSPF 进程重置', message: 'OSPF 进程已重启，邻居关系正在重新建立...' });
+            
+            // 模拟状态恢复的日志通知 (与后端 15s 逻辑对应)
+            setTimeout(() => {
+                 addLog('info', `OSPF: ${devName} 状态进入 ExStart/Exchange...`);
+            }, 5000);
+            
             setTimeout(() => {
                  addLog('success', `OSPF 邻居状态改变: ${devName} 邻居关系恢复 Full`);
-                 addNotification({ type: 'info', title: 'OSPF 进程重置', message: res.message });
-            }, 1000);
+            }, 15000);
         } else {
             const msg = res.message;
             addLog('error', `OSPF 重置失败: ${msg}`);
@@ -457,7 +466,7 @@ const OpsConsole = () => {
         if (res.success) {
              const device = res.data;
              const topo = { ...networkTopology };
-             topo.devices = topo.devices.map(d => d.id === vlanSwitchId ? device : d);
+             topo.devices = topo.devices.map(d => d.id === vlanSwitchId ? { ...device, position: d.position } : d);
              setNetworkTopology(topo);
              
              const swName = getDeviceName(vlanSwitchId);
@@ -470,6 +479,36 @@ const OpsConsole = () => {
         }
     } catch (e) {
         addLog('error', `VLAN 分配异常: ${e.message}`);
+        addNotification({ type: 'error', title: '系统异常', message: e.message });
+    }
+  };
+
+  const removeVlan = async () => {
+    if (!vlanSwitchId || !vlanPort || !networkTopology) return;
+    
+    try {
+        const res = await fetch(`${API_BASE}/ops/vlan/remove`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ device_id: vlanSwitchId, port: vlanPort })
+        }).then(r => r.json());
+        
+        if (res.success) {
+             const device = res.data;
+             const topo = { ...networkTopology };
+             topo.devices = topo.devices.map(d => d.id === vlanSwitchId ? { ...device, position: d.position } : d);
+             setNetworkTopology(topo);
+             
+             const swName = getDeviceName(vlanSwitchId);
+             addNotification({ type: 'success', title: 'VLAN 移除成功', message: `${swName} 端口 ${vlanPort} 已移除 VLAN 配置` });
+             addLog('success', `VLAN 移除: ${swName} 端口 ${vlanPort}`);
+        } else {
+             const msg = res.message || 'Unknown error';
+             addLog('error', `VLAN 移除失败: ${msg}`);
+             addNotification({ type: 'error', title: 'VLAN 移除失败', message: msg });
+        }
+    } catch (e) {
+        addLog('error', `VLAN 移除异常: ${e.message}`);
         addNotification({ type: 'error', title: '系统异常', message: e.message });
     }
   };
@@ -695,9 +734,9 @@ const OpsConsole = () => {
             value={ospfDeviceId} 
             onChange={e => handleOspfSelect(e.target.value)} 
             placeholder="-- 选择设备 --"
-            options={devices.filter(d => d.configuration?.ospf).map(d => ({ 
+            options={devices.filter(d => (d.configuration && d.configuration.ospf) || checkDeviceType(d, DeviceType.ROUTER)).map(d => ({ 
                 value: d.id, 
-                label: `${d.name} (${d.configuration?.ospf?.routerId})` 
+                label: (d.configuration?.ospf?.routerId) ? `${d.name} (${d.configuration.ospf.routerId})` : d.name 
             }))}
           />
 
@@ -771,14 +810,24 @@ const OpsConsole = () => {
                      />
                  </div>
              )}
-             <Button 
-                onClick={assignVlan} 
-                disabled={!vlanSwitchId || !vlanPort}
-                variant="indigo"
-             >
-                <CheckCircle className="w-4 h-4" />
-                分配 VLAN
-             </Button>
+             <div className="grid grid-cols-2 gap-3">
+                 <Button 
+                    onClick={assignVlan} 
+                    disabled={!vlanSwitchId || !vlanPort}
+                    variant="indigo"
+                 >
+                    <CheckCircle className="w-4 h-4" />
+                    分配 VLAN
+                 </Button>
+                 <Button 
+                    onClick={removeVlan} 
+                    disabled={!vlanSwitchId || !vlanPort}
+                    variant="red"
+                 >
+                    <Trash2 className="w-4 h-4" />
+                    删除配置
+                 </Button>
+             </div>
         </div>
 
         {/* DDoS 模拟 */}

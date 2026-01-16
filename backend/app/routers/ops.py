@@ -3,10 +3,12 @@ from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
 from datetime import datetime
 import json
+from pydantic import BaseModel, Field
 
 from app.database import get_db
 from app.models.db_models import TopologySnapshot, OperationLog
 from app.models.topology import TopologyData
+from app.models.api_schemas import OSPFConfigBody, OSPFResetBody, OSPFNeighborsBody
 from app.services.simulation_service import SimulationService
 
 router = APIRouter()
@@ -101,12 +103,20 @@ async def update_link_status(
     elif src_id and dst_id:
         updated_topology = service.find_and_update_link(src_id, dst_id, status)
         target = f"{src_id}<->{dst_id}"
-        link = next((l for l in updated_topology.links if (l.src_device_id == src_id and l.dst_device_id == dst_id) or (l.src_device_id == dst_id and l.dst_device_id == src_id)), None)
+        link = next((l for l in updated_topology.links if (l.src_device == src_id and l.dst_device == dst_id) or (l.src_device == dst_id and l.dst_device == src_id)), None)
     else:
         raise HTTPException(status_code=400, detail="Provide link_id OR (src_id and dst_id)")
         
     save_new_state(db, updated_topology, f"Set link {target} status to {status}", "LinkStatus", target)
-    return {"success": True, "status": "success", "message": f"Link {target} is now {status}", "data": link}
+    
+    # 构造返回数据
+    link_data = None
+    if link:
+        link_data = link.dict()
+        # Ensure src_device and dst_device are present (they are fields now)
+        # No need to map manually anymore as model has correct field names
+
+    return {"success": True, "status": "success", "message": f"Link {target} is now {status}", "data": link_data}
 
 # --- 4. 接口状态管理 ---
 @router.post("/interface/status")
@@ -136,43 +146,66 @@ async def assign_vlan(
     save_new_state(db, updated_topology, f"Assigned VLAN {vlan_id} to {device_id} port {port}", "VLAN_Assign", f"{device_id}:{port}")
     
     device = next((d for d in updated_topology.devices if d.id == device_id), None)
-    return {"success": True, "status": "success", "message": f"VLAN {vlan_id} assigned to {device_id} port {port}", "data": device}
+    # 使用 by_alias=True 确保返回 deviceType 而不是 device_type
+    return {"success": True, "status": "success", "message": f"VLAN {vlan_id} assigned to {device_id} port {port}", "data": device.model_dump(by_alias=True) if device else None}
+
+@router.post("/vlan/remove")
+async def remove_vlan(
+    device_id: str = Body(...),
+    port: str = Body(...),
+    service: SimulationService = Depends(get_simulation_service),
+    db: Session = Depends(get_db)
+):
+    updated_topology = service.remove_vlan(device_id, port)
+    save_new_state(db, updated_topology, f"Removed VLAN from {device_id} port {port}", "VLAN_Remove", f"{device_id}:{port}")
+    
+    device = next((d for d in updated_topology.devices if d.id == device_id), None)
+    return {"success": True, "status": "success", "message": f"VLAN removed from {device_id} port {port}", "data": device.model_dump(by_alias=True) if device else None}
+
+
 
 # --- 6. OSPF 操作 ---
 @router.post("/ospf/config")
 async def update_ospf_config(
-    device_id: str = Body(...),
-    area: int = Body(...),
+    body: OSPFConfigBody,
     service: SimulationService = Depends(get_simulation_service),
     db: Session = Depends(get_db)
 ):
-    updated_topology = service.update_ospf_config(device_id, area)
-    save_new_state(db, updated_topology, f"Updated OSPF Area to {area} for {device_id}", "OSPF_Config", device_id)
+    device_id = body.device_id
+    area = body.area
+    router_id = body.router_id
+
+    updated_topology = service.update_ospf_config(device_id, area, router_id)
+    msg = f"Updated OSPF Area to {area}"
+    if router_id:
+        msg += f", Router ID to {router_id}"
+    msg += f" for {device_id}"
+
+    save_new_state(db, updated_topology, msg, "OSPF_Config", device_id)
     
     device = next((d for d in updated_topology.devices if d.id == device_id), None)
-    return {"success": True, "status": "success", "message": f"OSPF config updated for {device_id}", "data": device}
+    return {"success": True, "status": "success", "message": f"OSPF config updated for {device_id}", "data": device.model_dump(by_alias=True) if device else None}
 
 @router.post("/ospf/reset")
 async def reset_ospf_process(
-    device_id: str = Body(..., embed=True), # Expect {"device_id": "..."}
+    body: OSPFResetBody,
     service: SimulationService = Depends(get_simulation_service),
     db: Session = Depends(get_db)
 ):
-    # Notice: frontend sends {device_id} or just url param?
-    # Frontend: fetch(`${API_BASE}/network/devices/${deviceId}/ospf/reset`, method: POST)
-    # But I am changing frontend to call /ops/ospf/reset with body {device_id: ...}
+    device_id = body.device_id
     
     updated_topology = service.reset_ospf(device_id)
     save_new_state(db, updated_topology, f"Reset OSPF process on {device_id}", "OSPF_Reset", device_id)
     
-    return {"success": True, "status": "success", "message": f"OSPF process reset for {device_id}"}
+    device = next((d for d in updated_topology.devices if d.id == device_id), None)
+    return {"success": True, "status": "success", "message": f"OSPF process reset for {device_id}", "data": device.model_dump(by_alias=True) if device else None}
 
 @router.post("/ospf/neighbors")
 async def get_ospf_neighbors(
-    device_id: str = Body(..., embed=True),
+    body: OSPFNeighborsBody,
     service: SimulationService = Depends(get_simulation_service)
 ):
-    neighbors = service.get_ospf_neighbors(device_id)
+    neighbors = service.get_ospf_neighbors(body.device_id)
     return {"success": True, "status": "success", "data": neighbors}
 
 # --- 7. DDoS 模拟 ---

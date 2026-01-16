@@ -261,6 +261,7 @@ const DevicePanel = ({ device, onClose }) => {
                       <tr className="border-b border-slate-700/50 text-xs text-slate-400 uppercase bg-slate-800/50">
                         <th className="p-3 font-semibold">名称</th>
                         <th className="p-3 font-semibold">IP 地址</th>
+                        <th className="p-3 font-semibold">VLAN</th>
                         <th className="p-3 font-semibold">状态</th>
                       </tr>
                     </thead>
@@ -269,6 +270,13 @@ const DevicePanel = ({ device, onClose }) => {
                           <tr key={idx} className="hover:bg-slate-700/20 transition-colors">
                             <td className="p-3 text-sm font-medium text-slate-200 font-mono">{it.name}</td>
                             <td className="p-3 text-sm font-mono text-slate-400">{it.ip || it.ip_address || '-'}</td>
+                            <td className="p-3 text-sm font-mono text-slate-400">
+                                {it.vlan ? (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                                        {it.vlan}
+                                    </span>
+                                ) : '-'}
+                            </td>
                             <td className="p-3">
                               <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase ${
                                 (it.status === 'up' || !it.status) 

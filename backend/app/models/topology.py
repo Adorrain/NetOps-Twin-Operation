@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 from typing import List, Optional, Any, Dict
 
 class Device(BaseModel):
@@ -8,6 +8,7 @@ class Device(BaseModel):
     device_type: str = Field(..., description="Device type like router, switch, etc.")
     mgmt_ip: Optional[str] = Field(None, description="Management IP address")
     status: str = "up"
+    configuration: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Device configuration including OSPF, etc.")
     
     class Config:
         populate_by_name = True
@@ -15,12 +16,23 @@ class Device(BaseModel):
 
 class Link(BaseModel):
     id: str
-    # Use validation_alias so we can read 'src_device' from YAML, but output 'src_device_id' to JSON
-    src_device_id: str = Field(validation_alias="src_device")
-    dst_device_id: str = Field(validation_alias="dst_device")
+    src_device: str 
+    dst_device: str 
+    src_interface: Optional[str] = None
+    dst_interface: Optional[str] = None
     status: str = "up"
     bandwidth: Optional[str] = None
     
+    @computed_field
+    @property
+    def src_device_id(self) -> str:
+        return self.src_device
+
+    @computed_field
+    @property
+    def dst_device_id(self) -> str:
+        return self.dst_device
+
     class Config:
         populate_by_name = True
         extra = "allow"
