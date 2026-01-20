@@ -3,6 +3,7 @@ import { useAppStore } from '../../stores';
 import { DeviceStatus } from '../../types';
 import SparkLine from './charts/SparkLine';
 import { Activity, Server, Zap, AlertTriangle, CheckCircle } from 'lucide-react';
+import { isLinkActive, getAllVlans, getEndpointAccessVlan } from '../../utils/net';
 
 const StatCard = ({ title, value, subValue, icon, color, data, footer }) => {
   const Icon = icon;
@@ -46,7 +47,16 @@ const MonitoringPanel = () => {
   // 修复：同时支持 'links' (后端标准) 和 'connections' (旧版/前端)
   const connections = useMemo(() => networkTopology?.links || networkTopology?.connections || [], [networkTopology]);
 
-  // 移除未使用的 connectionCounts 逻辑
+  const normalizeStatus = (status) => {
+    const s = String(status || '').toLowerCase();
+    if (s === 'up' || s === 'active' || s === 'online') return DeviceStatus.ONLINE;
+    if (s === 'down' || s === 'offline') return DeviceStatus.OFFLINE;
+    if (s === 'warning') return DeviceStatus.WARNING;
+    if (s === 'error') return DeviceStatus.ERROR;
+    if (s === 'maintenance') return DeviceStatus.MAINTENANCE;
+    return DeviceStatus.ONLINE;
+  };
+
   const statusCounts = useMemo(() => {
     const counts = {
       [DeviceStatus.ONLINE]: 0,
@@ -56,7 +66,7 @@ const MonitoringPanel = () => {
     };
     
     devices.forEach(device => {
-      const status = deviceStatuses.get(device.id) || device.status || DeviceStatus.OFFLINE;
+      const status = normalizeStatus(deviceStatuses.get(device.id) || device.status || DeviceStatus.OFFLINE);
       if (counts[status] !== undefined) {
         counts[status]++;
       }
@@ -69,7 +79,7 @@ const MonitoringPanel = () => {
     if (devices.length === 0) return 100;
     const totalScore = devices.reduce((acc, device) => {
         // 如果未定义则回退到 'online'，假设系统默认正常，除非另有说明
-        const status = deviceStatuses.get(device.id) || device.status || DeviceStatus.ONLINE;
+        const status = normalizeStatus(deviceStatuses.get(device.id) || device.status || DeviceStatus.ONLINE);
         if (status === DeviceStatus.ONLINE) return acc + 100;
         if (status === DeviceStatus.WARNING) return acc + 70;
         if (status === DeviceStatus.ERROR) return acc + 40;
@@ -78,23 +88,6 @@ const MonitoringPanel = () => {
     }, 0);
     return Math.round(totalScore / devices.length);
   }, [devices, deviceStatuses]);
-
-  // 安全提取 VLAN 的辅助函数
-  const getDeviceVlans = (device) => {
-    const vlans = new Set();
-    // 1. 单个 VLAN 属性 (例如 PC)
-    if (device.vlan) vlans.add(Number(device.vlan));
-    
-    // 2. VLANs 数组 (例如交换机)
-    const list = device.vlans || device.configuration?.vlans;
-    if (Array.isArray(list)) {
-      list.forEach(v => {
-        if (typeof v === 'number') vlans.add(v);
-        else if (typeof v === 'object' && v.vlan_id) vlans.add(Number(v.vlan_id));
-      });
-    }
-    return Array.from(vlans);
-  };
 
   // 安全提取 OSPF 区域的辅助函数
   const getOspfArea = (device) => {
@@ -146,7 +139,8 @@ const MonitoringPanel = () => {
         <StatCard 
           title="活跃链路" 
           // value={connectionCounts[ConnectionStatus.ACTIVE] + 1} 
-          value={connections.length}
+          value={connections.filter(c => isLinkActive(c.status)).length}
+          subValue={`/ ${connections.length}`}
           icon={Zap} 
           color="purple" 
           footer={
@@ -218,7 +212,7 @@ const MonitoringPanel = () => {
              {(() => {
                 const allVlans = new Set();
                 devices.forEach(d => {
-                    getDeviceVlans(d).forEach(v => allVlans.add(v));
+                    getAllVlans(d).forEach(v => allVlans.add(v));
                 });
                 const sortedVlans = Array.from(allVlans).sort((a,b) => a-b).slice(0, 10);
                 
@@ -231,7 +225,7 @@ const MonitoringPanel = () => {
                 }
 
                 return sortedVlans.map(vlanId => {
-                   const count = devices.filter(d => getDeviceVlans(d).includes(vlanId)).length;
+                   const count = devices.filter(d => getEndpointAccessVlan(d) === vlanId).length;
                    return (
                        <div key={vlanId} className="bg-slate-900/40 border border-slate-700/50 rounded-xl p-3 flex justify-between items-center hover:bg-slate-800/60 transition-colors">
                          <div className="flex items-center gap-2">

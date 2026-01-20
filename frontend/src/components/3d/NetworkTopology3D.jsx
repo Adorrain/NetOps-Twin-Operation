@@ -3,6 +3,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Grid, Text, Cone, RoundedBox, Line, Html, Environment, Float } from '@react-three/drei';
 import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 import * as THREE from 'three';
+import { getDisplayVlanId } from '../../utils/net';
 
 /**
  * ===========================
@@ -212,21 +213,7 @@ function DeviceMesh({ device, onClick }) {
   // ---------------------------
   // VLAN 颜色逻辑 (新特性)
   // ---------------------------
-  const getVlanId = (d) => {
-    // 1. 直接属性 (PC, Server, etc.)
-    if (d.vlan) return d.vlan;
-    // 2. 列表属性 (Switch) - 尝试提取主 VLAN (通常接入层只有一个主要 VLAN)
-    if (Array.isArray(d.vlans) && d.vlans.length > 0) {
-      const first = d.vlans[0];
-      // 处理对象结构 {vlan_id: 10, name: '...'}
-      if (typeof first === 'object' && first.vlan_id) return first.vlan_id;
-      // 处理简单数组 [10, 20]
-      if (typeof first === 'number' || typeof first === 'string') return first;
-    }
-    return null;
-  };
-
-  const vlanId = getVlanId(device);
+  const vlanId = getDisplayVlanId(device);
   
   // 预定义一组高辨识度的 VLAN 霓虹色
   const vlanPalette = [
@@ -443,6 +430,10 @@ function FlowParticles({ link, devices }) {
 
 function Scene({ topology, onDeviceClick }) {
   const safe = normalizeTopology(topology);
+  const isLinkActive = (status) => {
+    const s = String(status || '').toLowerCase();
+    return s === 'up' || s === 'active';
+  };
   return (
     <>
       <Grid
@@ -458,7 +449,7 @@ function Scene({ topology, onDeviceClick }) {
       {safe.devices.map((device) => (
         <DeviceMesh key={device.id} device={device} onClick={() => onDeviceClick && onDeviceClick(device)} />
       ))}
-      {safe.links.map((link) => (
+      {safe.links.filter(l => isLinkActive(l.status)).map((link) => (
         <React.Fragment key={link.id}>
             <LinkLine link={link} devices={safe.devices} />
             <FlowParticles link={link} devices={safe.devices} />

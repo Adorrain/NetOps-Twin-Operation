@@ -10,7 +10,7 @@ import { useAppStore } from './stores';
 
 // Create a wrapper component to handle the "active panel" logic sync with store
 const AppContent = () => {
-  const { networkTopology, selectedDevice, setSelectedDevice, setNetworkTopology, updateUI } = useAppStore();
+  const { networkTopology, selectedDeviceId, setSelectedDevice, setNetworkTopology, updateUI } = useAppStore();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -41,7 +41,7 @@ const AppContent = () => {
                <NetworkTopology3D 
                  key={networkTopology.id || 'default-topo'}
                  topology={networkTopology} 
-                 onDeviceClick={(device) => setSelectedDevice(device)}
+                 onDeviceClick={(device) => setSelectedDevice(device?.id)}
                />
              )}
              
@@ -71,11 +71,11 @@ const AppContent = () => {
           </div>
 
           {/* Device Details Modal */}
-          {selectedDevice && (
+          {selectedDeviceId && (
              <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-10 animate-fade-in" onClick={() => setSelectedDevice(null)}>
                 <div className="w-[800px] max-h-[80vh] overflow-auto rounded-2xl shadow-2xl animate-float relative border border-slate-700/50 bg-slate-900/90" onClick={e => e.stopPropagation()}>
                    <DevicePanel 
-                      device={typeof selectedDevice === 'string' ? networkTopology?.devices.find(d => d.id === selectedDevice) : selectedDevice} 
+                      device={networkTopology?.devices.find(d => d.id === selectedDeviceId)} 
                       onClose={() => setSelectedDevice(null)} 
                    />
                 </div>

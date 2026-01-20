@@ -1,9 +1,7 @@
 from fastapi import APIRouter, HTTPException, Body, Depends
-from typing import Dict, Any, List, Optional
+from typing import Any, List, Optional
 from sqlalchemy.orm import Session
 from datetime import datetime
-import json
-from pydantic import BaseModel, Field
 
 from app.database import get_db
 from app.models.db_models import TopologySnapshot, OperationLog
@@ -13,18 +11,12 @@ from app.services.simulation_service import SimulationService
 
 router = APIRouter()
 
-# --- 依赖注入：获取最新的仿真状态 ---
 def get_simulation_service(db: Session = Depends(get_db)):
-    """
-    从数据库加载最新的拓扑快照，构建仿真服务
-    """
     latest_snapshot = db.query(TopologySnapshot).order_by(TopologySnapshot.created_at.desc()).first()
     
     if not latest_snapshot:
-        # Fallback: 如果没有快照，尝试加载默认配置 (这里简化处理，直接抛错提示上传)
         raise HTTPException(status_code=404, detail="No topology snapshot found. Please upload a config first.")
     
-    # 将 JSON 数据转换为 Pydantic 模型
     try:
         topology_data = TopologyData(**latest_snapshot.data)
     except Exception as e:
@@ -32,18 +24,22 @@ def get_simulation_service(db: Session = Depends(get_db)):
          
     return SimulationService(topology_data)
 
-# --- 辅助函数：保存新状态 ---
-def save_new_state(db: Session, topology_data: TopologyData, description: str, op_type: str, target: str = None):
-    # 1. 保存快照
+def _dump(obj, by_alias: bool = False):
+    if obj is None:
+        return None
+    if hasattr(obj, "model_dump"):
+        return obj.model_dump(by_alias=by_alias)
+    return obj.dict()
+
+def save_new_state(db: Session, topology_data: TopologyData, description: str, op_type: str, target: Optional[str] = None):
     snapshot = TopologySnapshot(
         name=f"Auto-Save: {op_type}",
         description=description,
-        data=topology_data.dict(),
+        data=_dump(topology_data),
         created_at=datetime.now()
     )
     db.add(snapshot)
     
-    # 2. 记录操作日志
     log = OperationLog(
         operation_type=op_type,
         target_id=target,
@@ -109,12 +105,9 @@ async def update_link_status(
         
     save_new_state(db, updated_topology, f"Set link {target} status to {status}", "LinkStatus", target)
     
-    # 构造返回数据
     link_data = None
     if link:
         link_data = link.dict()
-        # Ensure src_device and dst_device are present (they are fields now)
-        # No need to map manually anymore as model has correct field names
 
     return {"success": True, "status": "success", "message": f"Link {target} is now {status}", "data": link_data}
 
@@ -142,12 +135,14 @@ async def assign_vlan(
     service: SimulationService = Depends(get_simulation_service),
     db: Session = Depends(get_db)
 ):
-    updated_topology = service.assign_vlan(device_id, port, vlan_id)
+    try:
+        updated_topology = service.assign_vlan(device_id, port, vlan_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     save_new_state(db, updated_topology, f"Assigned VLAN {vlan_id} to {device_id} port {port}", "VLAN_Assign", f"{device_id}:{port}")
     
     device = next((d for d in updated_topology.devices if d.id == device_id), None)
-    # 使用 by_alias=True 确保返回 deviceType 而不是 device_type
-    return {"success": True, "status": "success", "message": f"VLAN {vlan_id} assigned to {device_id} port {port}", "data": device.model_dump(by_alias=True) if device else None}
+    return {"success": True, "status": "success", "message": f"VLAN {vlan_id} assigned to {device_id} port {port}", "data": _dump(device, by_alias=True)}
 
 @router.post("/vlan/remove")
 async def remove_vlan(
@@ -156,11 +151,32 @@ async def remove_vlan(
     service: SimulationService = Depends(get_simulation_service),
     db: Session = Depends(get_db)
 ):
-    updated_topology = service.remove_vlan(device_id, port)
+    try:
+        updated_topology = service.remove_vlan(device_id, port)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     save_new_state(db, updated_topology, f"Removed VLAN from {device_id} port {port}", "VLAN_Remove", f"{device_id}:{port}")
     
     device = next((d for d in updated_topology.devices if d.id == device_id), None)
-    return {"success": True, "status": "success", "message": f"VLAN removed from {device_id} port {port}", "data": device.model_dump(by_alias=True) if device else None}
+    return {"success": True, "status": "success", "message": f"VLAN removed from {device_id} port {port}", "data": _dump(device, by_alias=True)}
+
+@router.post("/vlan/configure")
+async def configure_vlan(
+    device_id: str = Body(...),
+    port: str = Body(...),
+    mode: str = Body(...),
+    vlan_id: Optional[int] = Body(None),
+    allowed_vlans: Optional[List[int]] = Body(None),
+    service: SimulationService = Depends(get_simulation_service),
+    db: Session = Depends(get_db)
+):
+    try:
+        updated_topology = service.configure_vlan(device_id, port, mode, vlan_id, allowed_vlans)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    save_new_state(db, updated_topology, f"Configured VLAN on {device_id} port {port}: mode={mode}", "VLAN_Configure", f"{device_id}:{port}")
+    device = next((d for d in updated_topology.devices if d.id == device_id), None)
+    return {"success": True, "status": "success", "message": f"VLAN configured on {device_id} port {port}", "data": _dump(device, by_alias=True)}
 
 
 
@@ -184,7 +200,7 @@ async def update_ospf_config(
     save_new_state(db, updated_topology, msg, "OSPF_Config", device_id)
     
     device = next((d for d in updated_topology.devices if d.id == device_id), None)
-    return {"success": True, "status": "success", "message": f"OSPF config updated for {device_id}", "data": device.model_dump(by_alias=True) if device else None}
+    return {"success": True, "status": "success", "message": f"OSPF config updated for {device_id}", "data": _dump(device, by_alias=True)}
 
 @router.post("/ospf/reset")
 async def reset_ospf_process(
@@ -198,7 +214,7 @@ async def reset_ospf_process(
     save_new_state(db, updated_topology, f"Reset OSPF process on {device_id}", "OSPF_Reset", device_id)
     
     device = next((d for d in updated_topology.devices if d.id == device_id), None)
-    return {"success": True, "status": "success", "message": f"OSPF process reset for {device_id}", "data": device.model_dump(by_alias=True) if device else None}
+    return {"success": True, "status": "success", "message": f"OSPF process reset for {device_id}", "data": _dump(device, by_alias=True)}
 
 @router.post("/ospf/neighbors")
 async def get_ospf_neighbors(

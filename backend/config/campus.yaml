@@ -52,8 +52,10 @@ devices:
         status: up
       - name: g1/1
         status: up
+        mode: trunk
       - name: g1/2
         status: up
+        mode: trunk
 
   # =========================
   # 接入层设备
@@ -70,12 +72,19 @@ devices:
     interfaces:
       - name: g1/0
         status: up
+        mode: trunk
       - name: g1/1
         status: up
+        mode: access
+        vlan: 10
       - name: g1/2
         status: up
+        mode: access
+        vlan: 10
       - name: g1/3 # 补上，用于连接 pc-3
         status: up
+        mode: access
+        vlan: 10
 
   - id: access-2
     name: 接入交换机-办公楼
@@ -89,8 +98,11 @@ devices:
     interfaces:
       - name: g1/0
         status: up
+        mode: trunk
       - name: g1/1
         status: up
+        mode: access
+        vlan: 20
       - name: g1/2
         status: up
 
@@ -105,6 +117,12 @@ devices:
     gateway: 192.168.10.1
     vlan: 10
     status: up
+    interfaces:
+      - name: eth0
+        ip: 192.168.10.10/24
+        status: up
+        vlan: 10
+        mode: access
 
   - id: pc-2
     name: 教学PC-2
@@ -114,6 +132,12 @@ devices:
     gateway: 192.168.10.1
     vlan: 10
     status: up
+    interfaces:
+      - name: eth0
+        ip: 192.168.10.11/24
+        status: up
+        vlan: 10
+        mode: access
 
   - id: pc-3
     name: 教学PC-3
@@ -123,6 +147,12 @@ devices:
     gateway: 192.168.10.1
     vlan: 10
     status: up
+    interfaces:
+      - name: eth0
+        ip: 192.168.10.12/24
+        status: up
+        vlan: 10
+        mode: access
 
   # =========================
   # 服务器（办公网）
@@ -135,6 +165,12 @@ devices:
     gateway: 192.168.20.1
     vlan: 20
     status: up
+    interfaces:
+      - name: eth0
+        ip: 192.168.20.10/24
+        status: up
+        vlan: 20
+        mode: access
 
 # =========================
 # 链路定义（拓扑关系）

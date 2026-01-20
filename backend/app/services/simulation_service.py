@@ -1,4 +1,5 @@
 import networkx as nx
+import random
 import time
 from typing import List, Dict, Any, Optional
 from app.models.topology import TopologyData, Device, Link
@@ -6,26 +7,76 @@ from app.models.topology import TopologyData, Device, Link
 class SimulationService:
     def __init__(self, topology_data: TopologyData):
         self.topology = topology_data
+        self._rebuild_runtime()
+
+    def _extra(self, obj) -> Dict[str, Any]:
+        extra = getattr(obj, 'model_extra', None)
+        return extra if isinstance(extra, dict) else {}
+
+    def _get_field(self, obj, key: str, default=None):
+        try:
+            value = getattr(obj, key, None)
+        except Exception:
+            value = None
+        if value is None:
+            value = self._extra(obj).get(key)
+        return default if value is None else value
+
+    def _set_field(self, obj, key: str, value):
+        try:
+            setattr(obj, key, value)
+        except Exception:
+            pass
+        extra = self._extra(obj)
+        if extra:
+            extra[key] = value
+            try:
+                obj.model_extra = extra
+            except Exception:
+                pass
+
+    def _rebuild_runtime(self):
         self.device_map = {d.id: d for d in self.topology.devices}
         self.graph = self._build_graph()
         self.ip_map = self._build_ip_map()
 
     def _get_device_interfaces(self, device: Device) -> List[Any]:
-        """Helper to safely get interfaces list"""
-        interfaces = getattr(device, 'interfaces', None)
-        if interfaces is None and hasattr(device, 'model_extra') and device.model_extra:
-            interfaces = device.model_extra.get('interfaces')
-        return interfaces or []
+        interfaces = self._get_field(device, 'interfaces')
+        return interfaces if isinstance(interfaces, list) else []
 
     def _save_device_interfaces(self, device: Device, interfaces: List[Any]):
-        """Helper to safely save interfaces list"""
-        if hasattr(device, 'interfaces'):
-             setattr(device, 'interfaces', interfaces)
-        
-        if hasattr(device, 'model_extra') and isinstance(device.model_extra, dict):
-            device.model_extra['interfaces'] = interfaces
-            
-        setattr(device, 'interfaces', interfaces)
+        self._set_field(device, 'interfaces', interfaces)
+
+    def _get_configuration(self, device: Device) -> Dict[str, Any]:
+        cfg = self._get_field(device, 'configuration')
+        return cfg if isinstance(cfg, dict) else {}
+
+    def _set_configuration(self, device: Device, cfg: Dict[str, Any]):
+        self._set_field(device, 'configuration', cfg)
+
+    def _get_ospf(self, device: Device) -> Dict[str, Any]:
+        cfg = self._get_configuration(device)
+        ospf = cfg.get('ospf')
+        if not isinstance(ospf, dict) or len(ospf) == 0:
+            extra = self._extra(device)
+            extra_cfg = extra.get('configuration')
+            if isinstance(extra_cfg, dict) and isinstance(extra_cfg.get('ospf'), dict):
+                ospf = extra_cfg.get('ospf')
+            else:
+                ospf = extra.get('ospf')
+        if not isinstance(ospf, dict):
+            ospf = {}
+        if 'routerId' not in ospf and 'router_id' in ospf:
+            ospf['routerId'] = ospf.get('router_id')
+        if 'router_id' not in ospf and 'routerId' in ospf:
+            ospf['router_id'] = ospf.get('routerId')
+        return ospf
+
+    def _sync_ospf(self, device: Device, ospf: Dict[str, Any]):
+        cfg = self._get_configuration(device)
+        cfg['ospf'] = ospf
+        self._set_configuration(device, cfg)
+        self._set_field(device, 'ospf', ospf)
 
     def _build_graph(self) -> nx.Graph:
         """
@@ -38,7 +89,7 @@ class SimulationService:
         
         # 添加节点 (设备)
         for device in self.topology.devices:
-            if device.status == 'up':
+            if str(getattr(device, 'status', 'up')).lower() not in ('down', 'offline'):
                 G.add_node(device.id, **device.dict())
 
         # 添加边 (链路)
@@ -72,10 +123,24 @@ class SimulationService:
             
             src_vlan = src_vlan_info.get('vlan', 1)
             dst_vlan = dst_vlan_info.get('vlan', 1)
+            src_allowed = src_vlan_info.get('allowed_vlans')
+            dst_allowed = dst_vlan_info.get('allowed_vlans')
 
-            # 优化逻辑：如果任意一端是 Trunk，默认允许通过（除非未来做更细的 allowed vlan 检查）
-            if src_mode == 'trunk' or dst_mode == 'trunk':
-                is_connected = True
+            if src_mode == 'trunk' and dst_mode == 'trunk':
+                if isinstance(src_allowed, list) and isinstance(dst_allowed, list):
+                    is_connected = len(set(map(int, src_allowed)).intersection(set(map(int, dst_allowed)))) > 0
+                else:
+                    is_connected = True
+            elif src_mode == 'trunk' and dst_mode != 'trunk':
+                if isinstance(src_allowed, list):
+                    is_connected = int(dst_vlan) in set(map(int, src_allowed))
+                else:
+                    is_connected = True
+            elif dst_mode == 'trunk' and src_mode != 'trunk':
+                if isinstance(dst_allowed, list):
+                    is_connected = int(src_vlan) in set(map(int, dst_allowed))
+                else:
+                    is_connected = True
             else:
                 # 都是 Access，必须 VLAN ID 一致
                 if str(src_vlan) == str(dst_vlan):
@@ -96,11 +161,11 @@ class SimulationService:
     def _get_interface_vlan_info(self, device_id: str, port_name: str) -> Dict[str, Any]:
         """获取接口的 VLAN 详细信息"""
         if not port_name:
-            return {'vlan': 1, 'mode': 'access'}
+            return {'vlan': 1, 'mode': 'access', 'allowed_vlans': None}
             
         device = self.device_map.get(device_id)
         if not device:
-            return {'vlan': 1, 'mode': 'access'}
+            return {'vlan': 1, 'mode': 'access', 'allowed_vlans': None}
             
         interfaces = self._get_device_interfaces(device)
         
@@ -109,15 +174,17 @@ class SimulationService:
                 name = iface.get('name')
                 vlan = iface.get('vlan', 1)
                 mode = iface.get('mode', 'access')
+                allowed_vlans = iface.get('allowed_vlans')
             else:
                 name = getattr(iface, 'name', None)
                 vlan = getattr(iface, 'vlan', 1)
                 mode = getattr(iface, 'mode', 'access')
+                allowed_vlans = getattr(iface, 'allowed_vlans', None)
                 
             if name == port_name:
-                return {'vlan': vlan, 'mode': mode}
+                return {'vlan': vlan, 'mode': mode, 'allowed_vlans': allowed_vlans}
         
-        return {'vlan': 1, 'mode': 'access'}
+        return {'vlan': 1, 'mode': 'access', 'allowed_vlans': None}
 
     def _is_interface_up(self, device_id: str, port_name: str) -> bool:
         """检查接口状态"""
@@ -168,7 +235,12 @@ class SimulationService:
 
         try:
             path = nx.shortest_path(self.graph, source=src_device_id, target=dst_device_id)
-            import random
+            src_vlan = self._get_endpoint_access_vlan(src_device_id)
+            dst_vlan = self._get_endpoint_access_vlan(dst_device_id)
+            if src_vlan is not None and dst_vlan is not None and int(src_vlan) != int(dst_vlan):
+                if not self._path_has_l3_gateway(path):
+                    return {"success": False, "message": f"VLAN {src_vlan} -> VLAN {dst_vlan} requires L3 gateway/routing", "rtt": None, "path": path}
+
             hops = len(path) - 1
             base_rtt = 2 + hops * 1 + random.uniform(0, 2)
             return {
@@ -190,6 +262,12 @@ class SimulationService:
 
         try:
             path = nx.dijkstra_path(self.graph, source=src_device_id, target=dst_device_id)
+            src_vlan = self._get_endpoint_access_vlan(src_device_id)
+            dst_vlan = self._get_endpoint_access_vlan(dst_device_id)
+            if src_vlan is not None and dst_vlan is not None and int(src_vlan) != int(dst_vlan):
+                if not self._path_has_l3_gateway(path):
+                    return {"success": False, "hops": [], "message": f"VLAN {src_vlan} -> VLAN {dst_vlan} requires L3 gateway/routing", "path": path}
+
             hops_data = []
             for i, node_id in enumerate(path):
                 device = self.device_map.get(node_id)
@@ -205,11 +283,66 @@ class SimulationService:
         except nx.NetworkXNoPath:
             return {"success": False, "hops": [], "message": "Destination unreachable"}
 
+    def _get_endpoint_access_vlan(self, device_id: str) -> Optional[int]:
+        device = self.device_map.get(device_id)
+        if not device:
+            return None
+
+        direct = getattr(device, 'vlan', None)
+        if direct is None and hasattr(device, 'model_extra') and isinstance(device.model_extra, dict):
+            direct = device.model_extra.get('vlan')
+        if direct is not None:
+            try:
+                return int(direct)
+            except Exception:
+                return None
+
+        interfaces = self._get_device_interfaces(device)
+        for iface in interfaces:
+            if isinstance(iface, dict):
+                mode = str(iface.get('mode') or 'access').lower()
+                if mode == 'trunk':
+                    continue
+                vlan = iface.get('vlan')
+            else:
+                mode = str(getattr(iface, 'mode', 'access') or 'access').lower()
+                if mode == 'trunk':
+                    continue
+                vlan = getattr(iface, 'vlan', None)
+            if vlan is None:
+                continue
+            try:
+                return int(vlan)
+            except Exception:
+                continue
+        return None
+
+    def _path_has_l3_gateway(self, path: List[str]) -> bool:
+        for node_id in path[1:-1]:
+            dev = self.device_map.get(node_id)
+            if not dev:
+                continue
+            dev_type = str(getattr(dev, 'device_type', '') or '').lower()
+            if dev_type == 'router':
+                return True
+
+            ospf = self._get_ospf(dev)
+            if len(ospf) > 0:
+                last_reset = ospf.get('last_reset_time', 0) or 0
+                try:
+                    if time.time() - float(last_reset) < 2:
+                        continue
+                except Exception:
+                    pass
+                return True
+        return False
+
     def update_device_status(self, device_id: str, status: str) -> TopologyData:
         for d in self.topology.devices:
             if d.id == device_id:
                 d.status = status
                 break
+        self._rebuild_runtime()
         return self.topology
 
     def update_link_status(self, link_id: str, status: str) -> TopologyData:
@@ -217,6 +350,7 @@ class SimulationService:
             if l.id == link_id:
                 l.status = status
                 break
+        self._rebuild_runtime()
         return self.topology
         
     def find_and_update_link(self, src_id: str, dst_id: str, status: str) -> TopologyData:
@@ -224,6 +358,7 @@ class SimulationService:
             if (l.src_device == src_id and l.dst_device == dst_id) or \
                (l.src_device == dst_id and l.dst_device == src_id):
                 l.status = status
+        self._rebuild_runtime()
         return self.topology
 
     def update_interface_status(self, device_id: str, iface_name: str, status: str) -> TopologyData:
@@ -238,9 +373,12 @@ class SimulationService:
                         break
                 self._save_device_interfaces(d, interfaces)
                 break
+        self._rebuild_runtime()
         return self.topology
 
     def assign_vlan(self, device_id: str, port: str, vlan_id: int) -> TopologyData:
+        if vlan_id < 1 or vlan_id > 4094:
+            raise ValueError("vlan_id must be between 1 and 4094")
         for d in self.topology.devices:
             if d.id == device_id:
                 # 1. Update Interface
@@ -253,75 +391,167 @@ class SimulationService:
                         if isinstance(iface, dict):
                             iface['vlan'] = vlan_id
                             iface['mode'] = 'access' # Force Access when assigning specific ID
+                            iface.pop('allowed_vlans', None)
                         else:
                             iface.vlan = vlan_id
                             iface.mode = 'access'
+                            if hasattr(iface, 'allowed_vlans'):
+                                delattr(iface, 'allowed_vlans')
                 self._save_device_interfaces(d, interfaces)
+                if not port_found:
+                    raise ValueError(f"Port {port} not found on device {device_id}")
                 
                 # 2. Update Device Global VLANs
                 current_vlans = getattr(d, 'vlans', None)
                 if current_vlans is None and hasattr(d, 'model_extra') and d.model_extra:
                     current_vlans = d.model_extra.get('vlans')
-                if not isinstance(current_vlans, list): current_vlans = []
+                if not isinstance(current_vlans, list):
+                    current_vlans = []
 
                 if not any(v.get('vlan_id') == vlan_id for v in current_vlans if isinstance(v, dict)):
                      current_vlans.append({'vlan_id': vlan_id, 'name': f'VLAN{vlan_id}'})
                      
-                setattr(d, 'vlans', current_vlans)
+                try:
+                    d.vlans = current_vlans  # type: ignore[attr-defined]
+                except Exception:
+                    setattr(d, 'vlans', current_vlans)
                 if hasattr(d, 'model_extra') and isinstance(d.model_extra, dict):
                     d.model_extra['vlans'] = current_vlans
                 break
+        self._rebuild_runtime()
         return self.topology
 
     def remove_vlan(self, device_id: str, port: str) -> TopologyData:
         for d in self.topology.devices:
             if d.id == device_id:
                 interfaces = self._get_device_interfaces(d)
+                port_found = False
+                removed_vlan: Optional[int] = None
                 for iface in interfaces:
                     name = iface.get('name') if isinstance(iface, dict) else getattr(iface, 'name', '')
                     if name == port:
+                        port_found = True
                         if isinstance(iface, dict):
+                            removed_vlan = iface.get('vlan')
                             iface.pop('vlan', None)
                             iface['mode'] = 'access' # Revert to default access (vlan 1 implied)
+                            iface.pop('allowed_vlans', None)
                         else:
+                            removed_vlan = getattr(iface, 'vlan', None)
                             if hasattr(iface, 'vlan'): delattr(iface, 'vlan')
                             if hasattr(iface, 'mode'): iface.mode = 'access'
+                            if hasattr(iface, 'allowed_vlans'):
+                                delattr(iface, 'allowed_vlans')
                 self._save_device_interfaces(d, interfaces)
+                if not port_found:
+                    raise ValueError(f"Port {port} not found on device {device_id}")
+
+                if removed_vlan is not None:
+                    vlan_still_used = False
+                    for iface in interfaces:
+                        vlan = iface.get('vlan') if isinstance(iface, dict) else getattr(iface, 'vlan', None)
+                        if vlan == removed_vlan:
+                            vlan_still_used = True
+                            break
+
+                    if not vlan_still_used:
+                        current_vlans = getattr(d, 'vlans', None)
+                        if current_vlans is None and hasattr(d, 'model_extra') and d.model_extra:
+                            current_vlans = d.model_extra.get('vlans')
+                        if not isinstance(current_vlans, list):
+                            current_vlans = []
+
+                        current_vlans = [
+                            v for v in current_vlans
+                            if not (isinstance(v, dict) and v.get('vlan_id') == removed_vlan)
+                        ]
+                        try:
+                            d.vlans = current_vlans  # type: ignore[attr-defined]
+                        except Exception:
+                            setattr(d, 'vlans', current_vlans)
+                        if hasattr(d, 'model_extra') and isinstance(d.model_extra, dict):
+                            d.model_extra['vlans'] = current_vlans
                 break
+        self._rebuild_runtime()
+        return self.topology
+
+    def configure_vlan(self, device_id: str, port: str, mode: str, vlan_id: Optional[int] = None, allowed_vlans: Optional[List[int]] = None) -> TopologyData:
+        mode = str(mode or '').lower()
+        if mode not in ('access', 'trunk'):
+            raise ValueError("mode must be 'access' or 'trunk'")
+        if mode == 'access':
+            if vlan_id is None:
+                raise ValueError("vlan_id is required for access mode")
+            return self.assign_vlan(device_id, port, int(vlan_id))
+
+        for d in self.topology.devices:
+            if d.id == device_id:
+                interfaces = self._get_device_interfaces(d)
+                port_found = False
+                for iface in interfaces:
+                    name = iface.get('name') if isinstance(iface, dict) else getattr(iface, 'name', '')
+                    if name != port:
+                        continue
+                    port_found = True
+                    if isinstance(iface, dict):
+                        iface['mode'] = 'trunk'
+                        iface.pop('vlan', None)
+                        if allowed_vlans is not None:
+                            iface['allowed_vlans'] = [int(v) for v in allowed_vlans]
+                    else:
+                        iface.mode = 'trunk'
+                        if hasattr(iface, 'vlan'):
+                            delattr(iface, 'vlan')
+                        if allowed_vlans is not None:
+                            iface.allowed_vlans = [int(v) for v in allowed_vlans]
+                self._save_device_interfaces(d, interfaces)
+                if not port_found:
+                    raise ValueError(f"Port {port} not found on device {device_id}")
+                break
+        self._rebuild_runtime()
         return self.topology
 
     def update_ospf_config(self, device_id: str, area: int, router_id: Optional[str] = None) -> TopologyData:
         for d in self.topology.devices:
             if d.id == device_id:
-                config = d.configuration or {}
-                ospf = config.get('ospf', {})
-                if not isinstance(ospf, dict): ospf = {}
+                config = self._get_configuration(d)
+                ospf = config.get('ospf')
+                if not isinstance(ospf, dict):
+                    ospf = {}
                 
                 ospf['area'] = area
                 if router_id:
                     ospf['routerId'] = router_id
-                elif 'routerId' not in ospf:
-                     rid = d.mgmt_ip.split('/')[0] if d.mgmt_ip else "1.1.1.1"
-                     ospf['routerId'] = rid
+                    ospf['router_id'] = router_id
+                elif 'routerId' not in ospf and 'router_id' not in ospf:
+                    rid = d.mgmt_ip.split('/')[0] if d.mgmt_ip else "1.1.1.1"
+                    ospf['routerId'] = rid
+                    ospf['router_id'] = rid
+                elif 'routerId' not in ospf and 'router_id' in ospf:
+                    ospf['routerId'] = ospf.get('router_id')
+                elif 'router_id' not in ospf and 'routerId' in ospf:
+                    ospf['router_id'] = ospf.get('routerId')
 
-                config['ospf'] = ospf
-                d.configuration = config
+                self._sync_ospf(d, ospf)
                 
                 self.reset_ospf(device_id)
                 break
+        self._rebuild_runtime()
         return self.topology
 
     def reset_ospf(self, device_id: str) -> TopologyData:
         for d in self.topology.devices:
             if d.id == device_id:
-                config = d.configuration or {}
-                ospf = config.get('ospf', {})
-                if not isinstance(ospf, dict): ospf = {}
+                config = self._get_configuration(d)
+                ospf = config.get('ospf')
+                if not isinstance(ospf, dict):
+                    ospf = {}
                 
-                ospf['last_reset_time'] = time.time()
-                config['ospf'] = ospf
-                d.configuration = config
+                ts = time.time()
+                ospf['last_reset_time'] = ts
+                self._sync_ospf(d, ospf)
                 break
+        self._rebuild_runtime()
         return self.topology
 
     def get_ospf_neighbors(self, device_id: str) -> List[Dict[str, Any]]:
@@ -329,29 +559,28 @@ class SimulationService:
         src_dev = self.device_map.get(device_id)
         if not src_dev: return []
 
-        def get_ospf_data(d):
-            if d.configuration and isinstance(d.configuration.get('ospf'), dict):
-                return d.configuration['ospf']
-            if hasattr(d, 'model_extra') and d.model_extra:
-                if isinstance(d.model_extra.get('configuration'), dict):
-                     return d.model_extra['configuration'].get('ospf', {})
-                return d.model_extra.get('ospf', {})
-            return {}
-
-        src_ospf = get_ospf_data(src_dev)
+        src_ospf = self._get_ospf(src_dev)
         if not src_ospf: return []
             
         last_reset = src_ospf.get('last_reset_time', 0)
         time_since_reset = time.time() - last_reset
         
         if time_since_reset < 2: return []
+
+        def get_neighbor_interface(local_id: str, remote_id: str) -> str:
+            for link in self.topology.links:
+                if link.src_device == local_id and link.dst_device == remote_id:
+                    return getattr(link, 'src_interface', None) or link.dict().get('src_interface') or "Unknown"
+                if link.src_device == remote_id and link.dst_device == local_id:
+                    return getattr(link, 'dst_interface', None) or link.dict().get('dst_interface') or "Unknown"
+            return "Unknown"
             
         if device_id in self.graph:
             for neighbor_id in self.graph.neighbors(device_id):
                 dst_dev = self.device_map.get(neighbor_id)
                 if not dst_dev: continue
                 
-                dst_ospf = get_ospf_data(dst_dev)
+                dst_ospf = self._get_ospf(dst_dev)
                 if not dst_ospf: continue
                 
                 src_area = int(src_ospf.get('area', 0))
@@ -373,9 +602,9 @@ class SimulationService:
 
                 neighbors.append({
                     "neighbor_id": neighbor_id,
-                    "router_id": dst_ospf.get('routerId', '0.0.0.0'),
+                    "router_id": dst_ospf.get('routerId') or dst_ospf.get('router_id') or '0.0.0.0',
                     "address": dst_dev.mgmt_ip,
-                    "interface": "Unknown",
+                    "interface": get_neighbor_interface(device_id, neighbor_id),
                     "state": state,
                     "area": str(dst_area),
                     "details": details

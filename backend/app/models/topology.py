@@ -5,10 +5,15 @@ class Device(BaseModel):
     id: str
     name: str
     role: str
-    device_type: str = Field(..., description="Device type like router, switch, etc.")
+    device_type: str = Field(..., alias="deviceType", description="Device type like router, switch, etc.")
     mgmt_ip: Optional[str] = Field(None, description="Management IP address")
     status: str = "up"
     configuration: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Device configuration including OSPF, etc.")
+    interfaces: List[Dict[str, Any]] = Field(default_factory=list, description="Device interfaces")
+    vlans: List[Dict[str, Any]] = Field(default_factory=list, description="Device VLANs")
+    vlan: Optional[int] = Field(None, description="Single VLAN for end host devices")
+    ip: Optional[str] = Field(None, description="End-host IP address")
+    gateway: Optional[str] = Field(None, description="End-host gateway")
     
     class Config:
         populate_by_name = True

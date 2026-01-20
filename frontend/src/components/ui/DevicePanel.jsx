@@ -1,5 +1,6 @@
 import React from 'react';
 import { DeviceStatus } from '../../types';
+import { getAllVlans } from '../../utils/net';
 import { 
   Computer, 
   Router, 
@@ -54,6 +55,18 @@ const DevicePanel = ({ device, onClose }) => {
   };
   
   // 获取状态颜色类名
+  const normalizeStatus = (status) => {
+    const s = String(status || '').toLowerCase();
+    if (s === 'up' || s === 'active' || s === 'online') return DeviceStatus.ONLINE;
+    if (s === 'down' || s === 'offline') return DeviceStatus.OFFLINE;
+    if (s === 'warning') return DeviceStatus.WARNING;
+    if (s === 'error') return DeviceStatus.ERROR;
+    if (s === 'maintenance') return DeviceStatus.MAINTENANCE;
+    return status;
+  };
+
+  const effectiveStatus = normalizeStatus(device.status);
+
   const getStatusColor = (status) => {
     switch (status) {
       case DeviceStatus.ONLINE: return 'bg-green-500 shadow-[0_0_10px_#22c55e]';
@@ -96,17 +109,14 @@ const DevicePanel = ({ device, onClose }) => {
 
   // 获取 VLAN 信息
   const getVlanInfo = (device) => {
-    const vlans = [];
-    if (device.vlan) vlans.push({ id: device.vlan, name: 'Main VLAN' });
-    
+    const nameMap = new Map();
     const list = device.vlans || device.configuration?.vlans;
     if (Array.isArray(list)) {
       list.forEach(v => {
-        if (typeof v === 'number') vlans.push({ id: v, name: `VLAN ${v}` });
-        else if (typeof v === 'object' && v.vlan_id) vlans.push({ id: v.vlan_id, name: v.name || `VLAN ${v.vlan_id}` });
+        if (v && typeof v === 'object' && v.vlan_id != null) nameMap.set(Number(v.vlan_id), v.name);
       });
     }
-    return vlans;
+    return getAllVlans(device).map(id => ({ id, name: nameMap.get(id) || `VLAN ${id}` }));
   };
 
   // 提取额外属性 (动态提取脚本中的其他字段)
@@ -136,7 +146,7 @@ const DevicePanel = ({ device, onClose }) => {
       {/* 头部信息 */}
       <div className="p-6 border-b border-slate-700/50 flex items-start justify-between bg-slate-900/80 backdrop-blur-md sticky top-0 z-10">
         <div className="flex items-center gap-5">
-          <div className={`p-4 rounded-xl shadow-lg border backdrop-blur-sm ${getStatusBg(device.status)}`}>
+          <div className={`p-4 rounded-xl shadow-lg border backdrop-blur-sm ${getStatusBg(effectiveStatus)}`}>
              {getDeviceIcon(dType)}
           </div>
           <div>
@@ -146,8 +156,8 @@ const DevicePanel = ({ device, onClose }) => {
                 {typeLabel(dType)}
               </span>
               <span className="flex items-center gap-1.5 text-xs font-medium text-slate-300 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
-                <span className={`w-2 h-2 rounded-full ${getStatusColor(device.status)}`}></span>
-                {statusLabel(device.status)}
+                <span className={`w-2 h-2 rounded-full ${getStatusColor(effectiveStatus)}`}></span>
+                {statusLabel(effectiveStatus)}
               </span>
             </div>
           </div>
@@ -262,6 +272,7 @@ const DevicePanel = ({ device, onClose }) => {
                         <th className="p-3 font-semibold">名称</th>
                         <th className="p-3 font-semibold">IP 地址</th>
                         <th className="p-3 font-semibold">VLAN</th>
+                        <th className="p-3 font-semibold">模式</th>
                         <th className="p-3 font-semibold">状态</th>
                       </tr>
                     </thead>
@@ -277,6 +288,7 @@ const DevicePanel = ({ device, onClose }) => {
                                     </span>
                                 ) : '-'}
                             </td>
+                            <td className="p-3 text-sm font-mono text-slate-400">{it.mode || '-'}</td>
                             <td className="p-3">
                               <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase ${
                                 (it.status === 'up' || !it.status) 

@@ -1,6 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
 import { useAppStore } from '../../stores';
+import { API_BASE, fetchWithTimeout } from '../../utils/http';
+import { getAllVlans, getEndpointAccessVlan } from '../../utils/net';
 
 const inferRole = (device) => {
   const name = String(device?.name || '').toLowerCase(); // 转换为小写以便于匹配
@@ -12,7 +14,7 @@ const inferRole = (device) => {
   if (name.includes('接入') || name.includes('access') || name.includes('edge')) return 'access';
   if (name.includes('防火墙') || name.includes('firewall') || name.includes('fw')) return 'firewall';
   
-  const t = (device?.device_type || device?.type || '').toLowerCase();
+  const t = (device?.deviceType || device?.device_type || device?.type || '').toLowerCase();
   if (t === 'router') return 'core'; // 如果未指定，默认将路由器视为核心设备
   if (t === 'switch' || t === 'l2_switch') return 'access';
   if (t === 'l3_switch') return 'aggregation';
@@ -29,18 +31,6 @@ const ConfigUploader = ({ onConfigLoaded }) => {
   const { setLoading, addNotification, setNetworkTopology } = useAppStore();
   
   const UPLOAD_TIMEOUT_MS = 300000; // 5 minutes
-  const API_BASE = 'http://localhost:8000/api';
-
-  const fetchWithTimeout = async (url, options, timeoutMs) => {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const res = await fetch(url, { ...options, signal: controller.signal });
-      return res;
-    } finally {
-      clearTimeout(id);
-    }
-  };
 
   // 处理文件上传
   const handleFileUpload = async (file) => {
@@ -108,45 +98,51 @@ const ConfigUploader = ({ onConfigLoaded }) => {
 
       const computedLayout = calculateLayout(cfg.devices || []);
 
-      const devices = (cfg.devices || []).map((d) => ({
-        id: String(d.id), // 确保 ID 为字符串
-        name: d.name,
-        role: inferRole(d),
-        deviceType: d.device_type || d.type || 'unknown',
-        // 优先使用 YAML 中的 position，否则使用自动计算的布局，最后随机兜底
-        position: d.position || computedLayout[d.id] || { x: Math.random() * 20 - 10, y: 0, z: Math.random() * 20 - 10 },
-        // 修复：如果状态缺失或未明确为 down/offline，默认状态为 'online'
-        status: (d.status === 'down' || d.status === 'offline') ? 'offline' : 'online',
-        configuration: {
-            ...d.configuration,
-            ospf: d.ospf, // 将根级的 ospf 映射进去
-            vlans: d.vlans || (d.interfaces || []).flatMap(i => i.vlan ? [i.vlan] : []) // 尝试从接口提取 VLAN
-        },
-        metrics: d.metrics || { 
-            cpuUsage: Math.floor(Math.random() * 30), 
-            memoryUsage: Math.floor(Math.random() * 40), 
-            diskUsage: 20, 
-            networkIn: 0, 
-            networkOut: 0, 
-            uptime: 0, 
-            lastUpdated: new Date() 
-        },
-        ipAddress: d.mgmt_ip || d.ip,
-        macAddress: d.mac_address,
-        description: d.description,
-        interfaces: d.interfaces || [],
-        ospf: d.ospf, // 顶层字段也保留
-        vlans: d.vlans
-      }));
+      const devices = (cfg.devices || []).map((d) => {
+        const derivedVlans = getAllVlans(d);
+        const normalizedVlans = Array.isArray(d.vlans) && d.vlans.length > 0
+          ? d.vlans
+          : derivedVlans.map(v => ({ vlan_id: v, name: `VLAN${v}` }));
+
+        return ({
+          id: String(d.id),
+          name: d.name,
+          role: inferRole(d),
+          deviceType: d.deviceType || d.device_type || d.type || 'unknown',
+          position: d.position || computedLayout[d.id] || { x: Math.random() * 20 - 10, y: 0, z: Math.random() * 20 - 10 },
+          status: (d.status === 'down' || d.status === 'offline') ? 'offline' : 'online',
+          vlan: getEndpointAccessVlan(d) ?? undefined,
+          configuration: {
+              ...d.configuration,
+              ospf: d.ospf,
+              vlans: normalizedVlans
+          },
+          metrics: d.metrics || { 
+              cpuUsage: Math.floor(Math.random() * 30), 
+              memoryUsage: Math.floor(Math.random() * 40), 
+              diskUsage: 20, 
+              networkIn: 0, 
+              networkOut: 0, 
+              uptime: 0, 
+              lastUpdated: new Date() 
+          },
+          ipAddress: d.mgmt_ip || d.ip,
+          macAddress: d.mac_address,
+          description: d.description,
+          interfaces: d.interfaces || [],
+          ospf: d.ospf,
+          vlans: normalizedVlans
+        });
+      });
 
       const connections = (cfg.links || cfg.connections || []).map((c) => ({
         id: c.id,
-        sourceDeviceId: String(c.src_device_id || c.source || c.sourceDeviceId),
-        targetDeviceId: String(c.dst_device_id || c.target || c.targetDeviceId),
+        sourceDeviceId: String(c.src_device_id || c.src_device || c.source || c.sourceDeviceId),
+        targetDeviceId: String(c.dst_device_id || c.dst_device || c.target || c.targetDeviceId),
         connectionType: c.type || 'ethernet',
         status: c.status || 'up',
-        from: String(c.src_device_id || c.source || c.sourceDeviceId), // 确保 3D 组件需要的字段存在并转为 String
-        to: String(c.dst_device_id || c.target || c.targetDeviceId), // 确保 3D 组件需要的字段存在并转为 String
+        from: String(c.src_device_id || c.src_device || c.source || c.sourceDeviceId),
+        to: String(c.dst_device_id || c.dst_device || c.target || c.targetDeviceId),
         bandwidth: c.bandwidth || 1000,
         latency: c.latency || 1,
         packetLoss: c.packet_loss || 0

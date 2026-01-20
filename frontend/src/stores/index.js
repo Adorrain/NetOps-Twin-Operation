@@ -3,7 +3,7 @@ import { create } from 'zustand';
 const useAppStore = create((set, get) => ({
   // 初始状态
   networkTopology: null,
-  selectedDevice: null,
+  selectedDeviceId: null,
   deviceStatuses: new Map(),
   selectedConnectionId: undefined,
   opsLogs: [],
@@ -40,7 +40,7 @@ const useAppStore = create((set, get) => ({
     }
   },
   
-  setSelectedDevice: (device) => set({ selectedDevice: device }),
+  setSelectedDevice: (deviceId) => set({ selectedDeviceId: deviceId }),
   setSelectedConnection: (connectionId) => set({ selectedConnectionId: connectionId }),
   addOpsLog: (log) => {
     const newLog = { ...log, id: Date.now().toString() + Math.random().toString(36).substr(2, 5), timestamp: new Date() };
@@ -193,7 +193,7 @@ const useAppStore = create((set, get) => ({
 
 // 选择器
 export const useNetworkTopology = () => useAppStore(state => state.networkTopology);
-export const useSelectedDevice = () => useAppStore(state => state.selectedDevice);
+export const useSelectedDevice = () => useAppStore(state => state.selectedDeviceId);
 export const useDeviceStatuses = () => useAppStore(state => state.deviceStatuses);
 export const useScene3D = () => useAppStore(state => state.scene3D);
 export const useUI = () => useAppStore(state => state.ui);

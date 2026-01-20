@@ -1,72 +1,24 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useAppStore } from '../../stores';
 import { DeviceStatus, DeviceType, ConnectionStatus } from '../../types';
 import { Terminal, Network, Activity, Layers, Play, RefreshCw, CheckCircle, AlertCircle, ShieldAlert, Route, Zap, X, Trash2 } from 'lucide-react';
 import SparkLine from './charts/SparkLine';
-
-const API_BASE = 'http://localhost:8000/api';
+import { postJson } from '../../utils/http';
+import { normalizeIp, isVlanCapableDevice } from '../../utils/net';
 
 const api = {
-    ping: (sourceId, targetIp) => fetch(`${API_BASE}/ops/ping`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source_id: sourceId, target_ip: targetIp })
-    }).then(res => res.json()),
-    
-    traceroute: (sourceId, targetIp) => fetch(`${API_BASE}/ops/traceroute`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source_id: sourceId, target_ip: targetIp })
-    }).then(res => res.json()),
-
-    ddos: (data) => fetch(`${API_BASE}/ops/ddos/simulate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target_id: data.target })
-    }).then(res => res.json()),
-
-    updateDevice: (id, data) => fetch(`${API_BASE}/ops/device/status`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ device_id: id, status: data.status })
-    }).then(res => res.json()),
-
-    updateConnection: (id, data) => fetch(`${API_BASE}/ops/link/status`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ link_id: id, status: data.status })
-    }).then(res => res.json()),
-
-    updateInterfaceStatus: (deviceId, ifaceName, status) => fetch(`${API_BASE}/ops/interface/status`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ device_id: deviceId, iface_name: ifaceName, status: status })
-    }).then(res => res.json()),
-
-    updateOspf: (deviceId, data) => fetch(`${API_BASE}/ops/ospf/config`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ device_id: deviceId, area: data.area, routerId: data.routerId })
-    }).then(res => res.json()),
-
-    resetOspf: (deviceId) => fetch(`${API_BASE}/ops/ospf/reset`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ device_id: deviceId })
-    }).then(res => res.json()),
-
-    assignVlan: (deviceId, data) => fetch(`${API_BASE}/ops/vlan/assign`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ device_id: deviceId, port: data.port, vlan_id: data.vlanId })
-    }).then(res => res.json()),
-
-    getOspfNeighbors: (deviceId) => fetch(`${API_BASE}/ops/ospf/neighbors`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ device_id: deviceId })
-    }).then(res => res.json())
+  ping: (sourceId, targetIp) => postJson('/ops/ping', { source_id: sourceId, target_ip: targetIp }),
+  traceroute: (sourceId, targetIp) => postJson('/ops/traceroute', { source_id: sourceId, target_ip: targetIp }),
+  ddos: (data) => postJson('/ops/ddos/simulate', { target_id: data.target }),
+  updateDevice: (id, data) => postJson('/ops/device/status', { device_id: id, status: data.status }),
+  updateConnection: (id, data) => postJson('/ops/link/status', { link_id: id, status: data.status }),
+  updateInterfaceStatus: (deviceId, ifaceName, status) => postJson('/ops/interface/status', { device_id: deviceId, iface_name: ifaceName, status }),
+  updateOspf: (deviceId, data) => postJson('/ops/ospf/config', { device_id: deviceId, area: data.area, routerId: data.routerId }),
+  resetOspf: (deviceId) => postJson('/ops/ospf/reset', { device_id: deviceId }),
+  removeVlan: (deviceId, data) => postJson('/ops/vlan/remove', { device_id: deviceId, port: data.port }),
+  configureVlan: (deviceId, data) => postJson('/ops/vlan/configure', { device_id: deviceId, port: data.port, mode: data.mode, vlan_id: data.vlanId, allowed_vlans: data.allowedVlans }),
+  getOspfNeighbors: (deviceId) => postJson('/ops/ospf/neighbors', { device_id: deviceId })
 };
 
 const OpsConsole = () => {
@@ -109,6 +61,10 @@ const OpsConsole = () => {
   const [vlanSwitchId, setVlanSwitchId] = useState('');
   const [vlanId, setVlanId] = useState(10);
   const [vlanPort, setVlanPort] = useState('');
+  const [vlanMode, setVlanMode] = useState('access');
+  const [vlanAllowedVlans, setVlanAllowedVlans] = useState('');
+  const [vlanOriginalHint, setVlanOriginalHint] = useState('');
+  const [vlanCurrentHint, setVlanCurrentHint] = useState('');
 
   // OSPF 管理
   const [ospfDeviceId, setOspfDeviceId] = useState('');
@@ -126,7 +82,12 @@ const OpsConsole = () => {
   // 安全检查设备类型的辅助函数
   const checkDeviceType = (device, type) => {
       const dType = device.deviceType || device.device_type || '';
-      return dType === type;
+      if (dType === type) return true;
+      if (type === DeviceType.SWITCH) {
+          const role = String(device.role || '').toLowerCase();
+          return role === 'access' || role === 'aggregation';
+      }
+      return false;
   };
 
   // 日志状态
@@ -135,6 +96,34 @@ const OpsConsole = () => {
   const getDeviceName = (id) => {
     const dev = devices.find(d => d.id === id);
     return dev ? dev.name : id;
+  };
+
+  const vlanBaselineRef = useRef(new Map());
+
+  useEffect(() => {
+    if (!networkTopology || !Array.isArray(networkTopology.devices) || vlanBaselineRef.current.size > 0) return;
+    networkTopology.devices.forEach(d => {
+      const ifaces = Array.isArray(d.interfaces) ? d.interfaces : [];
+      ifaces.forEach(it => {
+        if (!it?.name) return;
+        vlanBaselineRef.current.set(`${d.id}:${it.name}`, {
+          mode: it.mode || 'access',
+          vlan: it.vlan,
+          allowed_vlans: Array.isArray(it.allowed_vlans) ? it.allowed_vlans : (Array.isArray(it.allowedVlans) ? it.allowedVlans : undefined)
+        });
+      });
+    });
+  }, [networkTopology]);
+
+  const formatVlanHint = (cfg) => {
+    if (!cfg) return '-';
+    const mode = String(cfg.mode || 'access').toLowerCase();
+    if (mode === 'trunk') {
+      const allowed = Array.isArray(cfg.allowed_vlans) ? cfg.allowed_vlans : [];
+      return allowed.length ? `trunk · allowed ${allowed.join(',')}` : 'trunk';
+    }
+    const vlan = cfg.vlan ?? 1;
+    return `access · vlan ${vlan}`;
   };
 
   const getLinkName = (id) => {
@@ -149,14 +138,12 @@ const OpsConsole = () => {
     const t = log.type;
     const msg = (log.message || '').toLowerCase();
     
-    // OSPF 相关解释
     if (msg.includes('ospf')) {
       if (msg.includes('full') || msg.includes('恢复')) return 'OSPF 邻居状态机已达到 Full 状态，路由信息已完全同步';
       if (msg.includes('down') || msg.includes('重置')) return 'OSPF 进程重启或邻居关系中断，正在重新进行 Hello 报文交互';
       if (msg.includes('更新') || msg.includes('配置')) return 'OSPF 协议参数变更已应用，将触发链路状态更新 (LSU)';
     }
 
-    // Ping/Traceroute 相关解释
     if (msg.includes('ping') || msg.includes('traceroute') || msg.includes('路由追踪')) {
       if (t === 'success') {
          if (msg.includes('延迟')) return `ICMP 回显应答正常，往返时间 (RTT) 符合预期`;
@@ -168,7 +155,6 @@ const OpsConsole = () => {
       }
     }
 
-    // 链路/设备状态相关解释
     if (t === 'success' || t === 'info') {
       if (msg.includes('状态更新') || msg.includes('status')) return '管理操作已下发并被设备确认';
       return '操作成功执行';
@@ -186,7 +172,14 @@ const OpsConsole = () => {
     addOpsLog({ type, message });
   };
 
-  // 切换设备时清除历史记录
+  const updateTopologyDevice = (id, patch) => {
+    if (!networkTopology) return;
+    const topo = { ...networkTopology };
+    topo.devices = (topo.devices || []).map(d => d.id === id ? { ...d, ...patch, position: d.position } : d);
+    topo.updatedAt = new Date();
+    setNetworkTopology(topo);
+  };
+
   useEffect(() => {
     setPingHistory([]);
     setPingResult('');
@@ -215,10 +208,7 @@ const OpsConsole = () => {
     const srcName = getDeviceName(srcId);
     const dstName = getDeviceName(dstId);
     const dstDev = devices.find(d => d.id === dstId);
-    // 如果可用，首选 mgmt_ip，否则假设 ID 不够，但我们会尽力尝试。
-    // 后端从 mgmt_ip 和接口 IP 构建 IP 映射。
-    // 如果设备没有 IP，ping 将失败。
-    const targetIp = dstDev?.mgmt_ip || dstDev?.ipAddress || (dstDev?.interfaces?.[0]?.ip ? dstDev.interfaces[0].ip.split('/')[0] : null);
+    const targetIp = normalizeIp(dstDev?.mgmt_ip) || normalizeIp(dstDev?.ipAddress) || normalizeIp(dstDev?.interfaces?.[0]?.ip);
 
     if (!targetIp) {
          setPingResult('目标设备无 IP 地址');
@@ -264,7 +254,7 @@ const OpsConsole = () => {
     const srcName = getDeviceName(srcId);
     const dstName = getDeviceName(dstId);
     const dstDev = devices.find(d => d.id === dstId);
-    const targetIp = dstDev?.mgmt_ip || dstDev?.ipAddress || (dstDev?.interfaces?.[0]?.ip ? dstDev.interfaces[0].ip.split('/')[0] : null);
+    const targetIp = normalizeIp(dstDev?.mgmt_ip) || normalizeIp(dstDev?.ipAddress) || normalizeIp(dstDev?.interfaces?.[0]?.ip);
 
     if (!targetIp) {
          setTraceResult(['目标设备无 IP 地址']);
@@ -279,10 +269,6 @@ const OpsConsole = () => {
         const data = await api.traceroute(srcId, targetIp);
         
         if (data.success) {
-            // 后端返回 { hops: [{ hop, device_name, ip, rtt }] }
-            // 前端期望字符串数组还是对象？
-            // 参考之前的代码：setTraceResult(data.data);
-            // 格式化以进行显示
             const formattedHops = data.hops.map(h => `${h.hop}. ${h.device_name} (${h.ip}) - ${h.rtt}`);
             setTraceResult(formattedHops);
             addLog('success', `路由追踪完成`);
@@ -304,8 +290,11 @@ const OpsConsole = () => {
     try {
         const res = await api.updateConnection(connId, { status: connStatus });
         if (res.success) {
-            const conn = res.data;
-            const topo = { ...networkTopology, connections: networkTopology.connections.map(c => c.id === connId ? conn : c), updatedAt: new Date() };
+            const topo = { 
+              ...networkTopology, 
+              connections: (networkTopology.connections || []).map(c => c.id === connId ? { ...c, status: res.data?.status ?? connStatus } : c),
+              updatedAt: new Date()
+            };
             setNetworkTopology(topo);
             const linkName = getLinkName(connId);
             addNotification({ type: 'info', title: '链路状态', message: `${linkName} 更新为 ${connStatus}` });
@@ -326,9 +315,7 @@ const OpsConsole = () => {
     try {
         const res = await api.updateDevice(deviceId, { status: newDeviceStatus });
         if (res.success) {
-            const device = res.data;
-            const topo = { ...networkTopology, devices: networkTopology.devices.map(d => d.id === deviceId ? { ...device, position: d.position } : d), updatedAt: new Date() };
-            setNetworkTopology(topo);
+            updateTopologyDevice(deviceId, res.data || {});
              updateDeviceStatus(deviceId, newDeviceStatus);
              const devName = getDeviceName(deviceId);
              addNotification({ type: 'info', title: '设备状态', message: `${devName} 更新为 ${newDeviceStatus}` });
@@ -351,11 +338,7 @@ const OpsConsole = () => {
         const res = await api.updateInterfaceStatus(ifaceDeviceId, ifaceName, ifaceStatus);
         
         if (res.success) {
-             const device = res.data;
-             const topo = { ...networkTopology };
-             topo.devices = topo.devices.map(d => d.id === ifaceDeviceId ? { ...device, position: d.position } : d);
-             topo.updatedAt = new Date();
-             setNetworkTopology(topo);
+             updateTopologyDevice(ifaceDeviceId, res.data || {});
              
              const devName = getDeviceName(ifaceDeviceId);
              const statusText = ifaceStatus === 'up' ? '启用 (UP)' : '禁用 (DOWN)';
@@ -376,8 +359,8 @@ const OpsConsole = () => {
     setOspfDeviceId(devId);
     const dev = devices.find(d => d.id === devId);
     if (dev && dev.configuration?.ospf) {
-        setOspfRouterId(dev.configuration.ospf.routerId || '');
-        setOspfArea(dev.configuration.ospf.area || 0);
+        setOspfRouterId(dev.configuration.ospf.routerId || dev.configuration.ospf.router_id || '');
+        setOspfArea(dev.configuration.ospf.area ?? 0);
     } else {
         setOspfRouterId('');
         setOspfArea(0);
@@ -391,10 +374,7 @@ const OpsConsole = () => {
         const res = await api.updateOspf(ospfDeviceId, { routerId: ospfRouterId, area: ospfArea });
         
         if (res.success) {
-            const device = res.data;
-            const topo = { ...networkTopology };
-            topo.devices = topo.devices.map(d => d.id === ospfDeviceId ? { ...device, position: d.position } : d);
-            setNetworkTopology(topo);
+            updateTopologyDevice(ospfDeviceId, res.data || {});
             
             const devName = getDeviceName(ospfDeviceId);
             addNotification({ type: 'success', title: 'OSPF 配置更新', message: `${devName} 配置已生效` });
@@ -422,7 +402,6 @@ const OpsConsole = () => {
             addLog('warning', `OSPF 邻居状态改变: ${devName} 所有邻居 Down`);
             addNotification({ type: 'info', title: 'OSPF 进程重置', message: 'OSPF 进程已重启，邻居关系正在重新建立...' });
             
-            // 模拟状态恢复的日志通知 (与后端 15s 逻辑对应)
             setTimeout(() => {
                  addLog('info', `OSPF: ${devName} 状态进入 ExStart/Exchange...`);
             }, 5000);
@@ -457,58 +436,73 @@ const OpsConsole = () => {
     }
   };
 
-  const assignVlan = async () => {
+  const applyVlanConfig = async () => {
     if (!vlanSwitchId || !vlanPort || !networkTopology) return;
     
     try {
-        const res = await api.assignVlan(vlanSwitchId, { vlanId: vlanId, port: vlanPort });
+        const payload = { port: vlanPort, mode: vlanMode };
+        if (vlanMode === 'access') {
+            payload.vlanId = vlanId;
+        } else {
+            const allowed = String(vlanAllowedVlans || '')
+                .split(/[,\s]+/)
+                .map(s => s.trim())
+                .filter(Boolean)
+                .map(v => Number(v))
+                .filter(v => Number.isFinite(v) && v >= 1 && v <= 4094);
+            payload.allowedVlans = Array.from(new Set(allowed));
+        }
+
+        const res = await api.configureVlan(vlanSwitchId, payload);
         
         if (res.success) {
-             const device = res.data;
-             const topo = { ...networkTopology };
-             topo.devices = topo.devices.map(d => d.id === vlanSwitchId ? { ...device, position: d.position } : d);
-             setNetworkTopology(topo);
+             updateTopologyDevice(vlanSwitchId, res.data || {});
              
              const swName = getDeviceName(vlanSwitchId);
-             addNotification({ type: 'success', title: 'VLAN 分配成功', message: `${swName} 端口 ${vlanPort} 已加入 VLAN ${vlanId}` });
-             addLog('success', `VLAN 配置: ${swName} 端口 ${vlanPort} -> VLAN ${vlanId}`);
+             const detail = vlanMode === 'access'
+                ? `access vlan ${vlanId}`
+                : `trunk${payload.allowedVlans?.length ? ` allowed ${payload.allowedVlans.join(',')}` : ''}`;
+             addNotification({ type: 'success', title: 'VLAN 配置成功', message: `${swName} 端口 ${vlanPort} 已配置为 ${detail}` });
+             addLog('success', `VLAN 配置: ${swName} 端口 ${vlanPort} -> ${detail}`);
+
+             setVlanCurrentHint(formatVlanHint({ mode: vlanMode, vlan: vlanMode === 'access' ? vlanId : undefined, allowed_vlans: payload.allowedVlans }));
+             setVlanOriginalHint(formatVlanHint(vlanBaselineRef.current.get(`${vlanSwitchId}:${vlanPort}`)));
         } else {
              const msg = res.message;
-             addLog('error', `VLAN 分配失败: ${msg}`);
-             addNotification({ type: 'error', title: 'VLAN 分配失败', message: msg });
+             addLog('error', `VLAN 配置失败: ${msg}`);
+             addNotification({ type: 'error', title: 'VLAN 配置失败', message: msg });
         }
     } catch (e) {
-        addLog('error', `VLAN 分配异常: ${e.message}`);
+        addLog('error', `VLAN 配置异常: ${e.message}`);
         addNotification({ type: 'error', title: '系统异常', message: e.message });
     }
   };
 
-  const removeVlan = async () => {
+  const restoreVlanConfig = async () => {
     if (!vlanSwitchId || !vlanPort || !networkTopology) return;
     
     try {
-        const res = await fetch(`${API_BASE}/ops/vlan/remove`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ device_id: vlanSwitchId, port: vlanPort })
-        }).then(r => r.json());
+        const res = await api.removeVlan(vlanSwitchId, { port: vlanPort });
         
         if (res.success) {
-             const device = res.data;
-             const topo = { ...networkTopology };
-             topo.devices = topo.devices.map(d => d.id === vlanSwitchId ? { ...device, position: d.position } : d);
-             setNetworkTopology(topo);
+             updateTopologyDevice(vlanSwitchId, res.data || {});
              
              const swName = getDeviceName(vlanSwitchId);
-             addNotification({ type: 'success', title: 'VLAN 移除成功', message: `${swName} 端口 ${vlanPort} 已移除 VLAN 配置` });
-             addLog('success', `VLAN 移除: ${swName} 端口 ${vlanPort}`);
+             addNotification({ type: 'success', title: 'VLAN 恢复成功', message: `${swName} 端口 ${vlanPort} 已恢复为默认配置` });
+             addLog('success', `VLAN 恢复: ${swName} 端口 ${vlanPort}`);
+
+             setVlanMode('access');
+             setVlanId(1);
+             setVlanAllowedVlans('');
+             setVlanCurrentHint(formatVlanHint({ mode: 'access', vlan: 1 }));
+             setVlanOriginalHint(formatVlanHint(vlanBaselineRef.current.get(`${vlanSwitchId}:${vlanPort}`)));
         } else {
              const msg = res.message || 'Unknown error';
-             addLog('error', `VLAN 移除失败: ${msg}`);
-             addNotification({ type: 'error', title: 'VLAN 移除失败', message: msg });
+             addLog('error', `VLAN 恢复失败: ${msg}`);
+             addNotification({ type: 'error', title: 'VLAN 恢复失败', message: msg });
         }
     } catch (e) {
-        addLog('error', `VLAN 移除异常: ${e.message}`);
+        addLog('error', `VLAN 恢复异常: ${e.message}`);
         addNotification({ type: 'error', title: '系统异常', message: e.message });
     }
   };
@@ -787,45 +781,94 @@ const OpsConsole = () => {
              <Select 
                 label="选择交换机" 
                 value={vlanSwitchId} 
-                onChange={e => setVlanSwitchId(e.target.value)} 
+                onChange={e => {
+                    setVlanSwitchId(e.target.value);
+                    setVlanPort('');
+                }} 
                 placeholder="-- 选择交换机 --"
-                options={devices.filter(d => d.deviceType === DeviceType.SWITCH).map(d => ({ value: d.id, label: d.name }))}
+                options={devices.filter(isVlanCapableDevice).map(d => ({ value: d.id, label: d.name }))}
              />
              
              {vlanSwitchId && (
-                 <div className="grid grid-cols-2 gap-3 animate-fade-in mb-3">
+                 <div className="space-y-3 animate-fade-in mb-3">
+                     <div className="grid grid-cols-2 gap-3">
                      <Select 
                         label="端口" 
                         value={vlanPort} 
-                        onChange={e => setVlanPort(e.target.value)} 
+                        onChange={e => {
+                            const port = e.target.value;
+                            setVlanPort(port);
+                            const sw = devices.find(d => d.id === vlanSwitchId);
+                            const iface = sw?.interfaces?.find(i => i.name === port);
+                            if (iface?.mode) setVlanMode(iface.mode);
+                            if (iface?.vlan) setVlanId(Number(iface.vlan));
+                            if (Array.isArray(iface?.allowed_vlans)) setVlanAllowedVlans(iface.allowed_vlans.join(','));
+                            if (Array.isArray(iface?.allowedVlans)) setVlanAllowedVlans(iface.allowedVlans.join(','));
+                            if (iface?.allowed_vlans == null && iface?.allowedVlans == null) setVlanAllowedVlans('');
+
+                            setVlanCurrentHint(formatVlanHint({
+                              mode: iface?.mode || 'access',
+                              vlan: iface?.vlan,
+                              allowed_vlans: Array.isArray(iface?.allowed_vlans) ? iface.allowed_vlans : (Array.isArray(iface?.allowedVlans) ? iface.allowedVlans : undefined)
+                            }));
+                            setVlanOriginalHint(formatVlanHint(vlanBaselineRef.current.get(`${vlanSwitchId}:${port}`)));
+                        }} 
                         placeholder="选择端口"
                         options={devices.find(d => d.id === vlanSwitchId)?.interfaces?.map((iface) => ({ value: iface.name, label: iface.name })) || []}
                      />
-                     <Input 
-                        label="VLAN ID" 
-                        type="number" 
-                        value={vlanId} 
-                        onChange={e => setVlanId(Number(e.target.value))} 
-                        placeholder="1-4094"
+                     <Select
+                        label="模式"
+                        value={vlanMode}
+                        onChange={e => setVlanMode(e.target.value)}
+                        options={[{ value: 'access', label: 'access' }, { value: 'trunk', label: 'trunk' }]}
                      />
+                     </div>
+                     {vlanMode === 'access' ? (
+                        <Input 
+                           label="Access VLAN" 
+                           type="number" 
+                           value={vlanId} 
+                           onChange={e => setVlanId(Number(e.target.value))} 
+                           placeholder="1-4094"
+                        />
+                     ) : (
+                        <Input
+                           label="Trunk 允许 VLAN"
+                           value={vlanAllowedVlans}
+                           onChange={e => setVlanAllowedVlans(e.target.value)}
+                           placeholder="10,20,30"
+                        />
+                     )}
+                     {vlanPort && (
+                        <div className="px-3 py-2 rounded-lg border border-slate-700/40 bg-slate-900/30 text-xs text-slate-400">
+                          <div className="flex justify-between">
+                            <span className="uppercase tracking-wider">当前</span>
+                            <span className="font-mono text-slate-300">{vlanCurrentHint || '-'}</span>
+                          </div>
+                          <div className="flex justify-between mt-1">
+                            <span className="uppercase tracking-wider">原始</span>
+                            <span className="font-mono text-slate-500">{vlanOriginalHint || '-'}</span>
+                          </div>
+                        </div>
+                     )}
                  </div>
              )}
              <div className="grid grid-cols-2 gap-3">
                  <Button 
-                    onClick={assignVlan} 
-                    disabled={!vlanSwitchId || !vlanPort}
+                    onClick={applyVlanConfig} 
+                    disabled={!vlanSwitchId || !vlanPort || (vlanMode === 'access' && (!vlanId || vlanId < 1))}
                     variant="indigo"
                  >
                     <CheckCircle className="w-4 h-4" />
-                    分配 VLAN
+                    应用配置
                  </Button>
                  <Button 
-                    onClick={removeVlan} 
+                    onClick={restoreVlanConfig} 
                     disabled={!vlanSwitchId || !vlanPort}
                     variant="red"
                  >
                     <Trash2 className="w-4 h-4" />
-                    删除配置
+                    恢复默认配置
                  </Button>
              </div>
         </div>
