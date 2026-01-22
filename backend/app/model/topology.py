@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, computed_field
 from typing import List, Optional, Any, Dict
 
+
 class Device(BaseModel):
     id: str
     name: str
@@ -14,20 +15,21 @@ class Device(BaseModel):
     vlan: Optional[int] = Field(None, description="Single VLAN for end host devices")
     ip: Optional[str] = Field(None, description="End-host IP address")
     gateway: Optional[str] = Field(None, description="End-host gateway")
-    
+
     class Config:
         populate_by_name = True
-        extra = "allow" 
+        extra = "allow"
+
 
 class Link(BaseModel):
     id: str
-    src_device: str 
-    dst_device: str 
+    src_device: str
+    dst_device: str
     src_interface: Optional[str] = None
     dst_interface: Optional[str] = None
     status: str = "up"
     bandwidth: Optional[str] = None
-    
+
     @computed_field
     @property
     def src_device_id(self) -> str:
@@ -42,14 +44,17 @@ class Link(BaseModel):
         populate_by_name = True
         extra = "allow"
 
+
 class TopologyMetadata(BaseModel):
     name: str
     type: str
+
 
 class TopologyData(BaseModel):
     topology: Optional[TopologyMetadata] = None
     devices: List[Device]
     links: List[Link]
-    
+
     class Config:
         populate_by_name = True
+

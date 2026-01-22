@@ -4,22 +4,9 @@ import { useAppStore } from '../../stores';
 import { DeviceStatus, DeviceType, ConnectionStatus } from '../../types';
 import { Terminal, Network, Activity, Layers, Play, RefreshCw, CheckCircle, AlertCircle, ShieldAlert, Route, Zap, X, Trash2 } from 'lucide-react';
 import SparkLine from './charts/SparkLine';
-import { postJson } from '../../utils/http';
 import { normalizeIp, isVlanCapableDevice } from '../../utils/net';
-
-const api = {
-  ping: (sourceId, targetIp) => postJson('/ops/ping', { source_id: sourceId, target_ip: targetIp }),
-  traceroute: (sourceId, targetIp) => postJson('/ops/traceroute', { source_id: sourceId, target_ip: targetIp }),
-  ddos: (data) => postJson('/ops/ddos/simulate', { target_id: data.target }),
-  updateDevice: (id, data) => postJson('/ops/device/status', { device_id: id, status: data.status }),
-  updateConnection: (id, data) => postJson('/ops/link/status', { link_id: id, status: data.status }),
-  updateInterfaceStatus: (deviceId, ifaceName, status) => postJson('/ops/interface/status', { device_id: deviceId, iface_name: ifaceName, status }),
-  updateOspf: (deviceId, data) => postJson('/ops/ospf/config', { device_id: deviceId, area: data.area, routerId: data.routerId }),
-  resetOspf: (deviceId) => postJson('/ops/ospf/reset', { device_id: deviceId }),
-  removeVlan: (deviceId, data) => postJson('/ops/vlan/remove', { device_id: deviceId, port: data.port }),
-  configureVlan: (deviceId, data) => postJson('/ops/vlan/configure', { device_id: deviceId, port: data.port, mode: data.mode, vlan_id: data.vlanId, allowed_vlans: data.allowedVlans }),
-  getOspfNeighbors: (deviceId) => postJson('/ops/ospf/neighbors', { device_id: deviceId })
-};
+import { opsApi } from '../../features/ops/opsApi';
+import { checkDeviceType, explainLog, formatVlanHint, getErrorMessage } from '../../features/ops/opsConsoleUtils';
 
 const OpsConsole = () => {
   const { 
@@ -79,17 +66,6 @@ const OpsConsole = () => {
   const [ddosIntensity, setDdosIntensity] = useState(50);
   const [ddosAlertVisible, setDdosAlertVisible] = useState(false);
 
-  // 安全检查设备类型的辅助函数
-  const checkDeviceType = (device, type) => {
-      const dType = device.deviceType || device.device_type || '';
-      if (dType === type) return true;
-      if (type === DeviceType.SWITCH) {
-          const role = String(device.role || '').toLowerCase();
-          return role === 'access' || role === 'aggregation';
-      }
-      return false;
-  };
-
   // 日志状态
   const [logsModalOpen, setLogsModalOpen] = useState(false);
 
@@ -115,57 +91,12 @@ const OpsConsole = () => {
     });
   }, [networkTopology]);
 
-  const formatVlanHint = (cfg) => {
-    if (!cfg) return '-';
-    const mode = String(cfg.mode || 'access').toLowerCase();
-    if (mode === 'trunk') {
-      const allowed = Array.isArray(cfg.allowed_vlans) ? cfg.allowed_vlans : [];
-      return allowed.length ? `trunk · allowed ${allowed.join(',')}` : 'trunk';
-    }
-    const vlan = cfg.vlan ?? 1;
-    return `access · vlan ${vlan}`;
-  };
-
   const getLinkName = (id) => {
     const conn = connections.find(c => c.id === id);
     if (!conn) return id;
     const src = getDeviceName(conn.sourceDeviceId);
     const dst = getDeviceName(conn.targetDeviceId);
     return `${src} <-> ${dst}`;
-  };
-
-  const explainLog = (log) => {
-    const t = log.type;
-    const msg = (log.message || '').toLowerCase();
-    
-    if (msg.includes('ospf')) {
-      if (msg.includes('full') || msg.includes('恢复')) return 'OSPF 邻居状态机已达到 Full 状态，路由信息已完全同步';
-      if (msg.includes('down') || msg.includes('重置')) return 'OSPF 进程重启或邻居关系中断，正在重新进行 Hello 报文交互';
-      if (msg.includes('更新') || msg.includes('配置')) return 'OSPF 协议参数变更已应用，将触发链路状态更新 (LSU)';
-    }
-
-    if (msg.includes('ping') || msg.includes('traceroute') || msg.includes('路由追踪')) {
-      if (t === 'success') {
-         if (msg.includes('延迟')) return `ICMP 回显应答正常，往返时间 (RTT) 符合预期`;
-         return 'ICMP Echo Request 已收到对应的 Echo Reply';
-      }
-      if (t === 'error' || t === 'warning') {
-         if (msg.includes('不可达')) return '目标主机未响应 ICMP 请求，可能是路由不可达、防火墙拦截或设备离线';
-         return '网络诊断工具执行失败';
-      }
-    }
-
-    if (t === 'success' || t === 'info') {
-      if (msg.includes('状态更新') || msg.includes('status')) return '管理操作已下发并被设备确认';
-      return '操作成功执行';
-    }
-    
-    if (t === 'error' || t === 'warning') {
-      if (msg.includes('失败')) return '操作未能完成，请检查设备连接状态或配置权限';
-      return '系统检测到异常情况';
-    }
-    
-    return '系统信息通知';
   };
 
   const addLog = (type, message) => {
@@ -185,18 +116,6 @@ const OpsConsole = () => {
     setPingResult('');
     setTraceResult([]);
   }, [srcId, dstId]);
-
-  const getErrorMessage = (res) => {
-      if (res && res.message) return res.message;
-      if (res && res.detail) {
-          if (Array.isArray(res.detail)) {
-              return res.detail.map(e => `${e.loc.join('.')}: ${e.msg}`).join('; ');
-          }
-          return res.detail;
-      }
-      if (typeof res === 'string') return res;
-      return '操作失败 (未定义错误)';
-  };
 
   const execPing = async () => {
     if (!srcId || !dstId) {
@@ -220,7 +139,7 @@ const OpsConsole = () => {
     addLog('info', `开始 Ping: ${srcName} -> ${dstName} (${targetIp})...`);
     
     try {
-        const data = await api.ping(srcId, targetIp);
+        const data = await opsApi.ping(srcId, targetIp);
         
         if (data.success) {
             const ms = data.rtt ? data.rtt.toFixed(2) : 0;
@@ -266,7 +185,7 @@ const OpsConsole = () => {
     addLog('info', `开始路由追踪: ${srcName} -> ${dstName} (${targetIp})...`);
 
     try {
-        const data = await api.traceroute(srcId, targetIp);
+        const data = await opsApi.traceroute(srcId, targetIp);
         
         if (data.success) {
             const formattedHops = data.hops.map(h => `${h.hop}. ${h.device_name} (${h.ip}) - ${h.rtt}`);
@@ -288,7 +207,7 @@ const OpsConsole = () => {
   const updateConnectionStatus = async () => {
     if (!connId || !networkTopology) return;
     try {
-        const res = await api.updateConnection(connId, { status: connStatus });
+        const res = await opsApi.updateConnection(connId, { status: connStatus });
         if (res.success) {
             const topo = { 
               ...networkTopology, 
@@ -313,7 +232,7 @@ const OpsConsole = () => {
   const updateDeviceStatusAction = async () => {
     if (!deviceId || !networkTopology) return;
     try {
-        const res = await api.updateDevice(deviceId, { status: newDeviceStatus });
+        const res = await opsApi.updateDevice(deviceId, { status: newDeviceStatus });
         if (res.success) {
             updateTopologyDevice(deviceId, res.data || {});
              updateDeviceStatus(deviceId, newDeviceStatus);
@@ -335,7 +254,7 @@ const OpsConsole = () => {
     if (!ifaceDeviceId || !ifaceName || !networkTopology) return;
     
     try {
-        const res = await api.updateInterfaceStatus(ifaceDeviceId, ifaceName, ifaceStatus);
+        const res = await opsApi.updateInterfaceStatus(ifaceDeviceId, ifaceName, ifaceStatus);
         
         if (res.success) {
              updateTopologyDevice(ifaceDeviceId, res.data || {});
@@ -371,7 +290,7 @@ const OpsConsole = () => {
     if (!ospfDeviceId || !networkTopology) return;
     
     try {
-        const res = await api.updateOspf(ospfDeviceId, { routerId: ospfRouterId, area: ospfArea });
+        const res = await opsApi.updateOspf(ospfDeviceId, { routerId: ospfRouterId, area: ospfArea });
         
         if (res.success) {
             updateTopologyDevice(ospfDeviceId, res.data || {});
@@ -396,7 +315,7 @@ const OpsConsole = () => {
     addLog('warning', `正在重置 ${devName} 的 OSPF 进程 1...`);
     
     try {
-        const res = await api.resetOspf(ospfDeviceId);
+        const res = await opsApi.resetOspf(ospfDeviceId);
         
         if (res.success) {
             addLog('warning', `OSPF 邻居状态改变: ${devName} 所有邻居 Down`);
@@ -423,7 +342,7 @@ const OpsConsole = () => {
   const handleGetNeighbors = async () => {
     if (!ospfDeviceId) return;
     try {
-        const res = await api.getOspfNeighbors(ospfDeviceId);
+        const res = await opsApi.getOspfNeighbors(ospfDeviceId);
         if (res.success) {
             setOspfNeighbors(res.data);
             setShowNeighborsModal(true);
@@ -453,7 +372,7 @@ const OpsConsole = () => {
             payload.allowedVlans = Array.from(new Set(allowed));
         }
 
-        const res = await api.configureVlan(vlanSwitchId, payload);
+        const res = await opsApi.configureVlan(vlanSwitchId, payload);
         
         if (res.success) {
              updateTopologyDevice(vlanSwitchId, res.data || {});
@@ -482,7 +401,7 @@ const OpsConsole = () => {
     if (!vlanSwitchId || !vlanPort || !networkTopology) return;
     
     try {
-        const res = await api.removeVlan(vlanSwitchId, { port: vlanPort });
+        const res = await opsApi.removeVlan(vlanSwitchId, { port: vlanPort });
         
         if (res.success) {
              updateTopologyDevice(vlanSwitchId, res.data || {});
@@ -520,7 +439,7 @@ const OpsConsole = () => {
         addNotification({ type: 'warning', title: 'DDoS 模拟请求', message: `正在向后端发送 DDoS 请求...` });
         
         try {
-            const data = await api.ddos({
+            const data = await opsApi.ddos({
                 target: ddosTarget,
                 type: 'udp_flood',
                 intensity: ddosIntensity,

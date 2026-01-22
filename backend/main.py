@@ -1,9 +1,9 @@
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import topology, ops
-from app.database import engine, Base
-from app.models import db_models
+from app.router import topology, ops
+from app.config.database import engine, Base
+from app.model import db_models
 
 # Initialize Database Tables
 Base.metadata.create_all(bind=engine)
@@ -29,7 +29,7 @@ app.include_router(topology.router, prefix="/api", tags=["Topology Management"])
 app.include_router(ops.router, prefix="/api/ops", tags=["Network Operations"])
 
 # TODO: Implement network and ops routers as needed
-# from app.routers import network, ops
+# from app.router import network, ops
 # app.include_router(network.router, prefix="/api/network", tags=["Network Device Management"])
 # app.include_router(ops.router, prefix="/api/ops", tags=["Operations"])
 
