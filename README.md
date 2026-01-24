@@ -1,5 +1,11 @@
 # NetOps 网络运维数字孪生系统
 
+[![Repo](https://img.shields.io/badge/github-NetOps--Twin--Operation-blue?style=flat-square&logo=github)](https://github.com/Adorrain/NetOps-Twin-Operation)
+[![React](https://img.shields.io/badge/react-18-61DAFB?style=flat-square&logo=react&logoColor=black)](./frontend)
+[![Three.js](https://img.shields.io/badge/three.js-3D-000000?style=flat-square&logo=threedotjs&logoColor=white)](./frontend)
+[![Tailwind CSS](https://img.shields.io/badge/tailwindcss-UI-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](./frontend)
+[![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](./backend)
+
 基于 NetOps 理念的网络运维数字孪生系统，通过 YAML 脚本定义网络设备参数，使用 Three.js 进行 3D 可视化展示，实现网络拓扑的数字孪生仿真。
 
 ## 项目概述
@@ -27,7 +33,7 @@
 
 ### 后端技术
 
-- **Python 3.9+**: 后端开发语言
+- **Python 3.10+**: 后端开发语言
 - **FastAPI**: 现代化 Web 框架
 - **Pydantic**: 数据验证和序列化
 - **PyYAML**: YAML 配置文件解析
@@ -77,7 +83,7 @@ netvops/
 ### 环境要求
 
 - Node.js 18+
-- Python 3.9+
+- Python 3.10+
 - npm 或 pnpm
 
 ### 安装依赖
