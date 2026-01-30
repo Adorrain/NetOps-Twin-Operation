@@ -7,7 +7,7 @@
     <a href="https://github.com/Adorrain/NetOps-Twin-Operation"><img src="https://img.shields.io/badge/GitHub-Repo-blue?style=flat&logo=github" alt="GitHub Repo" /></a>
     <a href="https://github.com/Adorrain/NetOps-Twin-Operation/tags"><img src="https://img.shields.io/badge/version-v1.2.0-2ea44f?style=flat" alt="version" /></a>
     <a href="./backend"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat&logo=python&logoColor=white" alt="Python 3.10+" /></a>
-    <a href="./frontend"><img src="https://img.shields.io/badge/React-18-61DAFB?style=flat&logo=react&logoColor=black" alt="React" /></a>
+    <a href="./frontend"><img src="https://img.shields.io/badge/React-19-61DAFB?style=flat&logo=react&logoColor=black" alt="React" /></a>
     <a href="./frontend"><img src="https://img.shields.io/badge/Three.js-3D-000000?style=flat&logo=threedotjs&logoColor=white" alt="Three.js" /></a>
     <a href="./frontend"><img src="https://img.shields.io/badge/Tailwind%20CSS-UI-06B6D4?style=flat&logo=tailwindcss&logoColor=white" alt="Tailwind CSS" /></a>
   </p>
@@ -16,6 +16,10 @@
 ## 项目概述
 
 本项目旨在创建一个现代化的网络运维管理平台，通过数字孪生技术实现网络设备的 3D 可视化展示和运维管理。系统支持通过 YAML 配置文件定义网络拓扑结构，包括 PC、路由器、交换机等设备的参数配置，并在前端通过 Three.js 进行逼真的 3D 渲染展示。
+
+## 文档
+
+- 技术文档（产品定位/设计/技术栈/前后端/数据库/接口与响应格式）：[docs/techdocs.md](docs/techdocs.md)
 
 ## 核心功能
 
@@ -29,7 +33,7 @@
 
 ### 前端技术
 
-- **React 18** + **TypeScript**: 现代化前端开发框架
+- **React（当前实现为 JSX/JavaScript）**: 现代化前端开发框架
 - **Three.js**: 3D 图形渲染引擎
 - **React Three Fiber**: React 的 Three.js 渲染器
 - **Tailwind CSS**: 现代化 CSS 框架
@@ -42,45 +46,36 @@
 - **FastAPI**: 现代化 Web 框架
 - **Pydantic**: 数据验证和序列化
 - **PyYAML**: YAML 配置文件解析
-- **WebSocket**: 实时通信
+- **SQLAlchemy**: ORM 与数据库访问
+- **NetworkX**: 拓扑图与路径计算（仿真）
 
 ### 数据库
 
-- **PostgreSQL**: 生产环境推荐
+- **SQLite**: 当前实现默认（`backend/app/netops.db`）
 
 ## 项目结构
 
 ```
-netvops/
-├── frontend/                 # 前端项目目录
+NetOps-Twin-Operation/
+├── frontend/                      # 前端（Vite + React）
 │   ├── src/
-│   │   ├── components/       # React组件
-│   │   │   ├── 3d/          # 3D场景组件
-│   │   │   ├── ui/          # UI组件
-│   │   │   └── layout/      # 布局组件
-│   │   ├── hooks/           # 自定义React Hooks
-│   │   ├── stores/          # Zustand状态管理
-│   │   ├── utils/           # 工具函数
-│   │   ├── types/           # TypeScript类型定义
-│   │   └── assets/          # 静态资源
-│   ├── public/              # 公共资源
+│   │   ├── components/            # UI/3D/布局组件
+│   │   ├── features/              # 业务功能（ops/topology）
+│   │   ├── stores/                # Zustand store
+│   │   └── utils/                 # 工具与 http 封装
+│   ├── index.html
 │   └── package.json
-├── backend/                 # 后端项目目录
+├── backend/                       # 后端（FastAPI）
 │   ├── app/
-│   │   ├── api/             # API路由
-│   │   ├── core/            # 核心配置
-│   │   ├── models/          # 数据模型
-│   │   ├── services/        # 业务逻辑
-│   │   ├── utils/           # 工具函数
-│   │   └── schemas/         # Pydantic模型
-│   ├── config/              # 配置文件
-│   ├── tests/               # 测试文件
+│   │   ├── router/                # API 路由
+│   │   ├── model/                 # Pydantic/ORM 模型
+│   │   ├── controller/            # 仿真与业务逻辑
+│   │   ├── dao/                   # 快照/日志读写
+│   │   └── utils/                 # YAML/序列化/文件存储
+│   ├── config/                    # YAML 配置文件（含 campus.yaml 示例）
 │   ├── requirements.txt
 │   └── main.py
-├── config/                  # 共享配置文件
-│   └── network_configs/     # YAML网络配置示例
-├── docs/                    # 项目文档
-└── docker-compose.yml       # Docker部署配置
+└── docs/                          # 项目文档
 ```
 
 ## 快速开始
@@ -117,16 +112,15 @@ python main.py
 
 ## 使用说明
 
-1. **配置网络拓扑**: 在`config/network_configs/`目录下创建 YAML 配置文件
+1. **准备网络拓扑配置**: 参考 `backend/config/campus.yaml` 的格式编写 YAML
 2. **上传配置文件**: 通过前端界面上传或编辑 YAML 配置
 3. **3D 可视化**: 系统自动解析 YAML 并生成 3D 网络拓扑图
 4. **网络运维**: 在 3D 场景中进行设备交互和运维操作
 
 ## 配置文件格式
 
-系统使用 YAML 格式定义网络拓扑结构，支持以下设备类型：
+系统使用 YAML 格式定义网络拓扑结构，核心字段为 `topology / devices / links`：
 
-- PC（个人计算机）
-- Router（路由器）
-- Switch（交换机）
-- Server（服务器）
+- `topology`: 拓扑信息（name、type）
+- `devices`: 设备列表（id、name、role、deviceType/device_type、mgmt_ip、interfaces、configuration 等）
+- `links`: 链路列表（id、src_device、dst_device、src_interface、dst_interface、status 等）
