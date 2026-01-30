@@ -1,3 +1,10 @@
+/**
+ * 系统监控面板组件。
+ *
+ * 作者: Adorrain
+ * 创建时间: 2026-01-30
+ */
+
 import React, { useMemo } from 'react';
 import { useAppStore } from '../../stores';
 import { DeviceStatus } from '../../types';
@@ -5,6 +12,12 @@ import SparkLine from './charts/SparkLine';
 import { Activity, Server, Zap, AlertTriangle, CheckCircle } from 'lucide-react';
 import { isLinkActive, getAllVlans, getEndpointAccessVlan } from '../../utils/net';
 
+/**
+ * 统计卡片组件。
+ *
+ * @param {{title:string,value:any,subValue?:any,icon:any,color:string,data?:number[],footer?:any}} props 组件属性。
+ * @returns {JSX.Element} 卡片组件。
+ */
 const StatCard = ({ title, value, subValue, icon, color, data, footer }) => {
   const Icon = icon;
   return (
@@ -39,14 +52,24 @@ const StatCard = ({ title, value, subValue, icon, color, data, footer }) => {
   );
 };
 
+/**
+ * MonitoringPanel：展示系统健康度、设备/链路统计与 VLAN/OSPF 概览。
+ *
+ * @returns {JSX.Element} 监控面板组件。
+ */
 const MonitoringPanel = () => {
   const networkTopology = useAppStore(state => state.networkTopology);
   const deviceStatuses = useAppStore(state => state.deviceStatuses);
 
   const devices = useMemo(() => networkTopology?.devices || [], [networkTopology]);
-  // 修复：同时支持 'links' (后端标准) 和 'connections' (旧版/前端)
   const connections = useMemo(() => networkTopology?.links || networkTopology?.connections || [], [networkTopology]);
 
+  /**
+   * 规范化设备状态到前端状态枚举。
+   *
+   * @param {any} status 状态值。
+   * @returns {string} DeviceStatus 枚举值。
+   */
   const normalizeStatus = (status) => {
     const s = String(status || '').toLowerCase();
     if (s === 'up' || s === 'active' || s === 'online') return DeviceStatus.ONLINE;
@@ -78,23 +101,32 @@ const MonitoringPanel = () => {
   const systemHealth = useMemo(() => {
     if (devices.length === 0) return 100;
     const totalScore = devices.reduce((acc, device) => {
-        // 如果未定义则回退到 'online'，假设系统默认正常，除非另有说明
         const status = normalizeStatus(deviceStatuses.get(device.id) || device.status || DeviceStatus.ONLINE);
         if (status === DeviceStatus.ONLINE) return acc + 100;
         if (status === DeviceStatus.WARNING) return acc + 70;
         if (status === DeviceStatus.ERROR) return acc + 40;
         if (status === DeviceStatus.OFFLINE) return acc + 0;
-        return acc + 100; // 默认正常
+        return acc + 100;
     }, 0);
     return Math.round(totalScore / devices.length);
   }, [devices, deviceStatuses]);
 
-  // 安全提取 OSPF 区域的辅助函数
+  /**
+   * 安全提取设备的 OSPF Area。
+   *
+   * @param {any} device 设备对象。
+   * @returns {any} OSPF Area 值（可能为 0/undefined）。
+   */
   const getOspfArea = (device) => {
     const ospf = device.ospf || device.configuration?.ospf;
-    return ospf?.area; // 可能是 0，所以严格检查 undefined
+    return ospf?.area;
   };
 
+  /**
+   * 生成用于展示的随机趋势数据。
+   *
+   * @returns {number[]} 随机数数组。
+   */
   const getRandomData = () => Array.from({ length: 10 }, () => Math.floor(Math.random() * 40) + 60);
 
   return (
@@ -104,7 +136,6 @@ const MonitoringPanel = () => {
         系统监控
       </h2>
 
-      {/* 概览卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
         <StatCard 
           title="系统健康度" 
@@ -155,7 +186,6 @@ const MonitoringPanel = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 设备分布 */}
         <div className="bg-slate-800/40 backdrop-blur-md border border-slate-700/50 rounded-2xl p-6">
           <h3 className="flex items-center gap-2 text-lg font-bold text-white mb-6">
             <div className="w-1 h-5 bg-blue-500 rounded-full shadow-[0_0_10px_#3b82f6]"></div>
@@ -201,14 +231,12 @@ const MonitoringPanel = () => {
           </div>
         </div>
 
-        {/* VLAN 汇总 */}
         <div className="bg-slate-800/40 backdrop-blur-md border border-slate-700/50 rounded-2xl p-6">
           <h3 className="flex items-center gap-2 text-lg font-bold text-white mb-6">
              <div className="w-1 h-5 bg-purple-500 rounded-full shadow-[0_0_10px_#a855f7]"></div>
             VLAN 配置
           </h3>
           <div className="grid grid-cols-2 gap-3">
-             {/* 聚合所有设备的 VLAN */}
              {(() => {
                 const allVlans = new Set();
                 devices.forEach(d => {
@@ -242,7 +270,6 @@ const MonitoringPanel = () => {
           </div>
         </div>
 
-        {/* OSPF 区域 */}
         <div className="bg-slate-800/40 backdrop-blur-md border border-slate-700/50 rounded-2xl p-6">
            <h3 className="flex items-center gap-2 text-lg font-bold text-white mb-6">
              <div className="w-1 h-5 bg-green-500 rounded-full shadow-[0_0_10px_#22c55e]"></div>

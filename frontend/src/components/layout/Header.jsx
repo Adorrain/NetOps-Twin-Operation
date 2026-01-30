@@ -1,3 +1,10 @@
+/**
+ * 顶部导航栏组件。
+ *
+ * Author: Adorrain
+ * Date: 2026-01-30
+ */
+
 import React, { useState } from 'react';
 import { 
   Menu,
@@ -8,11 +15,19 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '../../stores';
 
+/**
+ * Header：包含标题、通知入口与移动端侧边栏开关。
+ *
+ * @returns {JSX.Element} Header 组件。
+ */
 const Header = () => {
   const store = useAppStore();
   const { ui, updateUI } = store;
   const [showNotifications, setShowNotifications] = useState(false);
   
+  /**
+   * 切换移动端侧边栏显示状态。
+   */
   const toggleSidebar = () => {
     updateUI({ sidebarOpen: !ui.sidebarOpen });
   };
@@ -21,7 +36,6 @@ const Header = () => {
 
   return (
     <header className="h-16 bg-slate-900/80 backdrop-blur-md border-b border-slate-700/50 px-6 flex items-center justify-between z-30 sticky top-0">
-      {/* 左侧：移动端切换与标题 */}
       <div className="flex items-center gap-4">
         <button
           onClick={toggleSidebar}
@@ -34,9 +48,7 @@ const Header = () => {
         </h1>
       </div>
       
-      {/* 右侧：操作区 */}
       <div className="flex items-center gap-4">
-         {/* 通知图标 */}
          <div className="relative">
            <button 
              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition-colors relative"
@@ -48,7 +60,6 @@ const Header = () => {
              )}
            </button>
 
-           {/* 下拉菜单 */}
            {showNotifications && (
              <div className="absolute right-0 top-full mt-2 w-80 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden z-50 animate-fade-in origin-top-right">
                <div className="px-4 py-3 border-b border-slate-800 flex justify-between items-center bg-slate-900/95 backdrop-blur">
@@ -82,7 +93,6 @@ const Header = () => {
            )}
          </div>
 
-         {/* 用户资料 */}
          <button className="p-1.5 rounded-full bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 transition-all">
             <User className="w-5 h-5" />
          </button>

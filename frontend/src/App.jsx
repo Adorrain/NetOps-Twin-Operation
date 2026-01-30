@@ -1,3 +1,10 @@
+/**
+ * 前端应用根组件与路由配置。
+ *
+ * Author: Adorrain
+ * Date: 2026-01-30
+ */
+
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import MainLayout from './components/layout/MainLayout';
@@ -8,21 +15,29 @@ import OpsConsole from './components/ui/OpsConsole';
 import MonitoringPanel from './components/ui/MonitoringPanel';
 import { useAppStore } from './stores';
 
-// Create a wrapper component to handle the "active panel" logic sync with store
+/**
+ * 路由内容组件：根据 URL 同步 UI 面板状态，并渲染各页面内容。
+ *
+ * @returns {JSX.Element} 页面内容。
+ */
 const AppContent = () => {
   const { networkTopology, selectedDeviceId, setSelectedDevice, setNetworkTopology, updateUI } = useAppStore();
   const location = useLocation();
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Sync URL path to store's activePanel if needed, or just rely on URL
     const path = location.pathname.substring(1) || 'topology';
     updateUI({ activePanel: path });
   }, [location, updateUI]);
 
+  /**
+   * 处理拓扑配置上传成功回调。
+   *
+   * @param {any} topology 上传并解析后的拓扑数据。
+   */
   const handleConfigLoaded = (topology) => {
     setNetworkTopology(topology);
-    navigate('/topology'); // Upload complete, jump to simulation page
+    navigate('/topology');
   };
 
   return (
@@ -30,13 +45,7 @@ const AppContent = () => {
       <Route path="/" element={<Navigate to="/topology" replace />} />
       <Route path="/topology" element={
         <div className="flex h-full relative overflow-hidden">
-          {/* Left: Simulation (3D View) */}
           <div className="relative flex-1 h-full bg-slate-900">
-             {/* 
-                Update: Pass click handler to 3D View 
-                When a device is clicked in 3D, it sets 'selectedDevice' in store
-                Added key to force re-render when topology changes
-             */}
              {networkTopology && (
                <NetworkTopology3D 
                  key={networkTopology.id || 'default-topo'}
@@ -45,7 +54,6 @@ const AppContent = () => {
                />
              )}
              
-             {/* Config Uploader Overlay REMOVED as per user request */}
              {!networkTopology && (
                 <div className="absolute inset-0 flex items-center justify-center bg-slate-900 text-slate-600 select-none pointer-events-none">
                    <div className="text-center">
@@ -56,21 +64,18 @@ const AppContent = () => {
              )}
           </div>
 
-          {/* Right: System Operations */}
           <div className="w-[400px] h-full overflow-y-auto bg-slate-900/60 backdrop-blur-xl border-l border-slate-700/50 flex flex-col z-20 shadow-2xl">
              <div className="p-6 sticky top-0 bg-slate-900/90 backdrop-blur-xl z-30 border-b border-slate-700/50 flex items-center justify-between">
                 <h2 className="text-xl font-bold text-white flex items-center tracking-wide">
                   <span className="w-1 h-6 bg-gradient-to-b from-blue-400 to-blue-600 rounded mr-3 shadow-[0_0_10px_rgba(59,130,246,0.5)]"></span>
                   NetOps Console
                 </h2>
-                {/* Removed compact ConfigUploader from header as requested */}
              </div>
              <div className="p-4 flex-1">
                <OpsConsole />
              </div>
           </div>
 
-          {/* Device Details Modal */}
           {selectedDeviceId && (
              <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-10 animate-fade-in" onClick={() => setSelectedDevice(null)}>
                 <div className="w-[800px] max-h-[80vh] overflow-auto rounded-2xl shadow-2xl animate-float relative border border-slate-700/50 bg-slate-900/90" onClick={e => e.stopPropagation()}>
@@ -102,6 +107,11 @@ const AppContent = () => {
   );
 };
 
+/**
+ * 应用根组件：提供路由与整体布局。
+ *
+ * @returns {JSX.Element} 根组件。
+ */
 function App() {
   return (
     <BrowserRouter>

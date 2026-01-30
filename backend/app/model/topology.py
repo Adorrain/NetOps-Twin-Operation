@@ -1,8 +1,17 @@
+"""拓扑业务模型定义。
+
+定义设备、链路与拓扑元信息等数据结构，供 YAML 解析、仿真服务与 API 返回使用。
+
+作者: Adorrain
+创建时间: 2026-01-30
+"""
+
 from pydantic import BaseModel, Field, computed_field
 from typing import List, Optional, Any, Dict
 
 
 class Device(BaseModel):
+    """网络设备/主机模型。"""
     id: str
     name: str
     role: str
@@ -22,6 +31,7 @@ class Device(BaseModel):
 
 
 class Link(BaseModel):
+    """网络链路模型。"""
     id: str
     src_device: str
     dst_device: str
@@ -33,11 +43,13 @@ class Link(BaseModel):
     @computed_field
     @property
     def src_device_id(self) -> str:
+        """兼容字段：返回源设备 ID。"""
         return self.src_device
 
     @computed_field
     @property
     def dst_device_id(self) -> str:
+        """兼容字段：返回目的设备 ID。"""
         return self.dst_device
 
     class Config:
@@ -46,15 +58,16 @@ class Link(BaseModel):
 
 
 class TopologyMetadata(BaseModel):
+    """拓扑元信息。"""
     name: str
     type: str
 
 
 class TopologyData(BaseModel):
+    """拓扑数据集合，包含元信息、设备列表与链路列表。"""
     topology: Optional[TopologyMetadata] = None
     devices: List[Device]
     links: List[Link]
 
     class Config:
         populate_by_name = True
-

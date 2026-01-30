@@ -1,3 +1,13 @@
+/**
+ * 运维控制台组件。
+ *
+ * 提供网络诊断（Ping/Traceroute）、链路与设备状态变更、接口/VLAN/OSPF 管理、
+ * DDoS 场景模拟以及操作日志查看等能力。
+ *
+ * 作者: Adorrain
+ * 创建时间: 2026-01-30
+ */
+
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useAppStore } from '../../stores';
@@ -8,6 +18,11 @@ import { normalizeIp, isVlanCapableDevice } from '../../utils/net';
 import { opsApi } from '../../features/ops/opsApi';
 import { checkDeviceType, explainLog, formatVlanHint, getErrorMessage } from '../../features/ops/opsConsoleUtils';
 
+/**
+ * OpsConsole：运维与仿真操作台。
+ *
+ * @returns {JSX.Element} 运维控制台组件。
+ */
 const OpsConsole = () => {
   const { 
     networkTopology, 
@@ -69,6 +84,12 @@ const OpsConsole = () => {
   // 日志状态
   const [logsModalOpen, setLogsModalOpen] = useState(false);
 
+  /**
+   * 根据设备 ID 获取设备名称（找不到则回退为 ID）。
+   *
+   * @param {string} id 设备 ID。
+   * @returns {string} 设备名称或 ID。
+   */
   const getDeviceName = (id) => {
     const dev = devices.find(d => d.id === id);
     return dev ? dev.name : id;
@@ -91,6 +112,12 @@ const OpsConsole = () => {
     });
   }, [networkTopology]);
 
+  /**
+   * 根据连接 ID 获取显示名称（源设备 <-> 目的设备）。
+   *
+   * @param {string} id 连接/链路 ID。
+   * @returns {string} 显示名称。
+   */
   const getLinkName = (id) => {
     const conn = connections.find(c => c.id === id);
     if (!conn) return id;
@@ -99,10 +126,22 @@ const OpsConsole = () => {
     return `${src} <-> ${dst}`;
   };
 
+  /**
+   * 追加一条运维日志到全局日志列表。
+   *
+   * @param {string} type 日志类型（success/info/warning/error）。
+   * @param {string} message 日志内容。
+   */
   const addLog = (type, message) => {
     addOpsLog({ type, message });
   };
 
+  /**
+   * 在本地拓扑中更新指定设备字段（保持 position 不变）。
+   *
+   * @param {string} id 设备 ID。
+   * @param {object} patch 需要合并的字段集合。
+   */
   const updateTopologyDevice = (id, patch) => {
     if (!networkTopology) return;
     const topo = { ...networkTopology };
@@ -117,6 +156,11 @@ const OpsConsole = () => {
     setTraceResult([]);
   }, [srcId, dstId]);
 
+  /**
+   * 执行 Ping 仿真请求并更新 UI 与日志。
+   *
+   * @returns {Promise<void>} 无返回值。
+   */
   const execPing = async () => {
     if (!srcId || !dstId) {
       setPingResult('请选择源设备和目标设备');
@@ -162,6 +206,11 @@ const OpsConsole = () => {
     }
   };
 
+  /**
+   * 执行 Traceroute 仿真请求并更新 UI 与日志。
+   *
+   * @returns {Promise<void>} 无返回值。
+   */
   const execTraceroute = async () => {
     if (!srcId || !dstId) {
       setTraceResult(['请选择源设备和目标设备']);
@@ -204,6 +253,11 @@ const OpsConsole = () => {
     }
   };
 
+  /**
+   * 更新链路状态：调用后端并同步本地拓扑。
+   *
+   * @returns {Promise<void>} 无返回值。
+   */
   const updateConnectionStatus = async () => {
     if (!connId || !networkTopology) return;
     try {
@@ -229,6 +283,11 @@ const OpsConsole = () => {
     }
   };
 
+  /**
+   * 更新设备状态：调用后端并同步本地拓扑与状态映射。
+   *
+   * @returns {Promise<void>} 无返回值。
+   */
   const updateDeviceStatusAction = async () => {
     if (!deviceId || !networkTopology) return;
     try {
@@ -250,6 +309,11 @@ const OpsConsole = () => {
     }
   };
 
+  /**
+   * 更新接口状态：调用后端并同步本地拓扑。
+   *
+   * @returns {Promise<void>} 无返回值。
+   */
   const updateInterfaceStatusAction = async () => {
     if (!ifaceDeviceId || !ifaceName || !networkTopology) return;
     
@@ -274,6 +338,11 @@ const OpsConsole = () => {
     }
   };
 
+  /**
+   * 选择 OSPF 设备时，根据当前拓扑回填 RouterId/Area。
+   *
+   * @param {string} devId 设备 ID。
+   */
   const handleOspfSelect = (devId) => {
     setOspfDeviceId(devId);
     const dev = devices.find(d => d.id === devId);
@@ -286,6 +355,11 @@ const OpsConsole = () => {
     }
   };
 
+  /**
+   * 更新 OSPF 配置：调用后端并同步本地拓扑。
+   *
+   * @returns {Promise<void>} 无返回值。
+   */
   const updateOspfConfig = async () => {
     if (!ospfDeviceId || !networkTopology) return;
     
@@ -309,6 +383,11 @@ const OpsConsole = () => {
     }
   };
 
+  /**
+   * 触发 OSPF 进程重置，并写入模拟日志提示。
+   *
+   * @returns {Promise<void>} 无返回值。
+   */
   const resetOspfProcess = async () => {
     if (!ospfDeviceId) return;
     const devName = getDeviceName(ospfDeviceId);
@@ -339,6 +418,11 @@ const OpsConsole = () => {
     }
   };
 
+  /**
+   * 获取并展示 OSPF 邻居表。
+   *
+   * @returns {Promise<void>} 无返回值。
+   */
   const handleGetNeighbors = async () => {
     if (!ospfDeviceId) return;
     try {
@@ -355,6 +439,11 @@ const OpsConsole = () => {
     }
   };
 
+  /**
+   * 应用 VLAN 配置：根据模式构造参数并调用后端更新拓扑。
+   *
+   * @returns {Promise<void>} 无返回值。
+   */
   const applyVlanConfig = async () => {
     if (!vlanSwitchId || !vlanPort || !networkTopology) return;
     
@@ -397,6 +486,11 @@ const OpsConsole = () => {
     }
   };
 
+  /**
+   * 恢复端口 VLAN 配置为默认（调用后端移除 VLAN）。
+   *
+   * @returns {Promise<void>} 无返回值。
+   */
   const restoreVlanConfig = async () => {
     if (!vlanSwitchId || !vlanPort || !networkTopology) return;
     
@@ -426,6 +520,11 @@ const OpsConsole = () => {
     }
   };
 
+  /**
+   * 切换 DDoS 模拟状态：开始时调用后端，停止时仅更新本地 UI。
+   *
+   * @returns {Promise<void>} 无返回值。
+   */
   const toggleDDoS = async () => {
     if (!ddosTarget) return;
     
@@ -467,6 +566,12 @@ const OpsConsole = () => {
   };
 
   // 可复用的表单组件
+  /**
+   * 区块标题组件。
+   *
+   * @param {{icon:any,title:string,colorClass?:string}} props 组件属性。
+   * @returns {JSX.Element} 标题组件。
+   */
   const SectionHeader = ({ icon, title, colorClass = "text-blue-400" }) => {
     const Icon = icon;
     return (
@@ -479,6 +584,12 @@ const OpsConsole = () => {
     );
   };
 
+  /**
+   * 下拉选择组件。
+   *
+   * @param {{label:string,value:any,onChange:(e:any)=>void,options:{value:any,label:string}[],placeholder?:string}} props 组件属性。
+   * @returns {JSX.Element} Select 组件。
+   */
   const Select = ({ label, value, onChange, options, placeholder = "Select..." }) => (
     <div className="flex flex-col gap-1.5 mb-3">
       <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{label}</label>
@@ -495,6 +606,12 @@ const OpsConsole = () => {
     </div>
   );
 
+  /**
+   * 输入框组件。
+   *
+   * @param {{label:string,value:any,onChange:(e:any)=>void,type?:string,placeholder?:string}} props 组件属性。
+   * @returns {JSX.Element} Input 组件。
+   */
   const Input = ({ label, value, onChange, type = "text", placeholder }) => (
     <div className="flex flex-col gap-1.5 mb-3">
       <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{label}</label>
@@ -508,6 +625,12 @@ const OpsConsole = () => {
     </div>
   );
 
+  /**
+   * 按钮组件：按 variant 生成不同的样式。
+   *
+   * @param {{onClick:()=>void,disabled?:boolean,children:any,variant?:string,className?:string}} props 组件属性。
+   * @returns {JSX.Element} Button 组件。
+   */
   const Button = ({ onClick, disabled, children, variant = "blue", className = "" }) => {
     const variants = {
       blue: "bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20",

@@ -1,3 +1,10 @@
+/**
+ * 设备详情面板组件。
+ *
+ * Author: Adorrain
+ * Date: 2026-01-30
+ */
+
 import React from 'react';
 import { DeviceStatus } from '../../types';
 import { getAllVlans } from '../../utils/net';
@@ -18,6 +25,12 @@ import {
   Info
 } from 'lucide-react';
 
+/**
+ * DevicePanel：展示设备基本信息、接口、VLAN 与 OSPF 配置等详情。
+ *
+ * @param {{device:any, onClose: ()=>void}} props 组件属性。
+ * @returns {JSX.Element} 设备详情面板。
+ */
 const DevicePanel = ({ device, onClose }) => {
   if (!device) {
     return (
@@ -28,7 +41,12 @@ const DevicePanel = ({ device, onClose }) => {
     );
   }
   
-  // 获取设备图标
+  /**
+   * 根据设备类型渲染对应图标。
+   *
+   * @param {any} deviceType 设备类型描述。
+   * @returns {JSX.Element} 图标组件。
+   */
   const getDeviceIcon = (deviceType) => {
     const props = { className: "w-8 h-8 text-white" };
     const type = (deviceType || '').toLowerCase();
@@ -42,7 +60,12 @@ const DevicePanel = ({ device, onClose }) => {
     return <Computer {...props} />;
   };
   
-  // 获取设备类型标签
+  /**
+   * 根据设备类型生成中文标签。
+   *
+   * @param {any} deviceType 设备类型描述。
+   * @returns {string} 中文标签。
+   */
   const typeLabel = (deviceType) => {
     const type = (deviceType || '').toLowerCase();
     if (type.includes('pc') || type.includes('host') || type.includes('terminal')) return '终端主机';
@@ -54,7 +77,12 @@ const DevicePanel = ({ device, onClose }) => {
     return '通用设备';
   };
   
-  // 获取状态颜色类名
+  /**
+   * 规范化设备状态到前端状态枚举。
+   *
+   * @param {any} status 状态值。
+   * @returns {string} DeviceStatus 枚举值或原值。
+   */
   const normalizeStatus = (status) => {
     const s = String(status || '').toLowerCase();
     if (s === 'up' || s === 'active' || s === 'online') return DeviceStatus.ONLINE;
@@ -67,6 +95,12 @@ const DevicePanel = ({ device, onClose }) => {
 
   const effectiveStatus = normalizeStatus(device.status);
 
+  /**
+   * 获取状态点颜色样式类名。
+   *
+   * @param {string} status DeviceStatus 枚举值。
+   * @returns {string} Tailwind 类名字符串。
+   */
   const getStatusColor = (status) => {
     switch (status) {
       case DeviceStatus.ONLINE: return 'bg-green-500 shadow-[0_0_10px_#22c55e]';
@@ -77,6 +111,12 @@ const DevicePanel = ({ device, onClose }) => {
     }
   };
 
+  /**
+   * 获取状态背景样式类名。
+   *
+   * @param {string} status DeviceStatus 枚举值。
+   * @returns {string} Tailwind 类名字符串。
+   */
   const getStatusBg = (status) => {
      switch (status) {
       case DeviceStatus.ONLINE: return 'bg-green-500/10 border-green-500/30';
@@ -87,7 +127,12 @@ const DevicePanel = ({ device, onClose }) => {
     }
   };
   
-  // 获取状态标签
+  /**
+   * 获取状态展示文本。
+   *
+   * @param {string} status DeviceStatus 枚举值。
+   * @returns {string} 文本标签。
+   */
   const statusLabel = (status) => {
     switch (status) {
       case DeviceStatus.ONLINE: return '在线 (Online)';
@@ -99,15 +144,24 @@ const DevicePanel = ({ device, onClose }) => {
     }
   };
   
-  // 优先使用 deviceType，如果不可用则回退到 device_type
   const dType = device.role || device.deviceType || device.device_type;
 
-  // 获取 OSPF 配置 (兼容不同数据结构)
+  /**
+   * 获取设备 OSPF 配置（兼容不同字段结构）。
+   *
+   * @param {any} deviceObj 设备对象。
+   * @returns {any} OSPF 配置对象。
+   */
   const getOspfConfig = (device) => {
     return device.ospf || device.ospf_config || device.configuration?.ospf;
   };
 
-  // 获取 VLAN 信息
+  /**
+   * 获取设备 VLAN 信息（含名称映射）。
+   *
+   * @param {any} deviceObj 设备对象。
+   * @returns {{id:number,name:string}[]} VLAN 列表。
+   */
   const getVlanInfo = (device) => {
     const nameMap = new Map();
     const list = device.vlans || device.configuration?.vlans;
@@ -119,7 +173,12 @@ const DevicePanel = ({ device, onClose }) => {
     return getAllVlans(device).map(id => ({ id, name: nameMap.get(id) || `VLAN ${id}` }));
   };
 
-  // 提取额外属性 (动态提取脚本中的其他字段)
+  /**
+   * 提取可展示的简单扩展属性（忽略对象/数组等复杂结构）。
+   *
+   * @param {any} deviceObj 设备对象。
+   * @returns {{key:string,value:any}[]} 扩展属性列表。
+   */
   const getExtraAttributes = (device) => {
     const ignoredKeys = new Set([
         'id', 'name', 'role', 'type', 'deviceType', 'device_type', 'status', 
@@ -143,7 +202,6 @@ const DevicePanel = ({ device, onClose }) => {
   return (
     <div className="flex flex-col h-full text-slate-200">
 
-      {/* 头部信息 */}
       <div className="p-6 border-b border-slate-700/50 flex items-start justify-between bg-slate-900/80 backdrop-blur-md sticky top-0 z-10">
         <div className="flex items-center gap-5">
           <div className={`p-4 rounded-xl shadow-lg border backdrop-blur-sm ${getStatusBg(effectiveStatus)}`}>
@@ -170,13 +228,10 @@ const DevicePanel = ({ device, onClose }) => {
         </button>
       </div>
       
-      {/* 内容区域 */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-        {/* 基本信息 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-4 hover:bg-slate-800/60 transition-colors">
             <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold block mb-1">IP 地址</span>
-            {/* 优先显示 extraAttributes 列表，如果为空则显示单个 IP */}
             {extraAttributes.length > 0 ? (
                 <div className="space-y-2">
                     {extraAttributes.map((attr, idx) => (
@@ -204,16 +259,12 @@ const DevicePanel = ({ device, onClose }) => {
           )}
         </div>
 
-        {/* 扩展属性 (来自脚本的动态属性) - 已移除，因为现在在 IP 块中 */}
-
-        {/* 详细配置 */}
         <div>
             <h3 className="flex items-center gap-2 text-lg font-semibold text-white mb-4">
               <Settings className="w-5 h-5 text-purple-400" />
               详细配置
             </h3>
             
-            {/* VLAN 配置 */}
             {vlanList.length > 0 && (
               <div className="mb-4 bg-slate-800/30 border border-slate-700/50 rounded-xl overflow-hidden">
                 <div className="bg-slate-800/80 px-4 py-2 border-b border-slate-700/50 flex items-center gap-2 text-xs font-semibold text-slate-300 uppercase tracking-wider">
@@ -234,7 +285,6 @@ const DevicePanel = ({ device, onClose }) => {
               </div>
             )}
 
-            {/* OSPF 配置详情 */}
             {ospfConfig && (
               <div className="mb-4 bg-slate-800/30 border border-slate-700/50 rounded-xl overflow-hidden">
                 <div className="bg-slate-800/80 px-4 py-2 border-b border-slate-700/50 flex items-center gap-2 text-xs font-semibold text-slate-300 uppercase tracking-wider">
@@ -258,7 +308,6 @@ const DevicePanel = ({ device, onClose }) => {
               </div>
             )}
 
-            {/* 接口表 */}
             {device.interfaces && device.interfaces.length > 0 ? (
               <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl overflow-hidden">
                 <div className="bg-slate-800/80 px-4 py-2 border-b border-slate-700/50 flex items-center gap-2 text-xs font-semibold text-slate-300 uppercase tracking-wider">

@@ -1,3 +1,12 @@
+/**
+ * 3D 网络拓扑可视化组件。
+ *
+ * 基于 React Three Fiber 渲染设备、链路与标签，并提供交互（选择/悬停/轨道控制等）。
+ *
+ * 作者: Adorrain
+ * 创建时间: 2026-01-30
+ */
+
 import React, { Suspense, useMemo, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Grid, Text, Cone, RoundedBox, Line, Html, Environment, Float } from '@react-three/drei';
@@ -9,6 +18,12 @@ import { getDisplayVlanId } from '../../utils/net';
  * ===========================
  * 工具：标准化拓扑数据（防炸核心）
  * ===========================
+ */
+/**
+ * 标准化拓扑数据结构，兼容不同字段命名与缺省情况。
+ *
+ * @param {any} raw 原始拓扑对象。
+ * @returns {{devices:any[], links:any[], flows:any[], alerts:any[]}} 标准化后的拓扑对象。
  */
 function normalizeTopology(raw) {
   return {
@@ -26,6 +41,12 @@ function normalizeTopology(raw) {
  */
 
 // 1. 机架式交换机/服务器 (机架式风格)
+/**
+ * 机架设备（交换机/服务器）几何体渲染。
+ *
+ * @param {{size:number[], color:any, ports?:boolean, isServer?:boolean, statusColor:any}} props 组件属性。
+ * @returns {JSX.Element} 3D 设备组件。
+ */
 const RackDevice = ({ size, color, ports = false, isServer = false, statusColor }) => {
   return (
     <group>
@@ -72,6 +93,12 @@ const RackDevice = ({ size, color, ports = false, isServer = false, statusColor 
 };
 
 // 2. 路由器 (未来派集线器)
+/**
+ * 路由器几何体渲染。
+ *
+ * @param {{size:number[], color:any, statusColor:any}} props 组件属性。
+ * @returns {JSX.Element} 3D 设备组件。
+ */
 const RouterDevice = ({ size, color, statusColor }) => {
   return (
     <group>
@@ -105,6 +132,12 @@ const RouterDevice = ({ size, color, statusColor }) => {
 };
 
 // 3. 防火墙 (盾牌/堡垒外观)
+/**
+ * 防火墙几何体渲染。
+ *
+ * @param {{size:number[], color:any, statusColor:any}} props 组件属性。
+ * @returns {JSX.Element} 3D 设备组件。
+ */
 const FirewallDevice = ({ size, color, statusColor }) => {
   return (
     <group>

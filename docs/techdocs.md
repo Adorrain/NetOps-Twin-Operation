@@ -151,7 +151,7 @@
 - id：主键
 - name：快照名称（索引）
 - description：描述
-- created_at：创建时间
+- created_at：Date
 - data：JSON，保存 TopologyData 的序列化结果
 
 #### operation_logs（操作日志）
@@ -161,7 +161,7 @@
 - target_id：目标标识（设备/链路/接口等）
 - details：详情描述
 - status：状态（默认 success）
-- created_at：创建时间
+- created_at：Date
 
 ### 7.3 快照策略
 
@@ -181,14 +181,14 @@ devices:
   - id: "r1"
     name: "Core-Router"
     role: "core"
-    deviceType: "router"     # 或 device_type
+    deviceType: "router" # 或 device_type
     mgmt_ip: "10.0.0.1/24"
     status: "up"
     interfaces:
       - name: "ge0/0"
         ip: "10.0.0.1/24"
         status: "up"
-        mode: "access"       # access/trunk
+        mode: "access" # access/trunk
         vlan: 10
       - name: "ge0/1"
         mode: "trunk"
@@ -270,7 +270,13 @@ links:
 {
   "success": true,
   "hops": [
-    { "hop": 1, "device_id": "sw1", "device_name": "Core-SW", "ip": "10.0.0.1/24", "rtt": "1.50 ms" }
+    {
+      "hop": 1,
+      "device_id": "sw1",
+      "device_name": "Core-SW",
+      "ip": "10.0.0.1/24",
+      "rtt": "1.50 ms"
+    }
   ],
   "path": ["pc1", "sw1", "pc2"]
 }
@@ -345,6 +351,7 @@ links:
 ### 10.2 建议的统一响应 Envelope
 
 建议未来所有 JSON API 统一为以下结构（无论成功或失败都保持字段一致）：
+
 ```json
 {
   "success": true,
@@ -356,6 +363,7 @@ links:
 ```
 
 失败时：
+
 ```json
 {
   "success": false,
@@ -393,5 +401,5 @@ links:
 2. 后端：将 Topology、Ping/Traceroute 等接口响应改为统一 envelope（保留原 data 字段内容）
 3. 前端：将 http 客户端统一处理成功/失败，集中 toast 与日志记录（按 code 分级）
 4. 前后端：约定字段命名规范（snake_case 或 camelCase 二选一），并在转换层集中处理
-5. 增加审计字段：操作者（如 userId）、来源、traceId 写入 operation_logs（如后续引入鉴权）
+5. 增加审计字段：操Author（如 userId）、来源、traceId 写入 operation_logs（如后续引入鉴权）
 6. 引入数据库迁移（Alembic）与环境配置（API_BASE、CORS、DB 连接）

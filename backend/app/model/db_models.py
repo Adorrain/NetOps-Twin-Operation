@@ -1,9 +1,18 @@
+"""数据库 ORM 模型定义。
+
+包含拓扑快照（TopologySnapshot）与运维操作日志（OperationLog）等表结构。
+
+作者: Adorrain
+创建时间: 2026-01-30
+"""
+
 from sqlalchemy import Column, Integer, String, DateTime, JSON, Text
 from sqlalchemy.sql import func
 from app.config.database import Base
 
 
 class TopologySnapshot(Base):
+    """拓扑快照表。"""
     __tablename__ = "topology_snapshots"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -14,6 +23,7 @@ class TopologySnapshot(Base):
 
 
 class OperationLog(Base):
+    """运维操作日志表。"""
     __tablename__ = "operation_logs"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -22,4 +32,3 @@ class OperationLog(Base):
     details = Column(Text, nullable=True, comment="操作详情描述")
     status = Column(String, default="success")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-

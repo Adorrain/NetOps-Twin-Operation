@@ -1,8 +1,21 @@
+/**
+ * 应用整体布局组件。
+ *
+ * 作者: Adorrain
+ * 创建时间: 2026-01-30
+ */
+
 import React, { useEffect } from 'react';
 import Header from './Header';
 import Sidebar from './Sidebar';
 import { useAppStore } from '../../stores';
 
+/**
+ * 主布局：包含 Header、Sidebar、内容区与通知区域。
+ *
+ * @param {{children: any}} props 组件属性。
+ * @returns {JSX.Element} 布局组件。
+ */
 const MainLayout = ({ children }) => {
   const { ui, markNotificationAsRead } = useAppStore();
   
@@ -20,14 +33,11 @@ const MainLayout = ({ children }) => {
     <div className="h-screen bg-slate-950 flex flex-col font-sans text-slate-100 selection:bg-blue-500/30 overflow-hidden">
       <Header />
       
-      {/* 主内容容器 */}
       <div className="flex flex-1 overflow-hidden relative">
-        {/* 侧边栏 */}
         <div className={`transition-all duration-300 ease-in-out z-40 h-full ${ui.sidebarCollapsed ? 'w-20' : 'w-64'} hidden lg:block`}>
           <Sidebar />
         </div>
         
-        {/* 移动端侧边栏遮罩 */}
         {ui.sidebarOpen && (
            <div className="lg:hidden absolute inset-0 z-50 bg-slate-900/80 backdrop-blur-sm" onClick={() => useAppStore.getState().updateUI({sidebarOpen: false})}>
               <div className="w-64 h-full" onClick={e => e.stopPropagation()}>
@@ -36,12 +46,10 @@ const MainLayout = ({ children }) => {
            </div>
         )}
 
-        {/* 主内容区域 */}
         <main className="flex-1 overflow-hidden relative bg-slate-900/50">
           {children}
         </main>
 
-        {/* 通知 */}
         <div className="absolute top-4 right-4 z-50 flex flex-col gap-3 w-80 pointer-events-none">
           {ui.notifications.filter(n=>!n.read).slice(0,4).map(n => (
             <div key={n.id} className={`pointer-events-auto rounded-lg shadow-xl backdrop-blur-md border p-4 transition-all duration-300 animate-fade-in ${

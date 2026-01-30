@@ -1,3 +1,11 @@
+"""YAML 拓扑配置加载与校验。
+
+负责从 YAML 文件读取拓扑配置，并在构建业务模型前进行结构与字段合理性校验。
+
+Author: Adorrain
+Date: 2026-01-30
+"""
+
 import yaml
 import os
 from typing import Dict, Any
@@ -6,10 +14,22 @@ from app.model.topology import TopologyData
 
 
 class TopologyValidationError(ValueError):
+    """拓扑配置校验失败时抛出的异常。"""
     pass
 
 
 def _validate_topology_dict(data: Dict[str, Any]) -> None:
+    """校验拓扑字典结构与关键字段。
+
+    校验内容包含：devices/links 类型、设备/链路 ID 唯一性、接口名称唯一性、
+    IP（含管理 IP 与接口 IP）唯一性，以及链路端点引用的设备与接口是否存在。
+
+    Args:
+        data: 从 YAML 解析得到的字典对象。
+
+    Raises:
+        TopologyValidationError: 任一校验规则不满足时抛出。
+    """
     if not isinstance(data, dict):
         raise TopologyValidationError("Topology YAML root must be a mapping")
 
@@ -105,6 +125,18 @@ def _validate_topology_dict(data: Dict[str, Any]) -> None:
 
 
 def load_topology_from_yaml(file_path: str) -> TopologyData:
+    """从 YAML 文件加载拓扑并返回业务模型。
+
+    Args:
+        file_path: YAML 配置文件路径。
+
+    Returns:
+        解析得到的 TopologyData。
+
+    Raises:
+        FileNotFoundError: 文件不存在时抛出。
+        TopologyValidationError: 文件为空或内容校验失败时抛出。
+    """
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Config file not found: {file_path}")
 
@@ -122,4 +154,3 @@ def load_topology_from_yaml(file_path: str) -> TopologyData:
 
     topology_data = TopologyData(topology=topology_meta, devices=devices, links=links)
     return topology_data
-

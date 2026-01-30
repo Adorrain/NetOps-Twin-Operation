@@ -1,3 +1,12 @@
+"""网络运维与仿真接口路由。
+
+包含连通性探测（ping/traceroute）、设备/链路/接口状态变更、VLAN 配置、
+OSPF 配置与邻居查询，以及攻击场景模拟等操作。
+
+作者: Adorrain
+创建时间: 2026-01-30
+"""
+
 from fastapi import APIRouter, HTTPException, Body, Depends
 from typing import List, Optional
 from sqlalchemy.orm import Session
@@ -18,6 +27,16 @@ async def simulate_ping(
     target_ip: str = Body(...),
     service: SimulationService = Depends(get_simulation_service),
 ):
+    """模拟从指定设备到目标 IP 的 ping。
+
+    Args:
+        source_id: 源设备 ID。
+        target_ip: 目标 IP 地址。
+        service: 仿真服务依赖。
+
+    Returns:
+        仿真服务返回的 ping 结果结构。
+    """
     return service.ping(source_id, target_ip)
 
 
@@ -27,6 +46,16 @@ async def simulate_traceroute(
     target_ip: str = Body(...),
     service: SimulationService = Depends(get_simulation_service),
 ):
+    """模拟从指定设备到目标 IP 的 traceroute。
+
+    Args:
+        source_id: 源设备 ID。
+        target_ip: 目标 IP 地址。
+        service: 仿真服务依赖。
+
+    Returns:
+        仿真服务返回的 traceroute 结果结构。
+    """
     return service.traceroute(source_id, target_ip)
 
 
@@ -37,6 +66,17 @@ async def update_device_status(
     service: SimulationService = Depends(get_simulation_service),
     db: Session = Depends(get_db),
 ):
+    """更新设备运行状态并记录快照。
+
+    Args:
+        device_id: 设备 ID。
+        status: 设备状态（由前端约定，如 up/down）。
+        service: 仿真服务依赖。
+        db: 数据库会话依赖，用于记录拓扑快照。
+
+    Returns:
+        标准响应结构，包含更新后的设备数据（若存在）。
+    """
     updated_topology = service.update_device_status(device_id, status)
     save_new_state(db, updated_topology, f"Set device {device_id} status to {status}", "DeviceStatus", device_id)
 
@@ -53,6 +93,24 @@ async def update_link_status(
     service: SimulationService = Depends(get_simulation_service),
     db: Session = Depends(get_db),
 ):
+    """更新链路状态并记录快照。
+
+    支持两种定位方式：通过 link_id，或通过 (src_id, dst_id) 查找链路。
+
+    Args:
+        link_id: 链路 ID（可选）。
+        src_id: 源设备 ID（可选）。
+        dst_id: 目的设备 ID（可选）。
+        status: 链路状态（由前端约定）。
+        service: 仿真服务依赖。
+        db: 数据库会话依赖，用于记录拓扑快照。
+
+    Returns:
+        标准响应结构，包含更新后的链路数据（若存在）。
+
+    Raises:
+        HTTPException: 未提供有效的链路定位参数时抛出 400。
+    """
     if link_id:
         updated_topology = service.update_link_status(link_id, status)
         target = link_id
@@ -88,6 +146,18 @@ async def update_interface_status(
     service: SimulationService = Depends(get_simulation_service),
     db: Session = Depends(get_db),
 ):
+    """更新设备接口状态并记录快照。
+
+    Args:
+        device_id: 设备 ID。
+        iface_name: 接口名称。
+        status: 接口状态（由前端约定）。
+        service: 仿真服务依赖。
+        db: 数据库会话依赖，用于记录拓扑快照。
+
+    Returns:
+        标准响应结构，包含更新后的设备数据（若存在）。
+    """
     updated_topology = service.update_interface_status(device_id, iface_name, status)
     save_new_state(db, updated_topology, f"Set {device_id} interface {iface_name} to {status}", "InterfaceStatus", f"{device_id}:{iface_name}")
 
@@ -103,6 +173,21 @@ async def assign_vlan(
     service: SimulationService = Depends(get_simulation_service),
     db: Session = Depends(get_db),
 ):
+    """为设备端口分配 VLAN 并记录快照。
+
+    Args:
+        device_id: 设备 ID。
+        port: 端口名称。
+        vlan_id: VLAN ID。
+        service: 仿真服务依赖。
+        db: 数据库会话依赖，用于记录拓扑快照。
+
+    Returns:
+        标准响应结构，包含更新后的设备数据（按别名序列化）。
+
+    Raises:
+        HTTPException: 仿真服务校验失败时抛出 400。
+    """
     try:
         updated_topology = service.assign_vlan(device_id, port, vlan_id)
     except ValueError as e:
@@ -120,6 +205,20 @@ async def remove_vlan(
     service: SimulationService = Depends(get_simulation_service),
     db: Session = Depends(get_db),
 ):
+    """移除设备端口 VLAN 配置并记录快照。
+
+    Args:
+        device_id: 设备 ID。
+        port: 端口名称。
+        service: 仿真服务依赖。
+        db: 数据库会话依赖，用于记录拓扑快照。
+
+    Returns:
+        标准响应结构，包含更新后的设备数据（按别名序列化）。
+
+    Raises:
+        HTTPException: 仿真服务校验失败时抛出 400。
+    """
     try:
         updated_topology = service.remove_vlan(device_id, port)
     except ValueError as e:
@@ -140,6 +239,23 @@ async def configure_vlan(
     service: SimulationService = Depends(get_simulation_service),
     db: Session = Depends(get_db),
 ):
+    """配置设备端口 VLAN 模式并记录快照。
+
+    Args:
+        device_id: 设备 ID。
+        port: 端口名称。
+        mode: 端口模式（如 access/trunk）。
+        vlan_id: access 模式下的 VLAN ID（可选）。
+        allowed_vlans: trunk 模式下允许的 VLAN 列表（可选）。
+        service: 仿真服务依赖。
+        db: 数据库会话依赖，用于记录拓扑快照。
+
+    Returns:
+        标准响应结构，包含更新后的设备数据（按别名序列化）。
+
+    Raises:
+        HTTPException: 仿真服务校验失败时抛出 400。
+    """
     try:
         updated_topology = service.configure_vlan(device_id, port, mode, vlan_id, allowed_vlans)
     except ValueError as e:
@@ -155,6 +271,16 @@ async def update_ospf_config(
     service: SimulationService = Depends(get_simulation_service),
     db: Session = Depends(get_db),
 ):
+    """更新设备 OSPF 配置并记录快照。
+
+    Args:
+        body: OSPF 配置请求体。
+        service: 仿真服务依赖。
+        db: 数据库会话依赖，用于记录拓扑快照。
+
+    Returns:
+        标准响应结构，包含更新后的设备数据（按别名序列化）。
+    """
     device_id = body.device_id
     area = body.area
     router_id = body.router_id
@@ -177,6 +303,16 @@ async def reset_ospf_process(
     service: SimulationService = Depends(get_simulation_service),
     db: Session = Depends(get_db),
 ):
+    """重置设备 OSPF 进程并记录快照。
+
+    Args:
+        body: OSPF 重置请求体。
+        service: 仿真服务依赖。
+        db: 数据库会话依赖，用于记录拓扑快照。
+
+    Returns:
+        标准响应结构，包含更新后的设备数据（按别名序列化）。
+    """
     device_id = body.device_id
 
     updated_topology = service.reset_ospf(device_id)
@@ -191,6 +327,15 @@ async def get_ospf_neighbors(
     body: OSPFNeighborsBody,
     service: SimulationService = Depends(get_simulation_service),
 ):
+    """查询设备 OSPF 邻居信息。
+
+    Args:
+        body: OSPF 邻居查询请求体。
+        service: 仿真服务依赖。
+
+    Returns:
+        标准响应结构，data 字段为邻居列表/结构（由仿真服务定义）。
+    """
     neighbors = service.get_ospf_neighbors(body.device_id)
     return {"success": True, "status": "success", "data": neighbors}
 
@@ -201,7 +346,16 @@ async def simulate_ddos(
     service: SimulationService = Depends(get_simulation_service),
     db: Session = Depends(get_db),
 ):
+    """模拟对指定设备发起 DDoS 攻击并记录快照。
+
+    Args:
+        target_id: 目标设备 ID。
+        service: 仿真服务依赖。
+        db: 数据库会话依赖，用于记录拓扑快照。
+
+    Returns:
+        标准响应结构，包含模拟启动结果信息。
+    """
     updated_topology = service.simulate_ddos(target_id)
     save_new_state(db, updated_topology, f"Simulated DDoS attack on {target_id}", "DDoS_Simulation", target_id)
     return {"success": True, "status": "success", "message": f"DDoS simulation started on {target_id}"}
-

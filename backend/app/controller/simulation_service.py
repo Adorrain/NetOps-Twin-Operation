@@ -1,3 +1,12 @@
+"""网络仿真与运维行为的核心服务。
+
+本模块基于拓扑数据构建运行时图结构（NetworkX），并提供 ping、traceroute、
+链路/设备/接口状态变更、VLAN 与 OSPF 配置等仿真能力。
+
+Author: Adorrain
+Date: 2026-01-30
+"""
+
 import networkx as nx
 import random
 import time
@@ -6,15 +15,45 @@ from app.model.topology import TopologyData, Device, Link
 
 
 class SimulationService:
+    """基于拓扑数据的仿真服务。
+
+    维护设备映射、连通图与 IP 映射等运行时结构，支持多类运维操作的仿真计算。
+    """
+
     def __init__(self, topology_data: TopologyData):
+        """初始化仿真服务并构建运行时结构。
+
+        Args:
+            topology_data: 初始拓扑数据。
+        """
         self.topology = topology_data
         self._rebuild_runtime()
 
     def _extra(self, obj) -> Dict[str, Any]:
+        """读取对象的扩展字段字典。
+
+        兼容 Pydantic v2 的 model_extra；当不存在或类型不匹配时返回空字典。
+
+        Args:
+            obj: 任意对象（通常为 Pydantic 模型实例）。
+
+        Returns:
+            扩展字段字典。
+        """
         extra = getattr(obj, "model_extra", None)
         return extra if isinstance(extra, dict) else {}
 
     def _get_field(self, obj, key: str, default=None):
+        """从对象或扩展字段中读取指定键的值。
+
+        Args:
+            obj: 目标对象。
+            key: 字段名。
+            default: 当字段不存在时的默认值。
+
+        Returns:
+            字段值或默认值。
+        """
         try:
             value = getattr(obj, key, None)
         except Exception:
@@ -24,6 +63,13 @@ class SimulationService:
         return default if value is None else value
 
     def _set_field(self, obj, key: str, value):
+        """为对象设置字段，并同步写入扩展字段。
+
+        Args:
+            obj: 目标对象。
+            key: 字段名。
+            value: 需要设置的值。
+        """
         try:
             setattr(obj, key, value)
         except Exception:
@@ -37,25 +83,39 @@ class SimulationService:
                 pass
 
     def _rebuild_runtime(self):
+        """重建运行时索引与图结构。
+
+        在拓扑数据发生变化（设备/链路/接口配置调整）后调用，以刷新 device_map、
+        graph 与 ip_map。
+        """
         self.device_map = {d.id: d for d in self.topology.devices}
         self.graph = self._build_graph()
         self.ip_map = self._build_ip_map()
 
     def _get_device_interfaces(self, device: Device) -> List[Any]:
+        """获取设备接口列表（兼容不同数据结构）。"""
         interfaces = self._get_field(device, "interfaces")
         return interfaces if isinstance(interfaces, list) else []
 
     def _save_device_interfaces(self, device: Device, interfaces: List[Any]):
+        """保存设备接口列表到设备对象。"""
         self._set_field(device, "interfaces", interfaces)
 
     def _get_configuration(self, device: Device) -> Dict[str, Any]:
+        """获取设备 configuration 配置字典（不存在则返回空字典）。"""
         cfg = self._get_field(device, "configuration")
         return cfg if isinstance(cfg, dict) else {}
 
     def _set_configuration(self, device: Device, cfg: Dict[str, Any]):
+        """设置设备 configuration 配置字典。"""
         self._set_field(device, "configuration", cfg)
 
     def _get_ospf(self, device: Device) -> Dict[str, Any]:
+        """获取设备 OSPF 配置并规范化字段名。
+
+        Returns:
+            OSPF 配置字典，确保 routerId 与 router_id 两种写法均被兼容。
+        """
         cfg = self._get_configuration(device)
         ospf = cfg.get("ospf")
         if not isinstance(ospf, dict) or len(ospf) == 0:
@@ -74,12 +134,20 @@ class SimulationService:
         return ospf
 
     def _sync_ospf(self, device: Device, ospf: Dict[str, Any]):
+        """将 OSPF 配置同步到设备对象的多个存储位置。"""
         cfg = self._get_configuration(device)
         cfg["ospf"] = ospf
         self._set_configuration(device, cfg)
         self._set_field(device, "ospf", ospf)
 
     def _build_graph(self) -> nx.Graph:
+        """基于当前拓扑与状态构建连通图。
+
+        图中仅包含处于可用状态的设备与链路，并考虑接口 up/down 及 VLAN 可达性。
+
+        Returns:
+            NetworkX 无向图实例。
+        """
         G = nx.Graph()
 
         for device in self.topology.devices:
@@ -148,6 +216,15 @@ class SimulationService:
         return G
 
     def _get_interface_vlan_info(self, device_id: str, port_name: str) -> Dict[str, Any]:
+        """获取指定设备端口的 VLAN 配置摘要。
+
+        Args:
+            device_id: 设备 ID。
+            port_name: 端口名称。
+
+        Returns:
+            包含 vlan、mode、allowed_vlans 的字典；未找到时返回默认 access VLAN1。
+        """
         if not port_name:
             return {"vlan": 1, "mode": "access", "allowed_vlans": None}
 
@@ -175,6 +252,7 @@ class SimulationService:
         return {"vlan": 1, "mode": "access", "allowed_vlans": None}
 
     def _is_interface_up(self, device_id: str, port_name: str) -> bool:
+        """判断指定设备端口是否处于 up 状态。"""
         if not port_name:
             return True
         device = self.device_map.get(device_id)
@@ -191,6 +269,11 @@ class SimulationService:
         return True
 
     def _build_ip_map(self) -> Dict[str, str]:
+        """构建 IP 到设备 ID 的映射表。
+
+        Returns:
+            key 为 IP（不含掩码），value 为设备 ID。
+        """
         ip_map = {}
         for device in self.topology.devices:
             if device.mgmt_ip:
@@ -208,9 +291,19 @@ class SimulationService:
         return ip_map
 
     def get_device_by_ip(self, ip: str) -> Optional[str]:
+        """根据 IP 查找对应设备 ID。"""
         return self.ip_map.get(ip)
 
     def ping(self, src_device_id: str, target_ip: str) -> Dict[str, Any]:
+        """模拟 ping 目标 IP 并返回结果。
+
+        Args:
+            src_device_id: 源设备 ID。
+            target_ip: 目标 IP。
+
+        Returns:
+            包含 success、message、rtt 等字段的结果字典；可能包含 path/hops。
+        """
         dst_device_id = self.get_device_by_ip(target_ip)
 
         if not dst_device_id:
@@ -241,6 +334,7 @@ class SimulationService:
             return {"success": False, "message": "Request timed out (No path to host)", "rtt": None}
 
     def traceroute(self, src_device_id: str, target_ip: str) -> Dict[str, Any]:
+        """模拟 traceroute 并返回逐跳路径信息。"""
         dst_device_id = self.get_device_by_ip(target_ip)
         if not dst_device_id:
             return {"success": False, "hops": [], "message": f"Target IP {target_ip} unknown"}
@@ -273,6 +367,7 @@ class SimulationService:
             return {"success": False, "hops": [], "message": "Destination unreachable"}
 
     def _get_endpoint_access_vlan(self, device_id: str) -> Optional[int]:
+        """获取端点设备的 access VLAN（用于二层隔离判断）。"""
         device = self.device_map.get(device_id)
         if not device:
             return None
@@ -307,6 +402,7 @@ class SimulationService:
         return None
 
     def _path_has_l3_gateway(self, path: List[str]) -> bool:
+        """判断路径中是否存在可作为三层网关/路由的设备。"""
         for node_id in path[1:-1]:
             dev = self.device_map.get(node_id)
             if not dev:
@@ -327,6 +423,7 @@ class SimulationService:
         return False
 
     def update_device_status(self, device_id: str, status: str) -> TopologyData:
+        """更新设备状态并刷新运行时结构。"""
         for d in self.topology.devices:
             if d.id == device_id:
                 d.status = status
@@ -335,6 +432,7 @@ class SimulationService:
         return self.topology
 
     def update_link_status(self, link_id: str, status: str) -> TopologyData:
+        """更新链路状态并刷新运行时结构。"""
         for l in self.topology.links:
             if l.id == link_id:
                 l.status = status
@@ -343,6 +441,7 @@ class SimulationService:
         return self.topology
 
     def find_and_update_link(self, src_id: str, dst_id: str, status: str) -> TopologyData:
+        """按端点查找链路并更新其状态。"""
         for l in self.topology.links:
             if (l.src_device == src_id and l.dst_device == dst_id) or (l.src_device == dst_id and l.dst_device == src_id):
                 l.status = status
@@ -350,6 +449,7 @@ class SimulationService:
         return self.topology
 
     def update_interface_status(self, device_id: str, iface_name: str, status: str) -> TopologyData:
+        """更新设备指定接口的状态并刷新运行时结构。"""
         for d in self.topology.devices:
             if d.id == device_id:
                 interfaces = self._get_device_interfaces(d)
@@ -367,6 +467,7 @@ class SimulationService:
         return self.topology
 
     def assign_vlan(self, device_id: str, port: str, vlan_id: int) -> TopologyData:
+        """为设备端口设置 access VLAN，并维护设备 VLAN 列表。"""
         if vlan_id < 1 or vlan_id > 4094:
             raise ValueError("vlan_id must be between 1 and 4094")
         for d in self.topology.devices:
@@ -410,6 +511,7 @@ class SimulationService:
         return self.topology
 
     def remove_vlan(self, device_id: str, port: str) -> TopologyData:
+        """移除设备端口 VLAN 配置，并在无引用时从 VLAN 列表移除。"""
         for d in self.topology.devices:
             if d.id == device_id:
                 interfaces = self._get_device_interfaces(d)
@@ -463,6 +565,11 @@ class SimulationService:
         return self.topology
 
     def configure_vlan(self, device_id: str, port: str, mode: str, vlan_id: Optional[int] = None, allowed_vlans: Optional[List[int]] = None) -> TopologyData:
+        """配置端口 VLAN 模式（access/trunk）并刷新运行时结构。
+
+        Raises:
+            ValueError: 参数不合法或端口不存在。
+        """
         mode = str(mode or "").lower()
         if mode not in ("access", "trunk"):
             raise ValueError("mode must be 'access' or 'trunk'")
@@ -499,6 +606,7 @@ class SimulationService:
         return self.topology
 
     def update_ospf_config(self, device_id: str, area: int, router_id: Optional[str] = None) -> TopologyData:
+        """更新设备 OSPF 配置，并触发一次 OSPF 重置。"""
         for d in self.topology.devices:
             if d.id == device_id:
                 config = self._get_configuration(d)
@@ -527,6 +635,7 @@ class SimulationService:
         return self.topology
 
     def reset_ospf(self, device_id: str) -> TopologyData:
+        """记录设备 OSPF 重置时间并刷新运行时结构。"""
         for d in self.topology.devices:
             if d.id == device_id:
                 config = self._get_configuration(d)
@@ -542,6 +651,7 @@ class SimulationService:
         return self.topology
 
     def get_ospf_neighbors(self, device_id: str) -> List[Dict[str, Any]]:
+        """基于连通图与 OSPF 配置模拟邻居关系与状态。"""
         neighbors = []
         src_dev = self.device_map.get(device_id)
         if not src_dev:
@@ -558,6 +668,7 @@ class SimulationService:
             return []
 
         def get_neighbor_interface(local_id: str, remote_id: str) -> str:
+            """获取两端设备间链路在本端对应的接口名称。"""
             for link in self.topology.links:
                 if link.src_device == local_id and link.dst_device == remote_id:
                     return getattr(link, "src_interface", None) or link.dict().get("src_interface") or "Unknown"
@@ -610,4 +721,3 @@ class SimulationService:
                     }
                 )
         return neighbors
-

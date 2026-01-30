@@ -1,5 +1,18 @@
+/**
+ * 迷你折线图（Sparkline）组件。
+ *
+ * Author: Adorrain
+ * Date: 2026-01-30
+ */
+
 import React from 'react';
 
+/**
+ * SparkLine：以 SVG 渲染简单折线，可选填充渐变。
+ *
+ * @param {{data?: number[], width?: number, height?: number, color?: string, fill?: boolean}} props 组件属性。
+ * @returns {JSX.Element|null} 图表组件；数据不足返回 null。
+ */
 const SparkLine = ({
   data = [],
   width = 100,
@@ -13,7 +26,6 @@ const SparkLine = ({
   const min = Math.min(...data);
   const range = max - min || 1;
   
-  // 计算点
   const points = data.map((d, i) => {
     const x = (i / (data.length - 1)) * width;
     const y = height - ((d - min) / range) * height;
@@ -51,7 +63,6 @@ const SparkLine = ({
         className="transition-all duration-500 ease-in-out drop-shadow-md"
       />
       
-      {/* 结束点 */}
       <circle 
         cx={width} 
         cy={height - ((data[data.length - 1] - min) / range) * height} 

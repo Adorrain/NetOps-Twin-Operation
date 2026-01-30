@@ -1,3 +1,11 @@
+"""拓扑相关接口路由。
+
+提供拓扑 YAML 上传与读取能力，并在上传时可选地将快照写入数据库。
+
+作者: Adorrain
+创建时间: 2026-01-30
+"""
+
 from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -15,6 +23,21 @@ router = APIRouter()
 
 @router.post("/network/topology/upload")
 async def upload_topology(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    """上传拓扑 YAML 文件并解析为拓扑数据。
+
+    上传文件会落盘到后端 config/ 目录，然后解析为 TopologyData。
+    解析成功后尝试写入一条 TopologySnapshot（写入失败不会影响接口返回）。
+
+    Args:
+        file: 上传的 YAML 文件（仅支持 .yaml/.yml）。
+        db: 数据库会话依赖。
+
+    Returns:
+        解析后的拓扑数据（TopologyData）。
+
+    Raises:
+        HTTPException: 文件类型不支持、文件为空、文件过大或解析/内部错误。
+    """
     try:
         original_name = os.path.basename(file.filename or "topology.yaml")
         _, ext = os.path.splitext(original_name)
@@ -53,6 +76,16 @@ async def upload_topology(file: UploadFile = File(...), db: Session = Depends(ge
 
 @router.get("/topology", response_model=TopologyData)
 async def get_topology():
+    """获取当前拓扑配置。
+
+    默认从 config/campus.yaml 读取并解析拓扑数据。
+
+    Returns:
+        拓扑数据（TopologyData）。
+
+    Raises:
+        HTTPException: 配置文件不存在或解析/内部错误。
+    """
     try:
         config_path = get_config_path("campus.yaml")
         topology_data = load_topology_from_yaml(config_path)
@@ -62,4 +95,3 @@ async def get_topology():
     except Exception as e:
         print(f"Error loading topology: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-

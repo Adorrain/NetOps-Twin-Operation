@@ -1,4 +1,14 @@
-// 网络设备类型
+/**
+ * 前端通用类型与枚举常量。
+ *
+ * Author: Adorrain
+ * Date: 2026-01-30
+ */
+
+/**
+ * 网络设备类型枚举。
+ * @type {{PC:string, ROUTER:string, SWITCH:string, SERVER:string, FIREWALL:string, ACCESS_POINT:string}}
+ */
 export const DeviceType = {
   PC: 'pc',
   ROUTER: 'router',
@@ -8,7 +18,10 @@ export const DeviceType = {
   ACCESS_POINT: 'access_point'
 };
 
-// 设备状态
+/**
+ * 设备状态枚举。
+ * @type {{ONLINE:string, OFFLINE:string, WARNING:string, ERROR:string, MAINTENANCE:string}}
+ */
 export const DeviceStatus = {
   ONLINE: 'online',
   OFFLINE: 'offline',
@@ -17,7 +30,10 @@ export const DeviceStatus = {
   MAINTENANCE: 'maintenance'
 };
 
-// 连接类型
+/**
+ * 连接类型枚举。
+ * @type {{ETHERNET:string, FIBER:string, WIRELESS:string, SERIAL:string}}
+ */
 export const ConnectionType = {
   ETHERNET: 'ethernet',
   FIBER: 'fiber',
@@ -25,7 +41,10 @@ export const ConnectionType = {
   SERIAL: 'serial'
 };
 
-// 连接状态
+/**
+ * 连接状态枚举。
+ * @type {{ACTIVE:string, INACTIVE:string, DEGRADED:string, FAILED:string}}
+ */
 export const ConnectionStatus = {
   ACTIVE: 'active',
   INACTIVE: 'inactive',

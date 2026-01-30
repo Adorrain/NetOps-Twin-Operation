@@ -1,9 +1,24 @@
+/**
+ * 配置上传组件。
+ *
+ * 支持拖拽或选择文件上传到后端，并将解析后的拓扑转换为前端数据结构。
+ *
+ * Author: Adorrain
+ * Date: 2026-01-30
+ */
+
 import React, { useState, useRef } from 'react';
 import { Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
 import { useAppStore } from '../../stores';
 import { uploadTopologyFile } from '../../features/topology/topologyApi';
 import { buildFrontendTopology } from '../../features/topology/topologyTransform';
 
+/**
+ * ConfigUploader：上传拓扑配置文件并触发回调。
+ *
+ * @param {{onConfigLoaded?: (topology:any)=>void}} props 组件属性。
+ * @returns {JSX.Element} 上传组件。
+ */
 const ConfigUploader = ({ onConfigLoaded }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('idle');
@@ -11,9 +26,18 @@ const ConfigUploader = ({ onConfigLoaded }) => {
   const fileInputRef = useRef(null);
   const { setLoading, addNotification, setNetworkTopology } = useAppStore();
   
-  const UPLOAD_TIMEOUT_MS = 300000; // 5 minutes
+  /**
+   * 上传超时时间（毫秒）。
+   * @type {number}
+   */
+  const UPLOAD_TIMEOUT_MS = 300000;
 
-  // 处理文件上传
+  /**
+   * 处理文件上传：调用后端接口并更新全局拓扑状态。
+   *
+   * @param {File} file 上传的文件对象。
+   * @returns {Promise<void>} 无返回值。
+   */
   const handleFileUpload = async (file) => {
     if (!file.name.endsWith('.yaml') && !file.name.endsWith('.yml') && !file.name.endsWith('.json')) {
       setErrorMessage('请上传 YAML 或 JSON 配置文件');
@@ -26,7 +50,6 @@ const ConfigUploader = ({ onConfigLoaded }) => {
     setErrorMessage('');
     
     try {
-      // 1. 后端写入并获取解析结果 (后端写入与解析)
       let cfg;
       try {
         cfg = await uploadTopologyFile(file, UPLOAD_TIMEOUT_MS);
@@ -34,10 +57,9 @@ const ConfigUploader = ({ onConfigLoaded }) => {
         throw new Error('后端处理失败: ' + err.message);
       }
 
-      // 构建前端拓扑对象
       const topo = buildFrontendTopology(cfg);
       
-      setNetworkTopology(topo); // 直接更新 store
+      setNetworkTopology(topo);
       if (onConfigLoaded) onConfigLoaded(topo);
       setUploadStatus('success');
       
@@ -56,17 +78,31 @@ const ConfigUploader = ({ onConfigLoaded }) => {
     }
   };
   
-  // 拖拽处理
+  /**
+   * 拖拽悬停：阻止默认行为并设置拖拽态。
+   *
+   * @param {DragEvent} e 拖拽事件。
+   */
   const handleDragOver = (e) => {
     e.preventDefault();
     setIsDragging(true);
   };
   
+  /**
+   * 拖拽离开：阻止默认行为并取消拖拽态。
+   *
+   * @param {DragEvent} e 拖拽事件。
+   */
   const handleDragLeave = (e) => {
     e.preventDefault();
     setIsDragging(false);
   };
   
+  /**
+   * 拖拽释放：读取文件并触发上传。
+   *
+   * @param {DragEvent} e 拖拽事件。
+   */
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragging(false);
@@ -77,7 +113,11 @@ const ConfigUploader = ({ onConfigLoaded }) => {
     }
   };
   
-  // 文件选择处理
+  /**
+   * 文件选择：从 input 读取文件并触发上传。
+   *
+   * @param {Event} e input change 事件。
+   */
   const handleFileSelect = (e) => {
     const files = e.target.files;
     if (files && files.length > 0) {
@@ -94,7 +134,6 @@ const ConfigUploader = ({ onConfigLoaded }) => {
         上传网络配置
       </h3>
       
-      {/* 拖拽上传区域 */}
       <div
         className={`relative border-2 border-dashed rounded-xl p-12 transition-all duration-300 flex flex-col items-center justify-center min-h-[300px] group ${
           isDragging 
@@ -159,7 +198,6 @@ const ConfigUploader = ({ onConfigLoaded }) => {
         )}
       </div>
       
-      {/* 配置格式说明 */}
       <div className="mt-8 bg-slate-800/30 rounded-xl p-6 border border-slate-700/30">
         <h4 className="text-sm font-bold text-slate-300 uppercase tracking-wide mb-4">配置格式指南</h4>
         <ul className="space-y-2 text-sm text-slate-400">

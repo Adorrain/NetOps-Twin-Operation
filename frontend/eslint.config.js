@@ -1,3 +1,10 @@
+/**
+ * ESLint 配置（Flat Config）。
+ *
+ * Author: Adorrain
+ * Date: 2026-01-30
+ */
+
 import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'

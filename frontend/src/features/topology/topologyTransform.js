@@ -1,5 +1,20 @@
+/**
+ * 拓扑数据转换与布局计算。
+ *
+ * 将后端返回的拓扑结构转换为前端 3D/界面可用的数据格式，并生成默认布局坐标。
+ *
+ * 作者: Adorrain
+ * 创建时间: 2026-01-30
+ */
+
 import { getAllVlans, getEndpointAccessVlan } from '../../utils/net';
 
+/**
+ * 根据设备名称/类型推断其逻辑角色。
+ *
+ * @param {any} device 设备对象。
+ * @returns {string} 角色标识（core/aggregation/access/firewall/terminal）。
+ */
 export const inferRole = (device) => {
   const name = String(device?.name || '').toLowerCase();
   if (device?.role) return String(device.role).toLowerCase();
@@ -18,6 +33,12 @@ export const inferRole = (device) => {
   return 'terminal';
 };
 
+/**
+ * 为设备列表生成简易的分层布局坐标。
+ *
+ * @param {any[]} devices 设备列表。
+ * @returns {Record<string, {x:number,y:number,z:number}>} 以设备 id 为 key 的坐标映射。
+ */
 export const calculateLayout = (devices) => {
   const core = devices.filter((d) => inferRole(d) === 'core');
   const agg = devices.filter((d) => inferRole(d) === 'aggregation');
@@ -46,6 +67,12 @@ export const calculateLayout = (devices) => {
   return layout;
 };
 
+/**
+ * 将后端拓扑配置转换为前端统一的 topology 结构。
+ *
+ * @param {any} cfg 后端返回或导入的拓扑配置对象。
+ * @returns {any} 前端使用的拓扑对象（包含 devices 与 connections）。
+ */
 export const buildFrontendTopology = (cfg) => {
   const computedLayout = calculateLayout(cfg.devices || []);
 
@@ -107,4 +134,3 @@ export const buildFrontendTopology = (cfg) => {
     updatedAt: new Date()
   };
 };
-

@@ -1,3 +1,10 @@
+/**
+ * 侧边栏导航组件。
+ *
+ * Author: Adorrain
+ * Date: 2026-01-30
+ */
+
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -10,6 +17,11 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '../../stores';
 
+/**
+ * Sidebar：提供页面导航与折叠控制。
+ *
+ * @returns {JSX.Element} Sidebar 组件。
+ */
 const Sidebar = () => {
   const { ui, updateUI } = useAppStore();
   const navigate = useNavigate();
@@ -21,6 +33,11 @@ const Sidebar = () => {
     { id: 'upload', label: '配置上传', icon: Upload },
   ];
   
+  /**
+   * 点击菜单项：切换 activePanel 并跳转路由。
+   *
+   * @param {string} menuId 菜单 ID。
+   */
   const handleMenuClick = (menuId) => {
     updateUI({ activePanel: menuId });
     navigate(`/${menuId}`);
@@ -28,7 +45,6 @@ const Sidebar = () => {
   
   return (
     <div className="h-full bg-slate-900/80 backdrop-blur-xl border-r border-slate-700/50 flex flex-col">
-      {/* Logo (标识) */}
       <div className="h-16 flex items-center justify-between px-4 border-b border-slate-700/50 shrink-0">
         <div className={`flex items-center gap-3 overflow-hidden transition-all duration-300 ${collapsed ? 'w-0 opacity-0' : 'w-full opacity-100'}`}>
           <div className="p-2 bg-blue-600 rounded-lg shadow-lg shadow-blue-500/30">
@@ -49,7 +65,6 @@ const Sidebar = () => {
         )}
       </div>
 
-      {/* 导航菜单 */}
       <nav className="flex-1 py-6 px-3 space-y-2 overflow-y-auto">
         {menuItems.map((item) => {
           const Icon = item.icon;
@@ -77,7 +92,6 @@ const Sidebar = () => {
                 </span>
               )}
               
-              {/* 折叠状态下的工具提示 */}
               {collapsed && (
                 <div className="absolute left-full ml-4 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl border border-slate-700">
                   {item.label}
@@ -88,7 +102,6 @@ const Sidebar = () => {
         })}
       </nav>
 
-      {/* 底部切换按钮 */}
       <div className="p-4 border-t border-slate-700/50 flex justify-end shrink-0">
         <button 
           className="p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors" 

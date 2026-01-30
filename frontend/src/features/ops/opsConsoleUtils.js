@@ -1,5 +1,19 @@
+/**
+ * 运维控制台辅助方法。
+ *
+ * 作者: Adorrain
+ * 创建时间: 2026-01-30
+ */
+
 import { DeviceType } from '../../types';
 
+/**
+ * 判断设备是否属于指定设备类型（含对交换机角色的兼容判断）。
+ *
+ * @param {any} device 设备对象。
+ * @param {string} type 设备类型常量（DeviceType）。
+ * @returns {boolean} 匹配返回 true。
+ */
 export const checkDeviceType = (device, type) => {
   const dType = device?.deviceType || device?.device_type || '';
   if (dType === type) return true;
@@ -10,6 +24,12 @@ export const checkDeviceType = (device, type) => {
   return false;
 };
 
+/**
+ * 将 VLAN 端口配置转为简短提示文本。
+ *
+ * @param {any} cfg VLAN 配置对象（可能包含 mode/vlan/allowed_vlans）。
+ * @returns {string} 提示文本。
+ */
 export const formatVlanHint = (cfg) => {
   if (!cfg) return '-';
   const mode = String(cfg.mode || 'access').toLowerCase();
@@ -21,6 +41,12 @@ export const formatVlanHint = (cfg) => {
   return `access · vlan ${vlan}`;
 };
 
+/**
+ * 将运维日志转换为更易理解的中文解释文本。
+ *
+ * @param {any} log 日志对象（通常包含 type/message）。
+ * @returns {string} 解释文本。
+ */
 export const explainLog = (log) => {
   const t = log.type;
   const msg = String(log.message || '').toLowerCase();
@@ -55,6 +81,12 @@ export const explainLog = (log) => {
   return '系统信息通知';
 };
 
+/**
+ * 从后端/网络响应中提取可读的错误信息。
+ *
+ * @param {any} res 响应对象或字符串。
+ * @returns {string} 错误信息文本。
+ */
 export const getErrorMessage = (res) => {
   if (res && res.message) return res.message;
   if (res && res.detail) {
@@ -66,4 +98,3 @@ export const getErrorMessage = (res) => {
   if (typeof res === 'string') return res;
   return '操作失败 (未定义错误)';
 };
-
