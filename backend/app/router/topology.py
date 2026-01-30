@@ -15,10 +15,18 @@ from app.utils.yaml_loader import load_topology_from_yaml, TopologyValidationErr
 from app.model.topology import TopologyData
 from app.config.database import get_db
 from app.model.db_models import TopologySnapshot
-from app.utils.config_storage import get_config_path, write_bytes
 from app.utils.serialization import dump_model
 
 router = APIRouter()
+
+
+def _get_config_path(filename: str) -> str:
+    """获取配置文件绝对路径（兼容原 config_storage 逻辑）。"""
+    # topology.py -> router -> app -> backend
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    config_dir = os.path.join(base_dir, "config")
+    os.makedirs(config_dir, exist_ok=True)
+    return os.path.join(config_dir, filename)
 
 
 @router.post("/network/topology/upload")
@@ -52,8 +60,9 @@ async def upload_topology(file: UploadFile = File(...), db: Session = Depends(ge
             raise HTTPException(status_code=413, detail="YAML file too large (max 2MB)")
 
         safe_name = original_name
-        file_path = get_config_path(safe_name)
-        write_bytes(file_path, content)
+        file_path = _get_config_path(safe_name)
+        with open(file_path, "wb") as f:
+            f.write(content)
 
         topology_data = load_topology_from_yaml(file_path)
         try:
@@ -87,7 +96,7 @@ async def get_topology():
         HTTPException: 配置文件不存在或解析/内部错误。
     """
     try:
-        config_path = get_config_path("campus.yaml")
+        config_path = _get_config_path("campus.yaml")
         topology_data = load_topology_from_yaml(config_path)
         return topology_data
     except FileNotFoundError:
