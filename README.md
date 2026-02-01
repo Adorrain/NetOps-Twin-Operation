@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./logo.svg" alt="NetOps Logo" width="120" height="120" />
+  <img src="./logo.jpg" alt="NetOps Logo" width="100%" style="max-height: 400px; object-fit: contain;" />
   <h1>NetOps 网络运维数字孪生系统</h1>
   <p>基于 NetOps 理念的网络运维数字孪生系统，通过 YAML 脚本定义网络设备参数，使用 Three.js 进行 3D 可视化展示，实现网络拓扑的数字孪生仿真。</p>
 
@@ -7,7 +7,7 @@
     <a href="https://github.com/Adorrain/NetOps-Twin-Operation"><img src="https://img.shields.io/badge/GitHub-Repo-blue?style=flat&logo=github" alt="GitHub Repo" /></a>
     <a href="https://github.com/Adorrain/NetOps-Twin-Operation/tags"><img src="https://img.shields.io/badge/version-v1.2.0-2ea44f?style=flat" alt="version" /></a>
     <a href="./backend"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat&logo=python&logoColor=white" alt="Python 3.10+" /></a>
-    <a href="./frontend"><img src="https://img.shields.io/badge/React-19-61DAFB?style=flat&logo=react&logoColor=black" alt="React" /></a>
+    <a href="./frontend"><img src="https://img.shields.io/badge/React-18%2B-61DAFB?style=flat&logo=react&logoColor=black" alt="React" /></a>
     <a href="./frontend"><img src="https://img.shields.io/badge/Three.js-3D-000000?style=flat&logo=threedotjs&logoColor=white" alt="Three.js" /></a>
     <a href="./frontend"><img src="https://img.shields.io/badge/Tailwind%20CSS-UI-06B6D4?style=flat&logo=tailwindcss&logoColor=white" alt="Tailwind CSS" /></a>
   </p>
