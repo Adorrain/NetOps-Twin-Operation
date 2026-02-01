@@ -5,3 +5,4 @@ asyncpg
 pydantic-settings
 pyyaml
 python-multipart
+python-dotenv

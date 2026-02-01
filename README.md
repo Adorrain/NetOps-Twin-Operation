@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./logo.jpg" alt="NetOps Logo" width="100%" style="max-height: 400px; object-fit: contain;" />
+  <img src="./logo.jpg" alt="NetOps Logo" width="80%" />
   <h1>NetOps 网络运维数字孪生系统</h1>
   <p>基于 NetOps 理念的网络运维数字孪生系统，通过 YAML 脚本定义网络设备参数，使用 Three.js 进行 3D 可视化展示，实现网络拓扑的数字孪生仿真。</p>
 

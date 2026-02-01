@@ -8,6 +8,11 @@ Date: 2026-01-30
 
 import uvicorn
 import os
+from dotenv import load_dotenv
+
+# 加载 .env 环境变量
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.router import topology, ops

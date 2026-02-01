@@ -9,7 +9,9 @@
  * 后端 API 基础地址。
  * @type {string}
  */
-import { API_BASE } from './env.js';
+import { API_BASE } from '../config.js';
+
+export { API_BASE };
 
 /**
  * 向后端发起 JSON POST 请求并解析返回 JSON。
