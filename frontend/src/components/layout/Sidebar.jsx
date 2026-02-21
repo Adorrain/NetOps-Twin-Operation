@@ -1,116 +1,104 @@
-/**
- * 侧边栏导航组件。
- *
- * Author: Adorrain
- * Date: 2026-01-30
- */
-
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Layout, Menu, Button } from 'antd';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
-  Home, 
-  Network, 
-  Upload, 
-  Activity,
-  ChevronLeft,
-  ChevronRight
-} from 'lucide-react';
+  CloudServerOutlined, 
+  UploadOutlined, 
+  DashboardOutlined,
+  HomeOutlined,
+  LeftOutlined,
+  RightOutlined
+} from '@ant-design/icons';
 import { useAppStore } from '../../stores';
 
-/**
- * Sidebar：提供页面导航与折叠控制。
- *
- * @returns {JSX.Element} Sidebar 组件。
- */
+const { Sider } = Layout;
+
 const Sidebar = () => {
   const { ui, updateUI } = useAppStore();
   const navigate = useNavigate();
+  const location = useLocation();
   const collapsed = ui.sidebarCollapsed;
-  
+
   const menuItems = [
-    { id: 'topology', label: '网络拓扑', icon: Network },
-    { id: 'monitoring', label: '监控面板', icon: Activity },
-    { id: 'upload', label: '配置上传', icon: Upload },
+    { key: 'topology', label: <span style={{ fontSize: '18px', fontWeight: 500, marginLeft: 10 }}>网络拓扑</span>, icon: <CloudServerOutlined style={{ fontSize: '20px' }} />, style: { marginTop: 20, marginBottom: 20 } },
+    { key: 'monitoring', label: <span style={{ fontSize: '18px', fontWeight: 500, marginLeft: 10 }}>监控面板</span>, icon: <DashboardOutlined style={{ fontSize: '20px' }} />, style: { marginBottom: 20 } },
+    { key: 'upload', label: <span style={{ fontSize: '18px', fontWeight: 500, marginLeft: 10 }}>配置上传</span>, icon: <UploadOutlined style={{ fontSize: '20px' }} />, style: { marginBottom: 20 } },
   ];
-  
-  /**
-   * 点击菜单项：切换 activePanel 并跳转路由。
-   *
-   * @param {string} menuId 菜单 ID。
-   */
-  const handleMenuClick = (menuId) => {
-    updateUI({ activePanel: menuId });
-    navigate(`/${menuId}`);
+
+  const handleMenuClick = ({ key }) => {
+    updateUI({ activePanel: key });
+    navigate(`/${key}`);
   };
-  
+
+  const selectedKey = location.pathname.substring(1) || 'topology';
+
   return (
-    <div className="h-full bg-slate-900/80 backdrop-blur-xl border-r border-slate-700/50 flex flex-col">
-      <div className="h-16 flex items-center justify-between px-4 border-b border-slate-700/50 shrink-0">
-        <div className={`flex items-center gap-3 overflow-hidden transition-all duration-300 ${collapsed ? 'w-0 opacity-0' : 'w-full opacity-100'}`}>
-          <div className="p-2 bg-blue-600 rounded-lg shadow-lg shadow-blue-500/30">
-            <Home className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h2 className="font-bold text-lg leading-none tracking-tight text-white">NetOps</h2>
-            <p className="text-[10px] text-slate-400 uppercase tracking-wider">数字孪生</p>
-          </div>
-        </div>
-        
-        {collapsed && (
-           <div className="w-full flex justify-center">
-             <div className="p-2 bg-blue-600 rounded-lg shadow-lg shadow-blue-500/30">
-                <Home className="w-5 h-5 text-white" />
-             </div>
-           </div>
-        )}
+    <Sider 
+        collapsible 
+        collapsed={collapsed} 
+        onCollapse={(value) => updateUI({ sidebarCollapsed: value })}
+        trigger={null}
+        breakpoint="lg"
+        width={260}
+        style={{
+            overflow: 'hidden',
+            height: '100vh',
+            position: 'sticky',
+            left: 0,
+            top: 0,
+            bottom: 0,
+            borderRight: '1px solid #303030', // Match dark theme border
+            display: 'flex',
+            flexDirection: 'column'
+        }}
+    >
+      <div style={{ 
+          height: 64, 
+          margin: 16, 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          overflow: 'hidden',
+          whiteSpace: 'nowrap',
+          flexShrink: 0
+      }}>
+         <HomeOutlined style={{ fontSize: '28px', color: '#1890ff' }} />
+         {!collapsed && <span style={{ marginLeft: 12, color: '#fff', fontWeight: 'bold', fontSize: '20px' }}>NetOps Twin</span>}
+      </div>
+      
+      <div style={{ flex: 1, overflowY: 'auto', marginBottom: 48 }}>
+        <Menu
+            theme="dark"
+            mode="inline"
+            selectedKeys={[selectedKey]}
+            onClick={handleMenuClick}
+            items={menuItems}
+            style={{ borderRight: 0, fontSize: '16px' }}
+        />
       </div>
 
-      <nav className="flex-1 py-6 px-3 space-y-2 overflow-y-auto">
-        {menuItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = ui.activePanel === item.id;
-          
-          return (
-            <button
-              key={item.id}
-              onClick={() => handleMenuClick(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden ${
-                isActive 
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              {isActive && (
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-white/20"></div>
-              )}
-              
-              <Icon className={`w-5 h-5 flex-shrink-0 transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
-              
-              {!collapsed && (
-                <span className={`text-sm font-medium whitespace-nowrap transition-all duration-300 ${isActive ? 'translate-x-1' : ''}`}>
-                  {item.label}
-                </span>
-              )}
-              
-              {collapsed && (
-                <div className="absolute left-full ml-4 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl border border-slate-700">
-                  {item.label}
-                </div>
-              )}
-            </button>
-          );
-        })}
-      </nav>
-
-      <div className="p-4 border-t border-slate-700/50 flex justify-end shrink-0">
-        <button 
-          className="p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors" 
-          onClick={() => updateUI({ sidebarCollapsed: !ui.sidebarCollapsed })}
-        >
-          {collapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
-        </button>
+      <div style={{ 
+          height: 48, 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+          background: '#001529',
+          cursor: 'pointer',
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          transition: 'background-color 0.3s',
+          zIndex: 10
+      }} 
+        onClick={() => updateUI({ sidebarCollapsed: !collapsed })}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#002140'}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#001529'}
+      >
+          {collapsed ? <RightOutlined style={{ color: '#fff', fontSize: '16px' }} /> : <LeftOutlined style={{ color: '#fff', fontSize: '16px' }} />}
       </div>
-    </div>
+    </Sider>
   );
 };
 

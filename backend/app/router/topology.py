@@ -6,18 +6,16 @@
 创建时间: 2026-01-30
 """
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
-from sqlalchemy.orm import Session
+from flask import Blueprint, request, jsonify, abort
 from datetime import datetime
 import os
 
 from app.utils.yaml_loader import load_topology_from_yaml, TopologyValidationError
-from app.model.topology import TopologyData
 from app.config.database import get_db
 from app.model.db_models import TopologySnapshot
 from app.utils.serialization import dump_model
 
-router = APIRouter()
+bp = Blueprint('topology', __name__)
 
 
 def _get_config_path(filename: str) -> str:
@@ -29,35 +27,46 @@ def _get_config_path(filename: str) -> str:
     return os.path.join(config_dir, filename)
 
 
-@router.post("/network/topology/upload")
-async def upload_topology(file: UploadFile = File(...), db: Session = Depends(get_db)):
+@bp.route("/network/topology/upload", methods=['POST'])
+def upload_topology():
     """上传拓扑 YAML 文件并解析为拓扑数据。
 
     上传文件会落盘到后端 config/ 目录，然后解析为 TopologyData。
     解析成功后尝试写入一条 TopologySnapshot（写入失败不会影响接口返回）。
 
-    Args:
-        file: 上传的 YAML 文件（仅支持 .yaml/.yml）。
-        db: 数据库会话依赖。
-
     Returns:
         解析后的拓扑数据（TopologyData）。
 
     Raises:
-        HTTPException: 文件类型不支持、文件为空、文件过大或解析/内部错误。
+        400: 文件类型不支持、文件为空。
+        413: 文件过大。
+        500: 解析/内部错误。
     """
+    db = get_db()
     try:
+        if 'file' not in request.files:
+             abort(400, description="No file part")
+        
+        file = request.files['file']
+        if file.filename == '':
+            abort(400, description="No selected file")
+
         original_name = os.path.basename(file.filename or "topology.yaml")
         _, ext = os.path.splitext(original_name)
         ext = ext.lower()
         if ext not in (".yaml", ".yml"):
-            raise HTTPException(status_code=400, detail="Only .yaml/.yml files are supported")
+            abort(400, description="Only .yaml/.yml files are supported")
 
-        content = await file.read()
-        if content is None:
-            raise HTTPException(status_code=400, detail="Empty upload")
+        # Check content length if possible, or read and check size
+        # Flask doesn't automatically limit size per route easily without reading
+        # For simplicity, we read content
+        content = file.read()
+        
+        if not content:
+            abort(400, description="Empty upload")
+        
         if len(content) > 2 * 1024 * 1024:
-            raise HTTPException(status_code=413, detail="YAML file too large (max 2MB)")
+            abort(413, description="YAML file too large (max 2MB)")
 
         safe_name = original_name
         file_path = _get_config_path(safe_name)
@@ -75,16 +84,17 @@ async def upload_topology(file: UploadFile = File(...), db: Session = Depends(ge
             db.add(snapshot)
             db.commit()
         except Exception:
+            # logging exception here would be good
             pass
-        return topology_data
+        return jsonify(dump_model(topology_data))
     except TopologyValidationError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        abort(400, description=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        abort(500, description=str(e))
 
 
-@router.get("/topology", response_model=TopologyData)
-async def get_topology():
+@bp.route("/topology", methods=['GET'])
+def get_topology():
     """获取当前拓扑配置。
 
     默认从 config/campus.yaml 读取并解析拓扑数据。
@@ -93,14 +103,15 @@ async def get_topology():
         拓扑数据（TopologyData）。
 
     Raises:
-        HTTPException: 配置文件不存在或解析/内部错误。
+        404: 配置文件不存在。
+        500: 解析/内部错误。
     """
     try:
         config_path = _get_config_path("campus.yaml")
         topology_data = load_topology_from_yaml(config_path)
-        return topology_data
+        return jsonify(dump_model(topology_data))
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Topology configuration not found")
+        abort(404, description="Topology configuration not found")
     except Exception as e:
         print(f"Error loading topology: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        abort(500, description=str(e))

@@ -45,11 +45,14 @@ const createSetNetworkTopology = (set) => (topology) => {
   set({ networkTopology: topology });
 
   if (topology) {
-    const deviceStatuses = new Map();
-    topology.devices.forEach((device) => {
-      deviceStatuses.set(device.id, device.status);
-    });
-    set({ deviceStatuses });
+    // 确保 devices 数组存在
+    if (Array.isArray(topology.devices)) {
+        const deviceStatuses = new Map();
+        topology.devices.forEach((device) => {
+          deviceStatuses.set(device.id, device.status);
+        });
+        set({ deviceStatuses });
+    }
   }
 };
 

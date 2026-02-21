@@ -1,65 +1,62 @@
-/**
- * 运维控制台组件。
- *
- * 提供网络诊断（Ping/Traceroute）、链路与设备状态变更、接口/VLAN/OSPF 管理、
- * DDoS 场景模拟以及操作日志查看等能力。
- *
- * 作者: Adorrain
- * 创建时间: 2026-01-30
- */
-
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import { 
+  Select, Input, Button, Slider, Table, 
+  Modal, Tag, Alert, message, Collapse, Space, 
+  Typography, Row, Col, Divider, List, Empty
+} from 'antd';
+import { 
+  CodeOutlined, 
+  ShareAltOutlined, 
+  ThunderboltOutlined, 
+  ApartmentOutlined, 
+  DesktopOutlined, 
+  PlayCircleOutlined,
+  BugOutlined,
+  DeleteOutlined,
+  CheckCircleOutlined
+} from '@ant-design/icons';
 import { useAppStore } from '../../stores';
-import { DeviceStatus, DeviceType, ConnectionStatus } from '../../types';
-import { Terminal, Network, Activity, Layers, Play, RefreshCw, CheckCircle, AlertCircle, ShieldAlert, Route, Zap, X, Trash2 } from 'lucide-react';
-import SparkLine from './charts/SparkLine';
+import { DeviceStatus, ConnectionStatus, DeviceType } from '../../types';
 import { normalizeIp, isVlanCapableDevice } from '../../utils/net';
 import { opsApi } from '../../features/ops/opsApi';
 import { checkDeviceType, explainLog, formatVlanHint, getErrorMessage } from '../../features/ops/opsConsoleUtils';
 
-/**
- * OpsConsole：运维与仿真操作台。
- *
- * @returns {JSX.Element} 运维控制台组件。
- */
+const { Text } = Typography;
+
 const OpsConsole = () => {
   const { 
     networkTopology, 
     setNetworkTopology, 
-    addNotification, 
     updateDeviceStatus,
     opsLogs: logs,
     addOpsLog
   } = useAppStore();
 
   const devices = useMemo(() => networkTopology?.devices || [], [networkTopology]);
-  const connections = useMemo(() => networkTopology?.connections || [], [networkTopology]);
+  const connections = useMemo(() => networkTopology?.links || networkTopology?.connections || [], [networkTopology]);
 
-  // 网络诊断 (Ping & Traceroute)
+  // States (Ping/Trace)
   const [srcId, setSrcId] = useState('');
   const [dstId, setDstId] = useState('');
   const [pingResult, setPingResult] = useState('');
-  const [pingHistory, setPingHistory] = useState([]);
   const [isPinging, setIsPinging] = useState(false);
-  
   const [traceResult, setTraceResult] = useState([]);
   const [isTracing, setIsTracing] = useState(false);
 
-  // 链路管理
+  // States (Link)
   const [connId, setConnId] = useState('');
   const [connStatus, setConnStatus] = useState(ConnectionStatus.ACTIVE);
 
-  // 设备状态
+  // States (Device)
   const [deviceId, setDeviceId] = useState('');
   const [newDeviceStatus, setNewDeviceStatus] = useState(DeviceStatus.ONLINE);
 
-  // 接口状态管理
+  // States (Interface)
   const [ifaceDeviceId, setIfaceDeviceId] = useState('');
   const [ifaceName, setIfaceName] = useState('');
   const [ifaceStatus, setIfaceStatus] = useState('up');
 
-  // VLAN 管理
+  // States (VLAN)
   const [vlanSwitchId, setVlanSwitchId] = useState('');
   const [vlanId, setVlanId] = useState(10);
   const [vlanPort, setVlanPort] = useState('');
@@ -68,31 +65,42 @@ const OpsConsole = () => {
   const [vlanOriginalHint, setVlanOriginalHint] = useState('');
   const [vlanCurrentHint, setVlanCurrentHint] = useState('');
 
-  // OSPF 管理
+  // States (OSPF)
   const [ospfDeviceId, setOspfDeviceId] = useState('');
   const [ospfRouterId, setOspfRouterId] = useState('');
   const [ospfArea, setOspfArea] = useState(0);
   const [ospfNeighbors, setOspfNeighbors] = useState([]);
   const [showNeighborsModal, setShowNeighborsModal] = useState(false);
 
-  // DDoS 模拟
+  // States (DDoS)
   const [ddosTarget, setDdosTarget] = useState('');
   const [isDDoSing, setIsDDoSing] = useState(false);
   const [ddosIntensity, setDdosIntensity] = useState(50);
   const [ddosAlertVisible, setDdosAlertVisible] = useState(false);
 
-  // 日志状态
+  // States (Logs)
   const [logsModalOpen, setLogsModalOpen] = useState(false);
 
-  /**
-   * 根据设备 ID 获取设备名称（找不到则回退为 ID）。
-   *
-   * @param {string} id 设备 ID。
-   * @returns {string} 设备名称或 ID。
-   */
-  const getDeviceName = (id) => {
-    const dev = devices.find(d => d.id === id);
-    return dev ? dev.name : id;
+  // Helpers
+  const getDeviceName = (id) => devices.find(d => d.id === id)?.name || id;
+  const getLinkName = (id) => {
+    const conn = connections.find(c => c.id === id);
+    if (!conn) return id;
+    const src = getDeviceName(conn.sourceDeviceId);
+    const dst = getDeviceName(conn.targetDeviceId);
+    return `${src} <-> ${dst}`;
+  };
+
+  const addLog = (type, messageText) => {
+    addOpsLog({ type, message: messageText });
+  };
+
+  const updateTopologyDevice = (id, patch) => {
+    if (!networkTopology) return;
+    const topo = { ...networkTopology };
+    topo.devices = (topo.devices || []).map(d => d.id === id ? { ...d, ...patch, position: d.position } : d);
+    topo.updatedAt = new Date();
+    setNetworkTopology(topo);
   };
 
   const vlanBaselineRef = useRef(new Map());
@@ -112,58 +120,15 @@ const OpsConsole = () => {
     });
   }, [networkTopology]);
 
-  /**
-   * 根据连接 ID 获取显示名称（源设备 <-> 目的设备）。
-   *
-   * @param {string} id 连接/链路 ID。
-   * @returns {string} 显示名称。
-   */
-  const getLinkName = (id) => {
-    const conn = connections.find(c => c.id === id);
-    if (!conn) return id;
-    const src = getDeviceName(conn.sourceDeviceId);
-    const dst = getDeviceName(conn.targetDeviceId);
-    return `${src} <-> ${dst}`;
-  };
-
-  /**
-   * 追加一条运维日志到全局日志列表。
-   *
-   * @param {string} type 日志类型（success/info/warning/error）。
-   * @param {string} message 日志内容。
-   */
-  const addLog = (type, message) => {
-    addOpsLog({ type, message });
-  };
-
-  /**
-   * 在本地拓扑中更新指定设备字段（保持 position 不变）。
-   *
-   * @param {string} id 设备 ID。
-   * @param {object} patch 需要合并的字段集合。
-   */
-  const updateTopologyDevice = (id, patch) => {
-    if (!networkTopology) return;
-    const topo = { ...networkTopology };
-    topo.devices = (topo.devices || []).map(d => d.id === id ? { ...d, ...patch, position: d.position } : d);
-    topo.updatedAt = new Date();
-    setNetworkTopology(topo);
-  };
-
   useEffect(() => {
-    setPingHistory([]);
     setPingResult('');
     setTraceResult([]);
   }, [srcId, dstId]);
 
-  /**
-   * 执行 Ping 仿真请求并更新 UI 与日志。
-   *
-   * @returns {Promise<void>} 无返回值。
-   */
+  // Actions
   const execPing = async () => {
     if (!srcId || !dstId) {
-      setPingResult('请选择源设备和目标设备');
+      message.warning('请选择源设备和目标设备');
       return;
     }
     
@@ -184,18 +149,15 @@ const OpsConsole = () => {
     
     try {
         const data = await opsApi.ping(srcId, targetIp);
-        
         if (data.success) {
             const ms = data.rtt ? data.rtt.toFixed(2) : 0;
             setPingResult(`延迟: ${ms} ms`);
-            setPingHistory(prev => [...prev.slice(-19), ms]);
-            addNotification({ type: 'success', title: 'Ping 结果', message: `${srcName} 到 ${dstName} 延迟 ${ms} ms` });
+            message.success(`${srcName} 到 ${dstName} 延迟 ${ms} ms`);
             addLog('success', `Ping 成功: ${srcName} 到 ${dstName} (${targetIp}) 延迟 ${ms}ms`);
         } else {
              const errMsg = getErrorMessage(data);
              setPingResult('不可达');
-             setPingHistory(prev => [...prev.slice(-19), 0]);
-             addNotification({ type: 'warning', title: 'Ping 失败', message: errMsg });
+             message.warning(errMsg);
              addLog('error', `Ping 失败: ${errMsg}`);
         }
     } catch (err) {
@@ -206,14 +168,9 @@ const OpsConsole = () => {
     }
   };
 
-  /**
-   * 执行 Traceroute 仿真请求并更新 UI 与日志。
-   *
-   * @returns {Promise<void>} 无返回值。
-   */
   const execTraceroute = async () => {
     if (!srcId || !dstId) {
-      setTraceResult(['请选择源设备和目标设备']);
+      message.warning('请选择源设备和目标设备');
       return;
     }
 
@@ -235,7 +192,6 @@ const OpsConsole = () => {
 
     try {
         const data = await opsApi.traceroute(srcId, targetIp);
-        
         if (data.success) {
             const formattedHops = data.hops.map(h => `${h.hop}. ${h.device_name} (${h.ip}) - ${h.rtt}`);
             setTraceResult(formattedHops);
@@ -253,12 +209,7 @@ const OpsConsole = () => {
     }
   };
 
-  /**
-   * 更新链路状态：调用后端并同步本地拓扑。
-   *
-   * @returns {Promise<void>} 无返回值。
-   */
-  const updateConnectionStatus = async () => {
+  const updateConnectionStatusAction = async () => {
     if (!connId || !networkTopology) return;
     try {
         const res = await opsApi.updateConnection(connId, { status: connStatus });
@@ -270,24 +221,19 @@ const OpsConsole = () => {
             };
             setNetworkTopology(topo);
             const linkName = getLinkName(connId);
-            addNotification({ type: 'info', title: '链路状态', message: `${linkName} 更新为 ${connStatus}` });
+            message.info(`${linkName} 更新为 ${connStatus}`);
             addLog('info', `连接 ${linkName} 状态更新为 ${connStatus}`);
         } else {
              const msg = getErrorMessage(res);
              addLog('error', `更新链路状态失败: ${msg}`);
-             addNotification({ type: 'error', title: '更新失败', message: msg });
+             message.error(msg);
         }
     } catch (e) {
          addLog('error', `更新链路状态异常: ${e.message}`);
-         addNotification({ type: 'error', title: '系统异常', message: e.message });
+         message.error(e.message);
     }
   };
 
-  /**
-   * 更新设备状态：调用后端并同步本地拓扑与状态映射。
-   *
-   * @returns {Promise<void>} 无返回值。
-   */
   const updateDeviceStatusAction = async () => {
     if (!deviceId || !networkTopology) return;
     try {
@@ -296,53 +242,40 @@ const OpsConsole = () => {
             updateTopologyDevice(deviceId, res.data || {});
              updateDeviceStatus(deviceId, newDeviceStatus);
              const devName = getDeviceName(deviceId);
-             addNotification({ type: 'info', title: '设备状态', message: `${devName} 更新为 ${newDeviceStatus}` });
+             message.info(`${devName} 更新为 ${newDeviceStatus}`);
              addLog('info', `设备 ${devName} 状态更新为 ${newDeviceStatus}`);
         } else {
              const msg = getErrorMessage(res);
              addLog('error', `更新设备状态失败: ${msg}`);
-             addNotification({ type: 'error', title: '更新失败', message: msg });
+             message.error(msg);
         }
     } catch (e) {
         addLog('error', `更新设备状态异常: ${e.message}`);
-        addNotification({ type: 'error', title: '系统异常', message: e.message });
+        message.error(e.message);
     }
   };
 
-  /**
-   * 更新接口状态：调用后端并同步本地拓扑。
-   *
-   * @returns {Promise<void>} 无返回值。
-   */
   const updateInterfaceStatusAction = async () => {
     if (!ifaceDeviceId || !ifaceName || !networkTopology) return;
-    
     try {
         const res = await opsApi.updateInterfaceStatus(ifaceDeviceId, ifaceName, ifaceStatus);
-        
         if (res.success) {
              updateTopologyDevice(ifaceDeviceId, res.data || {});
-             
              const devName = getDeviceName(ifaceDeviceId);
              const statusText = ifaceStatus === 'up' ? '启用 (UP)' : '禁用 (DOWN)';
-             addNotification({ type: 'info', title: '接口状态更新', message: `${devName} - ${ifaceName} 已${statusText}` });
+             message.info(`${devName} - ${ifaceName} 已${statusText}`);
              addLog('info', `接口管理: ${devName} 端口 ${ifaceName} 状态变更为 ${ifaceStatus.toUpperCase()}`);
         } else {
              const msg = getErrorMessage(res);
              addLog('error', `更新接口状态失败: ${msg}`);
-             addNotification({ type: 'error', title: '更新失败', message: msg });
+             message.error(msg);
         }
     } catch (e) {
         addLog('error', `更新接口状态异常: ${e.message}`);
-        addNotification({ type: 'error', title: '系统异常', message: e.message });
+        message.error(e.message);
     }
   };
 
-  /**
-   * 选择 OSPF 设备时，根据当前拓扑回填 RouterId/Area。
-   *
-   * @param {string} devId 设备 ID。
-   */
   const handleOspfSelect = (devId) => {
     setOspfDeviceId(devId);
     const dev = devices.find(d => d.id === devId);
@@ -355,74 +288,48 @@ const OpsConsole = () => {
     }
   };
 
-  /**
-   * 更新 OSPF 配置：调用后端并同步本地拓扑。
-   *
-   * @returns {Promise<void>} 无返回值。
-   */
-  const updateOspfConfig = async () => {
+  const updateOspfConfigAction = async () => {
     if (!ospfDeviceId || !networkTopology) return;
-    
     try {
         const res = await opsApi.updateOspf(ospfDeviceId, { routerId: ospfRouterId, area: ospfArea });
-        
         if (res.success) {
             updateTopologyDevice(ospfDeviceId, res.data || {});
-            
             const devName = getDeviceName(ospfDeviceId);
-            addNotification({ type: 'success', title: 'OSPF 配置更新', message: `${devName} 配置已生效` });
+            message.success(`${devName} 配置已生效`);
             addLog('success', `更新 OSPF 配置 ${devName}: RID=${ospfRouterId}, Area=${ospfArea}`);
         } else {
              const msg = res.message;
              addLog('error', `OSPF 更新失败: ${msg}`);
-             addNotification({ type: 'error', title: 'OSPF 更新失败', message: msg });
+             message.error(msg);
         }
     } catch (e) {
         addLog('error', `OSPF 更新异常: ${e.message}`);
-        addNotification({ type: 'error', title: '系统异常', message: e.message });
+        message.error(e.message);
     }
   };
 
-  /**
-   * 触发 OSPF 进程重置，并写入模拟日志提示。
-   *
-   * @returns {Promise<void>} 无返回值。
-   */
-  const resetOspfProcess = async () => {
+  const resetOspfProcessAction = async () => {
     if (!ospfDeviceId) return;
     const devName = getDeviceName(ospfDeviceId);
     addLog('warning', `正在重置 ${devName} 的 OSPF 进程 1...`);
-    
     try {
         const res = await opsApi.resetOspf(ospfDeviceId);
-        
         if (res.success) {
             addLog('warning', `OSPF 邻居状态改变: ${devName} 所有邻居 Down`);
-            addNotification({ type: 'info', title: 'OSPF 进程重置', message: 'OSPF 进程已重启，邻居关系正在重新建立...' });
-            
-            setTimeout(() => {
-                 addLog('info', `OSPF: ${devName} 状态进入 ExStart/Exchange...`);
-            }, 5000);
-            
-            setTimeout(() => {
-                 addLog('success', `OSPF 邻居状态改变: ${devName} 邻居关系恢复 Full`);
-            }, 15000);
+            message.info('OSPF 进程已重启，邻居关系正在重新建立...');
+            setTimeout(() => addLog('info', `OSPF: ${devName} 状态进入 ExStart/Exchange...`), 5000);
+            setTimeout(() => addLog('success', `OSPF 邻居状态改变: ${devName} 邻居关系恢复 Full`), 15000);
         } else {
             const msg = res.message;
             addLog('error', `OSPF 重置失败: ${msg}`);
-            addNotification({ type: 'error', title: '重置失败', message: msg });
+            message.error(msg);
         }
     } catch (e) {
         addLog('error', `OSPF 重置异常: ${e.message}`);
-        addNotification({ type: 'error', title: '系统异常', message: e.message });
+        message.error(e.message);
     }
   };
 
-  /**
-   * 获取并展示 OSPF 邻居表。
-   *
-   * @returns {Promise<void>} 无返回值。
-   */
   const handleGetNeighbors = async () => {
     if (!ospfDeviceId) return;
     try {
@@ -432,21 +339,15 @@ const OpsConsole = () => {
             setShowNeighborsModal(true);
             addLog('success', `获取 ${getDeviceName(ospfDeviceId)} 的 OSPF 邻居列表`);
         } else {
-            addNotification({ type: 'error', title: '获取邻居失败', message: res.message });
+            message.error(res.message);
         }
     } catch (e) {
-        addNotification({ type: 'error', title: '系统异常', message: e.message });
+        message.error(e.message);
     }
   };
 
-  /**
-   * 应用 VLAN 配置：根据模式构造参数并调用后端更新拓扑。
-   *
-   * @returns {Promise<void>} 无返回值。
-   */
-  const applyVlanConfig = async () => {
+  const applyVlanConfigAction = async () => {
     if (!vlanSwitchId || !vlanPort || !networkTopology) return;
-    
     try {
         const payload = { port: vlanPort, mode: vlanMode };
         if (vlanMode === 'access') {
@@ -454,89 +355,63 @@ const OpsConsole = () => {
         } else {
             const allowed = String(vlanAllowedVlans || '')
                 .split(/[,\s]+/)
-                .map(s => s.trim())
-                .filter(Boolean)
-                .map(v => Number(v))
-                .filter(v => Number.isFinite(v) && v >= 1 && v <= 4094);
+                .map(s => s.trim()).filter(Boolean).map(v => Number(v)).filter(v => Number.isFinite(v) && v >= 1 && v <= 4094);
             payload.allowedVlans = Array.from(new Set(allowed));
         }
 
         const res = await opsApi.configureVlan(vlanSwitchId, payload);
-        
         if (res.success) {
              updateTopologyDevice(vlanSwitchId, res.data || {});
-             
              const swName = getDeviceName(vlanSwitchId);
-             const detail = vlanMode === 'access'
-                ? `access vlan ${vlanId}`
-                : `trunk${payload.allowedVlans?.length ? ` allowed ${payload.allowedVlans.join(',')}` : ''}`;
-             addNotification({ type: 'success', title: 'VLAN 配置成功', message: `${swName} 端口 ${vlanPort} 已配置为 ${detail}` });
+             const detail = vlanMode === 'access' ? `access vlan ${vlanId}` : `trunk${payload.allowedVlans?.length ? ` allowed ${payload.allowedVlans.join(',')}` : ''}`;
+             message.success(`${swName} 端口 ${vlanPort} 已配置为 ${detail}`);
              addLog('success', `VLAN 配置: ${swName} 端口 ${vlanPort} -> ${detail}`);
-
              setVlanCurrentHint(formatVlanHint({ mode: vlanMode, vlan: vlanMode === 'access' ? vlanId : undefined, allowed_vlans: payload.allowedVlans }));
-             setVlanOriginalHint(formatVlanHint(vlanBaselineRef.current.get(`${vlanSwitchId}:${vlanPort}`)));
         } else {
              const msg = res.message;
              addLog('error', `VLAN 配置失败: ${msg}`);
-             addNotification({ type: 'error', title: 'VLAN 配置失败', message: msg });
+             message.error(msg);
         }
     } catch (e) {
         addLog('error', `VLAN 配置异常: ${e.message}`);
-        addNotification({ type: 'error', title: '系统异常', message: e.message });
+        message.error(e.message);
     }
   };
 
-  /**
-   * 恢复端口 VLAN 配置为默认（调用后端移除 VLAN）。
-   *
-   * @returns {Promise<void>} 无返回值。
-   */
-  const restoreVlanConfig = async () => {
+  const restoreVlanConfigAction = async () => {
     if (!vlanSwitchId || !vlanPort || !networkTopology) return;
-    
     try {
         const res = await opsApi.removeVlan(vlanSwitchId, { port: vlanPort });
-        
         if (res.success) {
              updateTopologyDevice(vlanSwitchId, res.data || {});
-             
              const swName = getDeviceName(vlanSwitchId);
-             addNotification({ type: 'success', title: 'VLAN 恢复成功', message: `${swName} 端口 ${vlanPort} 已恢复为默认配置` });
+             message.success(`${swName} 端口 ${vlanPort} 已恢复为默认配置`);
              addLog('success', `VLAN 恢复: ${swName} 端口 ${vlanPort}`);
-
              setVlanMode('access');
              setVlanId(1);
              setVlanAllowedVlans('');
              setVlanCurrentHint(formatVlanHint({ mode: 'access', vlan: 1 }));
-             setVlanOriginalHint(formatVlanHint(vlanBaselineRef.current.get(`${vlanSwitchId}:${vlanPort}`)));
         } else {
              const msg = res.message || 'Unknown error';
              addLog('error', `VLAN 恢复失败: ${msg}`);
-             addNotification({ type: 'error', title: 'VLAN 恢复失败', message: msg });
+             message.error(msg);
         }
     } catch (e) {
         addLog('error', `VLAN 恢复异常: ${e.message}`);
-        addNotification({ type: 'error', title: '系统异常', message: e.message });
+        message.error(e.message);
     }
   };
 
-  /**
-   * 切换 DDoS 模拟状态：开始时调用后端，停止时仅更新本地 UI。
-   *
-   * @returns {Promise<void>} 无返回值。
-   */
   const toggleDDoS = async () => {
     if (!ddosTarget) return;
-    
     if (isDDoSing) {
         setIsDDoSing(false);
         setDdosAlertVisible(false);
-        addNotification({ type: 'success', title: 'DDoS 模拟结束', message: `针对 ${ddosTarget} 的攻击已停止` });
+        message.success(`针对 ${ddosTarget} 的攻击已停止`);
         addLog('info', `停止 DDoS 模拟: 目标 ${ddosTarget}`);
     } else {
         setIsDDoSing(true);
-        addNotification({ type: 'warning', title: 'DDoS 模拟请求', message: `正在向后端发送 DDoS 请求...` });
-        
+        message.warning(`正在向后端发送 DDoS 请求...`);
         try {
             const data = await opsApi.ddos({
                 target: ddosTarget,
@@ -544,593 +419,373 @@ const OpsConsole = () => {
                 intensity: ddosIntensity,
                 duration: 60
             });
-            
             if (data.success) {
                  setDdosAlertVisible(true);
-                 addNotification({ type: 'warning', title: 'DDoS 模拟开始', message: `正在向 ${ddosTarget} 发送 ${ddosIntensity}Gbps 流量` });
+                 message.warning(`正在向 ${ddosTarget} 发送 ${ddosIntensity}Gbps 流量`);
                  addLog('warning', `开始 DDoS 模拟: 目标 ${ddosTarget}, 强度 ${ddosIntensity}Gbps (UDP Flood)`);
             } else {
                  setIsDDoSing(false);
                  setDdosAlertVisible(false);
                  const msg = data.message;
                  addLog('error', `DDoS 启动失败: ${msg}`);
-                 addNotification({ type: 'error', title: 'DDoS 启动失败', message: msg });
+                 message.error(msg);
             }
         } catch (e) {
              setIsDDoSing(false);
              setDdosAlertVisible(false);
              addLog('error', `DDoS 请求异常`,e);
-             addNotification({ type: 'error', title: '系统异常', message: e.message });
+             message.error(e.message);
         }
     }
   };
 
-  // 可复用的表单组件
-  /**
-   * 区块标题组件。
-   *
-   * @param {{icon:any,title:string,colorClass?:string}} props 组件属性。
-   * @returns {JSX.Element} 标题组件。
-   */
-  const SectionHeader = ({ icon, title, colorClass = "text-blue-400" }) => {
-    const Icon = icon;
-    return (
-    <div className="flex items-center gap-3 mb-4 pb-2 border-b border-slate-700/50">
-      <div className={`p-1.5 rounded-lg bg-slate-800/50 border border-slate-700/50 ${colorClass}`}>
-        <Icon className="w-4 h-4" />
-      </div>
-      <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wide">{title}</h3>
-    </div>
-    );
-  };
+  const collapseItems = [
+    {
+      key: 'net-diag',
+      label: <Space><CodeOutlined style={{ color: '#1890ff' }} />网络诊断</Space>,
+      children: (
+        <Space orientation="vertical" style={{ width: '100%' }}>
+            <Space style={{ width: '100%' }} orientation="vertical">
+                <Select 
+                    style={{ width: '100%' }} 
+                    placeholder="源设备" 
+                    value={srcId}
+                    onChange={setSrcId}
+                    options={devices.map(d => ({ value: d.id, label: d.name }))}
+                />
+                <Select 
+                    style={{ width: '100%' }} 
+                    placeholder="目标设备" 
+                    value={dstId}
+                    onChange={setDstId}
+                    options={devices.map(d => ({ value: d.id, label: d.name }))}
+                />
+            </Space>
+            
+            <Row gutter={8}>
+                <Col span={12}><Button type="primary" block icon={<PlayCircleOutlined />} loading={isPinging} onClick={execPing}>Ping</Button></Col>
+                <Col span={12}><Button block icon={<ShareAltOutlined />} loading={isTracing} onClick={execTraceroute}>Traceroute</Button></Col>
+            </Row>
 
-  /**
-   * 下拉选择组件。
-   *
-   * @param {{label:string,value:any,onChange:(e:any)=>void,options:{value:any,label:string}[],placeholder?:string}} props 组件属性。
-   * @returns {JSX.Element} Select 组件。
-   */
-  const Select = ({ label, value, onChange, options, placeholder = "Select..." }) => (
-    <div className="flex flex-col gap-1.5 mb-3">
-      <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{label}</label>
-      <select 
-        className="bg-slate-800/50 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all appearance-none cursor-pointer hover:bg-slate-800"
-        value={value} 
-        onChange={onChange}
-      >
-        <option value="">{placeholder}</option>
-        {options.map(opt => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
-        ))}
-      </select>
-    </div>
-  );
-
-  /**
-   * 输入框组件。
-   *
-   * @param {{label:string,value:any,onChange:(e:any)=>void,type?:string,placeholder?:string}} props 组件属性。
-   * @returns {JSX.Element} Input 组件。
-   */
-  const Input = ({ label, value, onChange, type = "text", placeholder }) => (
-    <div className="flex flex-col gap-1.5 mb-3">
-      <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{label}</label>
-      <input 
-        type={type}
-        className="bg-slate-800/50 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all placeholder-slate-600"
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-      />
-    </div>
-  );
-
-  /**
-   * 按钮组件：按 variant 生成不同的样式。
-   *
-   * @param {{onClick:()=>void,disabled?:boolean,children:any,variant?:string,className?:string}} props 组件属性。
-   * @returns {JSX.Element} Button 组件。
-   */
-  const Button = ({ onClick, disabled, children, variant = "blue", className = "" }) => {
-    const variants = {
-      blue: "bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20",
-      indigo: "bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20",
-      cyan: "bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg shadow-cyan-500/20",
-      red: "bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-500/20",
-      slate: "bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600",
-      outline: "bg-transparent border border-slate-600 text-slate-400 hover:text-white hover:border-slate-500"
-    };
-
-    return (
-      <button 
-        onClick={onClick} 
-        disabled={disabled}
-        className={`w-full py-2 px-4 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${variants[variant]} ${className}`}
-      >
-        {children}
-      </button>
-    );
-  };
-
-  return (
-    <div className="flex flex-col h-full gap-6 relative">
-      {ddosAlertVisible && (
-        <div className="absolute top-0 left-0 right-0 z-50 bg-red-500/90 text-white px-4 py-3 rounded-lg shadow-lg animate-pulse flex items-center justify-between backdrop-blur-sm border border-red-400">
-           <div className="flex items-center gap-3">
-              <ShieldAlert className="w-6 h-6 animate-bounce" />
-              <div>
-                <div className="font-bold text-lg">DDoS 攻击告警</div>
-                <div className="text-sm opacity-90">检测到针对 {getDeviceName(ddosTarget)} 的异常流量洪泛 ({ddosIntensity} Gbps)</div>
-              </div>
-           </div>
-           <button 
-             onClick={() => { setDdosAlertVisible(false); setIsDDoSing(false); }}
-             className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm font-medium transition-colors"
-           >
-             立即阻断
-           </button>
-        </div>
-      )}
-
-      <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-6">
-        
-        {/* 网络诊断 */}
-        <div className="bg-slate-800/20 rounded-xl p-4 border border-slate-700/30">
-          <SectionHeader icon={Terminal} title="网络诊断" colorClass="text-blue-400" />
-          
-          <div className="grid grid-cols-1 gap-1">
-            <Select 
-              label="源设备" 
-              value={srcId} 
-              onChange={e => setSrcId(e.target.value)} 
-              placeholder="选择源设备"
-              options={devices.map(d => ({ value: d.id, label: d.name }))}
-            />
-            <Select 
-              label="目标设备" 
-              value={dstId} 
-              onChange={e => setDstId(e.target.value)} 
-              placeholder="选择目标设备"
-              options={devices.map(d => ({ value: d.id, label: d.name }))}
-            />
-          </div>
-          
-          {/* Ping 图表 */}
-          <div className="h-16 mb-4 bg-slate-900/50 rounded-lg border border-slate-700/50 relative overflow-hidden flex items-center justify-center">
-             {pingHistory.length > 0 ? (
-               <div className="absolute inset-0 p-1">
-                 <SparkLine data={pingHistory} width={300} height={60} color="#3b82f6" fill={true} />
-               </div>
-             ) : (
-               <span className="text-xs text-slate-600">延迟历史曲线</span>
-             )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-             <Button onClick={execPing} disabled={isPinging || isTracing} variant="blue">
-              <Play className={`w-4 h-4 ${isPinging ? 'animate-spin' : ''}`} />
-              {isPinging ? '正在 Ping...' : 'Ping 测试'}
-            </Button>
-            <Button onClick={execTraceroute} disabled={isPinging || isTracing} variant="indigo">
-              <Route className={`w-4 h-4 ${isTracing ? 'animate-pulse' : ''}`} />
-              {isTracing ? '正在追踪...' : '路由追踪'}
-            </Button>
-          </div>
-
-          {/* 结果显示 */}
-          <div className="mt-4 bg-slate-900 rounded-lg border border-slate-800 p-3 min-h-[60px] text-xs font-mono">
             {pingResult && (
-                <div className={`flex items-center gap-2 mb-2 ${pingResult.includes('不可达') || pingResult.includes('失败') ? 'text-red-400' : 'text-green-400'}`}>
-                    {pingResult.includes('不可达') || pingResult.includes('失败') ? <AlertCircle className="w-3 h-3"/> : <CheckCircle className="w-3 h-3"/>}
-                    PING: {pingResult}
-                </div>
+                <Alert message={pingResult} type={pingResult.includes('失败') || pingResult.includes('不可达') ? 'error' : 'success'} showIcon />
             )}
             {traceResult.length > 0 && (
-                <div className="space-y-1">
-                    <div className="text-slate-500 border-b border-slate-800 pb-1 mb-1">路由追踪路径:</div>
-                    {traceResult.map((hop, i) => <div key={i} className="text-slate-300 pl-2 border-l border-slate-700 ml-1">{hop}</div>)}
+                <div style={{ background: 'rgba(0,0,0,0.2)', padding: 8, borderRadius: 4 }}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>路由追踪路径:</Text>
+                    {traceResult.map((hop, i) => <div key={i} style={{ fontSize: 12, color: '#ccc', marginLeft: 8 }}>{hop}</div>)}
                 </div>
             )}
-            {!pingResult && traceResult.length === 0 && <div className="text-slate-600 text-center italic py-2">准备就绪...</div>}
-          </div>
-        </div>
-
-        {/* 链路管理 */}
-        <div className="bg-slate-800/20 rounded-xl p-4 border border-slate-700/30">
-          <SectionHeader icon={Network} title="链路管理" colorClass="text-purple-400" />
-
-          <Select 
-            label="选择链路" 
-            value={connId} 
-            onChange={e => setConnId(e.target.value)} 
-            placeholder="-- 选择链路 --"
-            options={connections.map(c => {
-                const src = devices.find(d => d.id === c.sourceDeviceId)?.name || c.sourceDeviceId;
-                const dst = devices.find(d => d.id === c.targetDeviceId)?.name || c.targetDeviceId;
-                return { value: c.id, label: `${src} -> ${dst}` };
-            })}
-          />
-          <Select 
-            label="设置状态" 
-            value={connStatus} 
-            onChange={e => setConnStatus(e.target.value)} 
-            options={Object.values(ConnectionStatus).map(s => ({ value: s, label: s }))}
-          />
-          <Button onClick={updateConnectionStatus} variant="slate" className="mt-2">
-            更新状态
-          </Button>
-        </div>
-
-        {/* OSPF 管理 */}
-        <div className="bg-slate-800/20 rounded-xl p-4 border border-slate-700/30">
-           <SectionHeader icon={Activity} title="OSPF 操作" colorClass="text-green-400" />
-          
-          <Select 
-            label="选择路由器" 
-            value={ospfDeviceId} 
-            onChange={e => handleOspfSelect(e.target.value)} 
-            placeholder="-- 选择设备 --"
-            options={devices.filter(d => (d.configuration && d.configuration.ospf) || checkDeviceType(d, DeviceType.ROUTER)).map(d => ({ 
-                value: d.id, 
-                label: (d.configuration?.ospf?.routerId) ? `${d.name} (${d.configuration.ospf.routerId})` : d.name 
-            }))}
-          />
-
-          {ospfDeviceId ? (
-            <div className="animate-fade-in space-y-3">
-                <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-700/50">
-                    <div className="grid grid-cols-2 gap-3">
-                        <Input 
-                            label="Router ID" 
-                            value={ospfRouterId}
-                            onChange={e => setOspfRouterId(e.target.value)}
-                        />
-                        <Input 
-                            label="Area ID" 
-                            type="number"
-                            value={ospfArea}
-                            onChange={e => setOspfArea(Number(e.target.value))}
-                        />
-                    </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-3">
-                     <Button onClick={updateOspfConfig} variant="blue">
-                       <RefreshCw className="w-4 h-4" />
-                       更新配置
-                     </Button>
-                     <Button onClick={resetOspfProcess} variant="red">
-                       <RefreshCw className="w-4 h-4" />
-                       重置进程
-                     </Button>
-                     <Button onClick={handleGetNeighbors} variant="indigo" className="col-span-2">
-                       <Network className="w-4 h-4" />
-                       查看邻居表
-                     </Button>
-                </div>
-            </div>
-          ) : (
-            <div className="text-center py-4 text-xs text-slate-500 border border-dashed border-slate-700 rounded-lg">
-                请选择设备以管理 OSPF
-            </div>
-          )}
-        </div>
-
-        {/* VLAN 管理 */}
-        <div className="bg-slate-800/20 rounded-xl p-4 border border-slate-700/30">
-           <SectionHeader icon={Layers} title="VLAN 管理" colorClass="text-indigo-400" />
-
+         </Space>
+      )
+    },
+    {
+      key: 'link-mgmt',
+      label: <Space><ThunderboltOutlined style={{ color: '#722ed1' }} />链路管理</Space>,
+      children: (
+          <Space orientation="vertical" style={{ width: '100%' }}>
+            <Select 
+                style={{ width: '100%' }} 
+                placeholder="选择链路" 
+                value={connId}
+                onChange={setConnId}
+                options={connections.map(c => {
+                    const src = devices.find(d => d.id === c.sourceDeviceId)?.name || c.sourceDeviceId;
+                    const dst = devices.find(d => d.id === c.targetDeviceId)?.name || c.targetDeviceId;
+                    return { value: c.id, label: `${src} -> ${dst}` };
+                })}
+            />
+            <Select 
+                style={{ width: '100%' }}
+                placeholder="设置状态"
+                value={connStatus}
+                onChange={setConnStatus}
+                options={Object.values(ConnectionStatus).map(s => ({ value: s, label: s }))}
+            />
+            <Button block onClick={updateConnectionStatusAction}>更新状态</Button>
+          </Space>
+      )
+    },
+    {
+      key: 'device-mgmt',
+      label: <Space><DesktopOutlined style={{ color: '#faad14' }} />设备状态</Space>,
+      children: (
+          <Space orientation="vertical" style={{ width: '100%' }}>
              <Select 
-                label="选择交换机" 
-                value={vlanSwitchId} 
-                onChange={e => {
-                    setVlanSwitchId(e.target.value);
-                    setVlanPort('');
-                }} 
-                placeholder="-- 选择交换机 --"
+                style={{ width: '100%' }} 
+                placeholder="选择设备" 
+                value={deviceId}
+                onChange={setDeviceId}
+                options={devices.map(d => ({ value: d.id, label: d.name }))}
+            />
+            <Select 
+                style={{ width: '100%' }}
+                placeholder="新状态"
+                value={newDeviceStatus}
+                onChange={setNewDeviceStatus}
+                options={Object.values(DeviceStatus).map(s => ({ value: s, label: s }))}
+            />
+            <Button block onClick={updateDeviceStatusAction}>更新状态</Button>
+          </Space>
+      )
+    },
+    {
+      key: 'iface-mgmt',
+      label: <Space><ApartmentOutlined style={{ color: '#52c41a' }} />接口状态</Space>,
+      children: (
+         <Space orientation="vertical" style={{ width: '100%' }}>
+            <Select 
+                style={{ width: '100%' }} 
+                placeholder="选择设备" 
+                value={ifaceDeviceId}
+                onChange={(val) => { setIfaceDeviceId(val); setIfaceName(''); }}
+                options={devices.filter(d => d.interfaces && d.interfaces.length > 0).map(d => ({ value: d.id, label: d.name }))}
+            />
+            <Row gutter={8}>
+                <Col span={12}>
+                    <Select 
+                        style={{ width: '100%' }} 
+                        placeholder="接口" 
+                        value={ifaceName}
+                        onChange={setIfaceName}
+                        options={devices.find(d => d.id === ifaceDeviceId)?.interfaces?.map((iface) => ({ value: iface.name, label: iface.name })) || []}
+                    />
+                </Col>
+                <Col span={12}>
+                    <Select 
+                        style={{ width: '100%' }}
+                        value={ifaceStatus}
+                        onChange={setIfaceStatus}
+                        options={[{ value: 'up', label: 'UP' }, { value: 'down', label: 'DOWN' }]}
+                    />
+                </Col>
+            </Row>
+            <Button block onClick={updateInterfaceStatusAction} disabled={!ifaceDeviceId || !ifaceName}>更新接口</Button>
+         </Space>
+      )
+    },
+    {
+      key: 'vlan-mgmt',
+      label: <Space><ApartmentOutlined style={{ color: '#eb2f96' }} />VLAN 管理</Space>,
+      children: (
+         <Space orientation="vertical" style={{ width: '100%' }}>
+            <Select 
+                style={{ width: '100%' }} 
+                placeholder="选择交换机" 
+                value={vlanSwitchId}
+                onChange={(val) => { setVlanSwitchId(val); setVlanPort(''); }}
                 options={devices.filter(isVlanCapableDevice).map(d => ({ value: d.id, label: d.name }))}
-             />
-             
-             {vlanSwitchId && (
-                 <div className="space-y-3 animate-fade-in mb-3">
-                     <div className="grid grid-cols-2 gap-3">
-                     <Select 
-                        label="端口" 
-                        value={vlanPort} 
-                        onChange={e => {
-                            const port = e.target.value;
-                            setVlanPort(port);
-                            const sw = devices.find(d => d.id === vlanSwitchId);
-                            const iface = sw?.interfaces?.find(i => i.name === port);
-                            if (iface?.mode) setVlanMode(iface.mode);
-                            if (iface?.vlan) setVlanId(Number(iface.vlan));
-                            if (Array.isArray(iface?.allowed_vlans)) setVlanAllowedVlans(iface.allowed_vlans.join(','));
-                            if (Array.isArray(iface?.allowedVlans)) setVlanAllowedVlans(iface.allowedVlans.join(','));
-                            if (iface?.allowed_vlans == null && iface?.allowedVlans == null) setVlanAllowedVlans('');
-
-                            setVlanCurrentHint(formatVlanHint({
-                              mode: iface?.mode || 'access',
-                              vlan: iface?.vlan,
-                              allowed_vlans: Array.isArray(iface?.allowed_vlans) ? iface.allowed_vlans : (Array.isArray(iface?.allowedVlans) ? iface.allowedVlans : undefined)
-                            }));
-                            setVlanOriginalHint(formatVlanHint(vlanBaselineRef.current.get(`${vlanSwitchId}:${port}`)));
-                        }} 
-                        placeholder="选择端口"
-                        options={devices.find(d => d.id === vlanSwitchId)?.interfaces?.map((iface) => ({ value: iface.name, label: iface.name })) || []}
-                     />
-                     <Select
-                        label="模式"
-                        value={vlanMode}
-                        onChange={e => setVlanMode(e.target.value)}
-                        options={[{ value: 'access', label: 'access' }, { value: 'trunk', label: 'trunk' }]}
-                     />
-                     </div>
-                     {vlanMode === 'access' ? (
-                        <Input 
-                           label="Access VLAN" 
-                           type="number" 
-                           value={vlanId} 
-                           onChange={e => setVlanId(Number(e.target.value))} 
-                           placeholder="1-4094"
-                        />
-                     ) : (
-                        <Input
-                           label="Trunk 允许 VLAN"
-                           value={vlanAllowedVlans}
-                           onChange={e => setVlanAllowedVlans(e.target.value)}
-                           placeholder="10,20,30"
-                        />
-                     )}
-                     {vlanPort && (
-                        <div className="px-3 py-2 rounded-lg border border-slate-700/40 bg-slate-900/30 text-xs text-slate-400">
-                          <div className="flex justify-between">
-                            <span className="uppercase tracking-wider">当前</span>
-                            <span className="font-mono text-slate-300">{vlanCurrentHint || '-'}</span>
-                          </div>
-                          <div className="flex justify-between mt-1">
-                            <span className="uppercase tracking-wider">原始</span>
-                            <span className="font-mono text-slate-500">{vlanOriginalHint || '-'}</span>
-                          </div>
+            />
+            {vlanSwitchId && (
+                <>
+                    <Row gutter={8}>
+                        <Col span={12}>
+                            <Select 
+                                style={{ width: '100%' }} 
+                                placeholder="端口" 
+                                value={vlanPort}
+                                onChange={(val) => {
+                                    setVlanPort(val);
+                                    const sw = devices.find(d => d.id === vlanSwitchId);
+                                    const iface = sw?.interfaces?.find(i => i.name === val);
+                                    if (iface?.mode) setVlanMode(iface.mode);
+                                    if (iface?.vlan) setVlanId(Number(iface.vlan));
+                                    if (Array.isArray(iface?.allowed_vlans)) setVlanAllowedVlans(iface.allowed_vlans.join(','));
+                                    else if (Array.isArray(iface?.allowedVlans)) setVlanAllowedVlans(iface.allowedVlans.join(','));
+                                    else setVlanAllowedVlans('');
+                                    
+                                    setVlanCurrentHint(formatVlanHint({
+                                      mode: iface?.mode || 'access',
+                                      vlan: iface?.vlan,
+                                      allowed_vlans: Array.isArray(iface?.allowed_vlans) ? iface.allowed_vlans : (Array.isArray(iface?.allowedVlans) ? iface.allowedVlans : undefined)
+                                    }));
+                                    setVlanOriginalHint(formatVlanHint(vlanBaselineRef.current.get(`${vlanSwitchId}:${val}`)));
+                                }}
+                                options={devices.find(d => d.id === vlanSwitchId)?.interfaces?.map((iface) => ({ value: iface.name, label: iface.name })) || []}
+                            />
+                        </Col>
+                        <Col span={12}>
+                            <Select 
+                                style={{ width: '100%' }}
+                                value={vlanMode}
+                                onChange={setVlanMode}
+                                options={[{ value: 'access', label: 'Access' }, { value: 'trunk', label: 'Trunk' }]}
+                            />
+                        </Col>
+                    </Row>
+                    {vlanMode === 'access' ? (
+                        <Input type="number" placeholder="VLAN ID (1-4094)" value={vlanId} onChange={e => setVlanId(Number(e.target.value))} />
+                    ) : (
+                        <Input placeholder="Allowed VLANs (e.g. 10,20)" value={vlanAllowedVlans} onChange={e => setVlanAllowedVlans(e.target.value)} />
+                    )}
+                    {vlanPort && (
+                        <div style={{ padding: 8, background: 'rgba(0,0,0,0.2)', borderRadius: 4, fontSize: 12 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}><Text type="secondary">当前:</Text> <Text code>{vlanCurrentHint || '-'}</Text></div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}><Text type="secondary">原始:</Text> <Text type="secondary">{vlanOriginalHint || '-'}</Text></div>
                         </div>
-                     )}
-                 </div>
-             )}
-             <div className="grid grid-cols-2 gap-3">
-                 <Button 
-                    onClick={applyVlanConfig} 
-                    disabled={!vlanSwitchId || !vlanPort || (vlanMode === 'access' && (!vlanId || vlanId < 1))}
-                    variant="indigo"
-                 >
-                    <CheckCircle className="w-4 h-4" />
-                    应用配置
-                 </Button>
-                 <Button 
-                    onClick={restoreVlanConfig} 
-                    disabled={!vlanSwitchId || !vlanPort}
-                    variant="red"
-                 >
-                    <Trash2 className="w-4 h-4" />
-                    恢复默认配置
-                 </Button>
-             </div>
-        </div>
-
-        {/* DDoS 模拟 */}
-        <div className="bg-slate-800/20 rounded-xl p-4 border border-slate-700/30">
-          <SectionHeader icon={ShieldAlert} title="DDoS 模拟" colorClass="text-red-400" />
-
+                    )}
+                    <Row gutter={8}>
+                        <Col span={12}><Button type="primary" block onClick={applyVlanConfigAction} disabled={!vlanPort}>应用</Button></Col>
+                        <Col span={12}><Button danger block icon={<DeleteOutlined />} onClick={restoreVlanConfigAction} disabled={!vlanPort}>恢复</Button></Col>
+                    </Row>
+                </>
+            )}
+         </Space>
+      )
+    },
+    {
+      key: 'ospf-ops',
+      label: <Space><ApartmentOutlined style={{ color: '#52c41a' }} />OSPF 操作</Space>,
+      children: (
+          <Space orientation="vertical" style={{ width: '100%' }}>
+              <Select 
+                    style={{ width: '100%' }} 
+                    placeholder="选择路由器" 
+                    value={ospfDeviceId}
+                    onChange={handleOspfSelect}
+                    options={devices.filter(d => (d.configuration && d.configuration.ospf) || checkDeviceType(d, DeviceType.ROUTER)).map(d => ({ 
+                        value: d.id, 
+                        label: (d.configuration?.ospf?.routerId) ? `${d.name} (${d.configuration.ospf.routerId})` : d.name 
+                    }))}
+              />
+              {ospfDeviceId && (
+                  <>
+                    <Row gutter={8}>
+                        <Col span={12}><Input placeholder="Router ID" value={ospfRouterId} onChange={e => setOspfRouterId(e.target.value)} /></Col>
+                        <Col span={12}><Input type="number" placeholder="Area ID" value={ospfArea} onChange={e => setOspfArea(Number(e.target.value))} /></Col>
+                    </Row>
+                    <Row gutter={8}>
+                        <Col span={12}><Button type="primary" block onClick={updateOspfConfigAction}>更新</Button></Col>
+                        <Col span={12}><Button danger block onClick={resetOspfProcessAction}>重置进程</Button></Col>
+                    </Row>
+                    <Button block onClick={handleGetNeighbors}>查看邻居表</Button>
+                  </>
+              )}
+          </Space>
+      )
+    },
+    {
+      key: 'ddos-sim',
+      label: <Space><BugOutlined style={{ color: '#f5222d' }} />DDoS 模拟</Space>,
+      children: (
+         <Space orientation="vertical" style={{ width: '100%' }}>
              <Select 
-                label="攻击目标" 
-                value={ddosTarget} 
-                onChange={e => setDdosTarget(e.target.value)} 
-                placeholder="选择目标"
+                style={{ width: '100%' }} 
+                placeholder="攻击目标" 
+                value={ddosTarget}
+                onChange={setDdosTarget}
                 options={devices.filter(d => checkDeviceType(d, DeviceType.SERVER) || checkDeviceType(d, DeviceType.ROUTER)).map(d => ({ value: d.ipAddress || d.name, label: `${d.name} (${d.ipAddress})` }))}
              />
-             
-             <div className="mb-4">
-                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 block">攻击强度: {ddosIntensity} Gbps</label>
-                <input 
-                    type="range" 
-                    min="1" 
-                    max="100" 
-                    value={ddosIntensity} 
-                    onChange={e => setDdosIntensity(Number(e.target.value))}
-                    className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-red-500"
-                />
-             </div>
-
+             <Text type="secondary">攻击强度: {ddosIntensity} Gbps</Text>
+             <Slider min={1} max={100} value={ddosIntensity} onChange={setDdosIntensity} />
              <Button 
+                type="primary" 
+                danger={!isDDoSing} 
+                block 
                 onClick={toggleDDoS} 
                 disabled={!ddosTarget}
-                variant={isDDoSing ? "red" : "slate"}
-                className={isDDoSing ? "animate-pulse" : ""}
+                style={isDDoSing ? { background: '#f5222d', borderColor: '#f5222d', animation: 'pulse 1s infinite' } : {}}
              >
-                <Zap className="w-4 h-4" />
                 {isDDoSing ? '停止攻击' : '开始攻击'}
              </Button>
-        </div>
-        
-        {/* 设备状态 */}
-        <div className="bg-slate-800/20 rounded-xl p-4 border border-slate-700/30">
-          <SectionHeader icon={Layers} title="设备状态" colorClass="text-slate-400" />
+         </Space>
+      )
+    }
+  ];
 
-          <Select 
-            label="选择设备" 
-            value={deviceId} 
-            onChange={e => setDeviceId(e.target.value)} 
-            placeholder="选择设备"
-            options={devices.map(d => ({ value: d.id, label: d.name }))}
-          />
-          <Select 
-            label="新状态" 
-            value={newDeviceStatus} 
-            onChange={e => setNewDeviceStatus(e.target.value)} 
-            options={Object.values(DeviceStatus).map(s => ({ value: s, label: s }))}
-          />
-          <Button onClick={updateDeviceStatusAction} variant="slate" className="mt-2">
-            更新状态
-          </Button>
-        </div>
+  // UI Render
+  return (
+    <div style={{ paddingBottom: 24, height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {ddosAlertVisible && (
+        <Alert
+          message="DDoS 攻击告警"
+          description={`检测到针对 ${getDeviceName(ddosTarget)} 的异常流量洪泛 (${ddosIntensity} Gbps)`}
+          type="error"
+          showIcon
+          action={
+            <Button size="small" danger type="primary" onClick={() => { setDdosAlertVisible(false); setIsDDoSing(false); }}>
+              立即阻断
+            </Button>
+          }
+          style={{ marginBottom: 16 }}
+        />
+      )}
 
-        {/* 接口状态管理 */}
-        <div className="bg-slate-800/20 rounded-xl p-4 border border-slate-700/30">
-          <SectionHeader icon={Network} title="接口状态" colorClass="text-cyan-400" />
-
-             <Select 
-                label="选择设备" 
-                value={ifaceDeviceId} 
-                onChange={e => {
-                    setIfaceDeviceId(e.target.value);
-                    setIfaceName(''); 
-                }}
-                placeholder="选择设备"
-                options={devices.filter(d => d.interfaces && d.interfaces.length > 0).map(d => ({ value: d.id, label: d.name }))}
-             />
-             
-             {ifaceDeviceId && (
-                 <div className="grid grid-cols-2 gap-3 animate-fade-in mb-3">
-                     <Select 
-                        label="接口" 
-                        value={ifaceName} 
-                        onChange={e => setIfaceName(e.target.value)} 
-                        placeholder="选择接口"
-                        options={devices.find(d => d.id === ifaceDeviceId)?.interfaces?.map((iface) => ({ value: iface.name, label: iface.name })) || []}
-                     />
-                     <Select 
-                        label="状态" 
-                        value={ifaceStatus} 
-                        onChange={e => setIfaceStatus(e.target.value)} 
-                        options={[{ value: 'up', label: 'UP' }, { value: 'down', label: 'DOWN' }]}
-                     />
-                 </div>
-             )}
-             
-             <Button 
-                onClick={updateInterfaceStatusAction} 
-                disabled={!ifaceDeviceId || !ifaceName}
-                variant="cyan"
-             >
-                <RefreshCw className="w-4 h-4" />
-                更新接口
-             </Button>
-        </div>
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        <Collapse defaultActiveKey={['net-diag']} ghost items={collapseItems} />
       </div>
 
-      {/* 操作日志 */}
-      <div className="border-t border-slate-700/50 pt-4 mt-auto">
-        <div className="flex items-center justify-between mb-2 px-1">
-          <h3 className="text-sm font-bold text-slate-300">操作日志</h3>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-500 bg-slate-800 px-2 py-0.5 rounded-full">{logs.length} 条事件</span>
-            <button className="text-xs text-blue-400 hover:text-blue-300" onClick={() => setLogsModalOpen(true)}>查看全部</button>
-          </div>
-        </div>
-        <div className="h-32 overflow-y-auto bg-slate-900/50 rounded-lg border border-slate-800 p-2 custom-scrollbar space-y-1">
-           {logs.length === 0 ? (
-             <div className="text-center text-slate-600 text-xs py-8">暂无日志</div>
-           ) : (
-            logs.slice(0, 20).map(log => (
-              <button key={log.id} className="w-full text-left text-xs p-1.5 hover:bg-slate-800 rounded flex items-start gap-2 transition-colors" onClick={() => setLogsModalOpen(true)}>
-                <span className="text-slate-500 whitespace-nowrap font-mono text-[10px]">{log.timestamp.toLocaleTimeString()}</span>
-                <span className={`px-1 rounded text-[9px] font-bold uppercase tracking-wider ${
-                  log.type === 'error' ? 'bg-red-900/30 text-red-400' : 
-                  log.type === 'warning' ? 'bg-yellow-900/30 text-yellow-400' : 
-                  log.type === 'success' ? 'bg-green-900/30 text-green-400' : 'bg-blue-900/30 text-blue-400'
-                }`}>
-                  {log.type.slice(0,3)}
-                </span>
-                <span className="text-slate-300 truncate">{log.message}</span>
-              </button>
-            ))
-          )}
-        </div>
+      <Divider style={{ margin: '12px 0' }} />
+      
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+         <Text strong>操作日志</Text>
+         <Space>
+            <Tag>{logs.length} 条事件</Tag>
+            <Button type="link" size="small" onClick={() => setLogsModalOpen(true)}>查看全部</Button>
+         </Space>
+      </div>
+      <div style={{ height: 120, overflowY: 'auto', background: 'rgba(0,0,0,0.2)', borderRadius: 4, padding: 4 }}>
+         {logs.length === 0 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无日志" /> : (
+            <List
+                size="small"
+                dataSource={logs.slice(0, 20)}
+                renderItem={log => (
+                    <List.Item style={{ padding: '4px 8px', border: 'none', cursor: 'pointer' }} onClick={() => setLogsModalOpen(true)}>
+                        <Text type="secondary" style={{ fontSize: 10, marginRight: 8 }}>{log.timestamp.toLocaleTimeString()}</Text>
+                        <Tag color={log.type === 'error' ? 'red' : log.type === 'warning' ? 'gold' : log.type === 'success' ? 'green' : 'blue'}>
+                            {log.type.toUpperCase().slice(0,3)}
+                        </Tag>
+                        <Text ellipsis style={{ color: '#ccc', fontSize: 12 }}>{log.message}</Text>
+                    </List.Item>
+                )}
+            />
+         )}
       </div>
 
-      {logsModalOpen && createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="w-[800px] h-[600px] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-float">
-            <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/50">
-              <h4 className="font-bold text-white">系统日志</h4>
-              <button className="text-slate-400 hover:text-white" onClick={() => setLogsModalOpen(false)}>✕</button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-2">
-              {logs.length === 0 ? (
-                <div className="text-center text-slate-500 py-10">暂无记录</div>
-              ) : (
-                logs.map(log => (
-                  <div key={log.id} className="grid grid-cols-[140px_80px_1fr] gap-4 p-3 border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors text-sm">
-                    <span className="text-slate-500 font-mono text-xs">{log.timestamp.toLocaleString()}</span>
-                    <span className={`text-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider h-fit w-fit ${
-                      log.type === 'error' ? 'bg-red-500/20 text-red-400' : 
-                      log.type === 'warning' ? 'bg-yellow-500/20 text-yellow-400' : 
-                      log.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'
-                    }`}>{log.type}</span>
-                    <div>
-                        <div className="text-slate-200 mb-1">{log.message}</div>
-                        <div className="text-xs text-slate-500 italic border-l-2 border-slate-700 pl-2">{explainLog(log)}</div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-      {/* OSPF 邻居模态框 */}
-      {showNeighborsModal && createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in" onClick={() => setShowNeighborsModal(false)}>
-           <div className="w-[600px] bg-slate-800 rounded-xl border border-slate-700 shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-              <div className="p-4 border-b border-slate-700 flex items-center justify-between bg-slate-900/50">
-                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <Activity className="w-5 h-5 text-green-400" />
-                    OSPF 邻居表 - {getDeviceName(ospfDeviceId)}
-                 </h3>
-                 <button onClick={() => setShowNeighborsModal(false)} className="p-1 hover:bg-slate-700 rounded transition-colors">
-                    <X className="w-5 h-5 text-slate-400" />
-                 </button>
-              </div>
-              <div className="p-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                 {ospfNeighbors.length === 0 ? (
-                    <div className="text-center py-8 text-slate-500">
-                       暂无邻居信息或 OSPF 未建立连接
-                    </div>
-                 ) : (
-                    <table className="w-full text-sm text-left">
-                       <thead className="text-xs text-slate-400 uppercase bg-slate-900/50 sticky top-0">
-                          <tr>
-                             <th className="px-3 py-2">Neighbor ID</th>
-                             <th className="px-3 py-2">State</th>
-                             <th className="px-3 py-2">Address</th>
-                             <th className="px-3 py-2">Interface</th>
-                          </tr>
-                       </thead>
-                       <tbody className="divide-y divide-slate-700/50">
-                          {ospfNeighbors.map((nb, idx) => (
-                             <tr key={idx} className="hover:bg-slate-700/30">
-                                <td className="px-3 py-2 font-mono text-white">{nb.router_id}</td>
-                                <td className="px-3 py-2">
-                                   <span className={`px-2 py-0.5 rounded text-xs font-bold ${nb.state === 'Full' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                                      {nb.state}
-                                   </span>
-                                </td>
-                                <td className="px-3 py-2 text-slate-300">{nb.address}</td>
-                                <td className="px-3 py-2 text-slate-400">{nb.interface}</td>
-                             </tr>
-                          ))}
-                       </tbody>
-                    </table>
-                 )}
-              </div>
-              <div className="p-3 bg-slate-900/50 border-t border-slate-700 flex justify-end">
-                 <Button onClick={() => setShowNeighborsModal(false)} variant="slate" className="w-auto px-6">
-                    关闭
-                 </Button>
-              </div>
-           </div>
-        </div>,
-        document.body
-      )}
+      {/* Logs Modal */}
+      <Modal 
+        title="系统日志" 
+        open={logsModalOpen} 
+        onCancel={() => setLogsModalOpen(false)} 
+        footer={null} 
+        width={800}
+        styles={{ body: { maxHeight: '60vh', overflowY: 'auto' } }}
+      >
+        <List
+            dataSource={logs}
+            renderItem={log => (
+                <List.Item>
+                    <List.Item.Meta
+                        avatar={<Tag color={log.type === 'error' ? 'red' : log.type === 'warning' ? 'gold' : log.type === 'success' ? 'green' : 'blue'}>{log.type.toUpperCase()}</Tag>}
+                        title={<Space><Text type="secondary">{log.timestamp.toLocaleString()}</Text><Text>{log.message}</Text></Space>}
+                        description={<Text type="secondary" italic>{explainLog(log)}</Text>}
+                    />
+                </List.Item>
+            )}
+        />
+      </Modal>
+
+      {/* OSPF Neighbors Modal */}
+      <Modal
+        title={`OSPF 邻居表 - ${getDeviceName(ospfDeviceId)}`}
+        open={showNeighborsModal}
+        onCancel={() => setShowNeighborsModal(false)}
+        footer={[<Button key="close" onClick={() => setShowNeighborsModal(false)}>关闭</Button>]}
+        width={700}
+      >
+        <Table 
+            dataSource={ospfNeighbors}
+            columns={[
+                { title: 'Neighbor ID', dataIndex: 'router_id', key: 'router_id' },
+                { title: 'State', dataIndex: 'state', key: 'state', render: (text) => <Tag color={text === 'Full' ? 'green' : 'red'}>{text}</Tag> },
+                { title: 'Address', dataIndex: 'address', key: 'address' },
+                { title: 'Interface', dataIndex: 'interface', key: 'interface' }
+            ]}
+            pagination={false}
+            rowKey="router_id"
+            size="small"
+        />
+      </Modal>
     </div>
   );
 };

@@ -1,220 +1,126 @@
-/**
- * 配置上传组件。
- *
- * 支持拖拽或选择文件上传到后端，并将解析后的拓扑转换为前端数据结构。
- *
- * Author: Adorrain
- * Date: 2026-01-30
- */
-
-import React, { useState, useRef } from 'react';
-import { Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Upload, message, Typography, Card, List } from 'antd';
+import { InboxOutlined, FileTextOutlined } from '@ant-design/icons';
 import { useAppStore } from '../../stores';
 import { uploadTopologyFile } from '../../features/topology/topologyApi';
 import { buildFrontendTopology } from '../../features/topology/topologyTransform';
 
-/**
- * ConfigUploader：上传拓扑配置文件并触发回调。
- *
- * @param {{onConfigLoaded?: (topology:any)=>void}} props 组件属性。
- * @returns {JSX.Element} 上传组件。
- */
-const ConfigUploader = ({ onConfigLoaded }) => {
-  const [isDragging, setIsDragging] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState('idle');
-  const [errorMessage, setErrorMessage] = useState('');
-  const fileInputRef = useRef(null);
-  const { setLoading, addNotification, setNetworkTopology } = useAppStore();
-  
-  /**
-   * 上传超时时间（毫秒）。
-   * @type {number}
-   */
-  const UPLOAD_TIMEOUT_MS = 300000;
+const { Dragger } = Upload;
+const { Title, Text } = Typography;
 
-  /**
-   * 处理文件上传：调用后端接口并更新全局拓扑状态。
-   *
-   * @param {File} file 上传的文件对象。
-   * @returns {Promise<void>} 无返回值。
-   */
-  const handleFileUpload = async (file) => {
-    if (!file.name.endsWith('.yaml') && !file.name.endsWith('.yml') && !file.name.endsWith('.json')) {
-      setErrorMessage('请上传 YAML 或 JSON 配置文件');
-      setUploadStatus('error');
-      return;
+const ConfigUploader = ({ onConfigLoaded }) => {
+  const { setLoading, addNotification, setNetworkTopology } = useAppStore();
+  const [uploading, setUploading] = useState(false);
+
+  const handleUpload = async (file) => {
+    const isYamlOrJson = file.name.endsWith('.yaml') || file.name.endsWith('.yml') || file.name.endsWith('.json');
+    if (!isYamlOrJson) {
+      message.error('请上传 YAML 或 JSON 配置文件');
+      return Upload.LIST_IGNORE;
     }
-    
-    setUploadStatus('loading');
+
+    setUploading(true);
     setLoading('config-upload', true);
-    setErrorMessage('');
-    
+
     try {
       let cfg;
       try {
-        cfg = await uploadTopologyFile(file, UPLOAD_TIMEOUT_MS);
+        cfg = await uploadTopologyFile(file, 300000);
       } catch (err) {
         throw new Error('后端处理失败: ' + err.message);
       }
 
       const topo = buildFrontendTopology(cfg);
-      
       setNetworkTopology(topo);
       if (onConfigLoaded) onConfigLoaded(topo);
-      setUploadStatus('success');
       
+      message.success(`配置加载成功: ${topo.name}`);
       addNotification({ type: 'success', title: '配置已加载', message: `拓扑就绪: ${topo.name}` });
-      
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      setTimeout(() => { setUploadStatus('idle'); }, 3000);
-
     } catch (error) {
-      const msg = error.message;
-      setErrorMessage(msg);
-      setUploadStatus('error');
-      addNotification({ type: 'error', title: '加载失败', message: msg });
+      message.error(`加载失败: ${error.message}`);
+      addNotification({ type: 'error', title: '加载失败', message: error.message });
     } finally {
       setLoading('config-upload', false);
+      setUploading(false);
     }
+    return false; // Prevent automatic upload by Antd
   };
-  
-  /**
-   * 拖拽悬停：阻止默认行为并设置拖拽态。
-   *
-   * @param {DragEvent} e 拖拽事件。
-   */
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    setIsDragging(true);
+
+  const uploadProps = {
+    name: 'file',
+    multiple: false,
+    showUploadList: false,
+    beforeUpload: handleUpload,
+    onDrop(e) {
+      console.log('Dropped files', e.dataTransfer.files);
+    },
   };
-  
-  /**
-   * 拖拽离开：阻止默认行为并取消拖拽态。
-   *
-   * @param {DragEvent} e 拖拽事件。
-   */
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-  
-  /**
-   * 拖拽释放：读取文件并触发上传。
-   *
-   * @param {DragEvent} e 拖拽事件。
-   */
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-    
-    const files = Array.from(e.dataTransfer.files);
-    if (files.length > 0) {
-      handleFileUpload(files[0]);
-    }
-  };
-  
-  /**
-   * 文件选择：从 input 读取文件并触发上传。
-   *
-   * @param {Event} e input change 事件。
-   */
-  const handleFileSelect = (e) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      handleFileUpload(files[0]);
-    }
-  };
-  
+
   return (
-    <div className="max-w-3xl w-full mx-auto p-6 bg-slate-900/50 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl animate-fade-in">
-      <h3 className="flex items-center gap-3 text-xl font-bold text-white mb-6">
-        <div className="p-2 bg-blue-500/20 rounded-lg">
-           <Upload className="w-6 h-6 text-blue-400" />
-        </div>
-        上传网络配置
-      </h3>
-      
-      <div
-        className={`relative border-2 border-dashed rounded-xl p-12 transition-all duration-300 flex flex-col items-center justify-center min-h-[300px] group ${
-          isDragging 
-            ? 'border-blue-500 bg-blue-500/10 scale-[1.02]' 
-            : uploadStatus === 'error'
-              ? 'border-red-500/50 bg-red-500/5'
-              : uploadStatus === 'success'
-                ? 'border-green-500/50 bg-green-500/5'
-                : 'border-slate-600 bg-slate-800/30 hover:border-blue-400/50 hover:bg-slate-800/50'
-        }`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
+    <div style={{ width: '100%', height: '100%', padding: 48, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      <Card 
+          title={<span style={{ fontSize: 18 }}><FileTextOutlined /> 上传网络配置</span>} 
+          variant="borderless"
+          style={{ 
+              width: '100%',
+              maxWidth: 800,
+              borderRadius: 16, 
+              background: 'rgba(30, 41, 59, 0.8)', // slate-800 with opacity
+              backdropFilter: 'blur(10px)',
+              boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
+              display: 'flex',
+              flexDirection: 'column'
+          }}
+          styles={{ 
+            header: { borderBottom: '1px solid rgba(255,255,255,0.1)', padding: '24px', color: '#fff' },
+            body: { padding: '32px', display: 'flex', flexDirection: 'column', gap: 32 }
+          }}
       >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".yaml,.yml,.json"
-          onChange={handleFileSelect}
-          style={{ display: 'none' }}
-        />
-        
-        {uploadStatus === 'loading' && (
-          <div className="text-center animate-pulse">
-            <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-blue-400 font-medium">正在解析配置...</p>
-          </div>
-        )}
-        
-        {uploadStatus === 'success' && (
-          <div className="text-center animate-bounce-short">
-            <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-            <p className="text-green-400 font-medium text-lg">配置加载成功！</p>
-          </div>
-        )}
-        
-        {uploadStatus === 'error' && (
-          <div className="text-center">
-            <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-            <p className="text-red-400 font-medium text-lg mb-2">配置加载失败</p>
-            <p className="text-red-300/70 text-sm max-w-md mx-auto">{errorMessage}</p>
-          </div>
-        )}
-        
-        {uploadStatus === 'idle' && (
-          <div className="text-center">
-            <div className="w-20 h-20 bg-slate-700/50 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform duration-300">
-               <FileText className="w-10 h-10 text-slate-400 group-hover:text-blue-400 transition-colors" />
-            </div>
-            <p className="text-lg text-slate-200 font-medium mb-2">将配置文件拖拽至此处</p>
-            <p className="text-slate-500 text-sm mb-6">或者</p>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium shadow-lg shadow-blue-500/20 transition-all active:scale-95"
+        <div style={{ height: 360 }}>
+            <Dragger 
+                {...uploadProps} 
+                disabled={uploading} 
+                style={{ 
+                    padding: 40, 
+                    background: 'rgba(255,255,255,0.02)', 
+                    borderColor: '#3b82f6', 
+                    height: '100%',
+                    borderRadius: 12
+                }}
             >
-              浏览文件
-            </button>
-            <p className="mt-6 text-xs text-slate-500">
-              支持 YAML (.yaml, .yml) 和 JSON (.json) 格式
-            </p>
+                <p className="ant-upload-drag-icon">
+                    <InboxOutlined style={{ color: '#3b82f6', fontSize: 64 }} />
+                </p>
+                <p className="ant-upload-text" style={{ fontSize: 20, color: '#e2e8f0', marginTop: 24 }}>
+                    点击或拖拽文件到此处上传
+                </p>
+                <p className="ant-upload-hint" style={{ color: '#94a3b8', fontSize: 14, marginTop: 12 }}>
+                    支持 YAML (.yaml, .yml) 和 JSON (.json) 格式
+                </p>
+            </Dragger>
+        </div>
+
+        <div style={{ padding: 24, background: 'rgba(15, 23, 42, 0.6)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.05)' }}>
+          <Title level={5} style={{ color: '#94a3b8', textTransform: 'uppercase', fontSize: 12, marginBottom: 16, letterSpacing: '0.05em', marginTop: 0 }}>
+             配置格式指南
+          </Title>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {[
+              { label: 'topology', desc: '拓扑信息 (name, type)' },
+              { label: 'devices', desc: '设备列表 (id, name, role, device_type, mgmt_ip 等)' },
+              { label: 'links', desc: '链路列表 (id, src_device, dst_device 等)' }
+            ].map((item, index) => (
+              <div key={item.label} style={{ padding: '6px 0', borderBottom: index < 2 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                <Text style={{ color: '#cbd5e1', fontSize: 14 }}>
+                  <span style={{ color: '#3b82f6', marginRight: 10 }}>•</span>
+                  <Text code style={{ color: '#bae6fd', background: 'rgba(56, 189, 248, 0.1)', borderColor: 'transparent', fontSize: 13, marginRight: 8 }}>{item.label}</Text>
+                  <span style={{ color: '#64748b' }}>:</span> {item.desc}
+                </Text>
+              </div>
+            ))}
           </div>
-        )}
-      </div>
-      
-      <div className="mt-8 bg-slate-800/30 rounded-xl p-6 border border-slate-700/30">
-        <h4 className="text-sm font-bold text-slate-300 uppercase tracking-wide mb-4">配置格式指南</h4>
-        <ul className="space-y-2 text-sm text-slate-400">
-          <li className="flex items-start gap-2">
-            <span className="text-blue-400">•</span>
-            <span><code className="bg-slate-700/50 px-1.5 py-0.5 rounded text-slate-200">topology</code>: 拓扑信息 (name, type)</span>
-          </li>
-          <li className="flex items-start gap-2">
-             <span className="text-blue-400">•</span>
-             <span><code className="bg-slate-700/50 px-1.5 py-0.5 rounded text-slate-200">devices</code>: 设备列表 (id, name, role, device_type, mgmt_ip 等)</span>
-          </li>
-          <li className="flex items-start gap-2">
-             <span className="text-blue-400">•</span>
-             <span><code className="bg-slate-700/50 px-1.5 py-0.5 rounded text-slate-200">links</code>: 链路列表 (id, src_device, dst_device 等)</span>
-          </li>
-        </ul>
-      </div>
+        </div>
+      </Card>
     </div>
   );
 };

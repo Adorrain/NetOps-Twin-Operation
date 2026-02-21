@@ -29,14 +29,20 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
-def get_db():
-    """获取数据库会话的 FastAPI 依赖生成器。
+from flask import g
 
-    Yields:
+def get_db():
+    """获取数据库会话（Flask 依赖注入适配）。
+
+    Returns:
         SQLAlchemy Session 实例。
     """
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
+    if 'db' not in g:
+        g.db = SessionLocal()
+    return g.db
+
+def close_db(e=None):
+    """关闭数据库会话（注册到 teardown_appcontext）。"""
+    db = g.pop('db', None)
+    if db is not None:
         db.close()

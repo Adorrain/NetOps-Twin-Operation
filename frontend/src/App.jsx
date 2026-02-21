@@ -7,6 +7,7 @@
 
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { ConfigProvider, theme, Layout, Typography, Empty } from 'antd';
 import MainLayout from './components/layout/MainLayout';
 import NetworkTopology3D from './components/3d/NetworkTopology3D';
 import DevicePanel from './components/ui/DevicePanel';
@@ -15,13 +16,16 @@ import OpsConsole from './components/ui/OpsConsole';
 import MonitoringPanel from './components/ui/MonitoringPanel';
 import { useAppStore } from './stores';
 
+const { Content, Sider } = Layout;
+const { Title, Text } = Typography;
+
 /**
  * 路由内容组件：根据 URL 同步 UI 面板状态，并渲染各页面内容。
  *
  * @returns {JSX.Element} 页面内容。
  */
 const AppContent = () => {
-  const { networkTopology, selectedDeviceId, setSelectedDevice, setNetworkTopology, updateUI } = useAppStore();
+  const { networkTopology, setSelectedDevice, setNetworkTopology, updateUI } = useAppStore();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -44,62 +48,67 @@ const AppContent = () => {
     <Routes>
       <Route path="/" element={<Navigate to="/topology" replace />} />
       <Route path="/topology" element={
-        <div className="flex h-full relative overflow-hidden">
-          <div className="relative flex-1 h-full bg-slate-900">
-             {networkTopology && (
+        <Layout style={{ height: '100%' }}>
+          <Content style={{ position: 'relative', background: '#0f172a' }}>
+             {networkTopology ? (
                <NetworkTopology3D 
                  key={networkTopology.id || 'default-topo'}
                  topology={networkTopology} 
                  onDeviceClick={(device) => setSelectedDevice(device?.id)}
                />
-             )}
-             
-             {!networkTopology && (
-                <div className="absolute inset-0 flex items-center justify-center bg-slate-900 text-slate-600 select-none pointer-events-none">
-                   <div className="text-center">
-                      <p className="text-2xl font-light tracking-widest opacity-30">NO TOPOLOGY</p>
-                      <p className="text-sm mt-2 opacity-20">Please upload configuration via /upload</p>
-                   </div>
-                </div>
-             )}
-          </div>
-
-          <div className="w-[400px] h-full overflow-y-auto bg-slate-900/60 backdrop-blur-xl border-l border-slate-700/50 flex flex-col z-20 shadow-2xl">
-             <div className="p-6 sticky top-0 bg-slate-900/90 backdrop-blur-xl z-30 border-b border-slate-700/50 flex items-center justify-between">
-                <h2 className="text-xl font-bold text-white flex items-center tracking-wide">
-                  <span className="w-1 h-6 bg-gradient-to-b from-blue-400 to-blue-600 rounded mr-3 shadow-[0_0_10px_rgba(59,130,246,0.5)]"></span>
-                  NetOps Console
-                </h2>
-             </div>
-             <div className="p-4 flex-1">
-               <OpsConsole />
-             </div>
-          </div>
-
-          {selectedDeviceId && (
-             <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-10 animate-fade-in" onClick={() => setSelectedDevice(null)}>
-                <div className="w-[800px] max-h-[80vh] overflow-auto rounded-2xl shadow-2xl animate-float relative border border-slate-700/50 bg-slate-900/90" onClick={e => e.stopPropagation()}>
-                   <DevicePanel 
-                      device={networkTopology?.devices.find(d => d.id === selectedDeviceId)} 
-                      onClose={() => setSelectedDevice(null)} 
+             ) : (
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                   <Empty
+                      image={Empty.PRESENTED_IMAGE_SIMPLE}
+                      description={
+                        <div style={{ color: 'rgba(255,255,255,0.4)' }}>
+                          <Title level={3} style={{ color: 'rgba(255,255,255,0.3)', margin: 0 }}>NO TOPOLOGY</Title>
+                          <Text type="secondary">Please upload configuration via /upload</Text>
+                        </div>
+                      }
                    />
                 </div>
+             )}
+             <DevicePanel />
+          </Content>
+
+          <Sider 
+            width={400} 
+            theme="dark" 
+            style={{ 
+              borderLeft: '1px solid rgba(255,255,255,0.1)', 
+              background: 'rgba(15, 23, 42, 0.8)', 
+              backdropFilter: 'blur(10px)'
+            }}
+          >
+             <div style={{ 
+               padding: '16px 24px', 
+               borderBottom: '1px solid rgba(255,255,255,0.1)',
+               background: 'rgba(15, 23, 42, 0.95)'
+             }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 4, height: 24, background: 'linear-gradient(to bottom, #1890ff, #096dd9)', borderRadius: 2 }} />
+                  <Title level={4} style={{ margin: 0, color: '#fff', fontSize: 18 }}>NetOps Console</Title>
+                </div>
              </div>
-          )}
-        </div>
+             <div style={{ height: 'calc(100% - 65px)', overflowY: 'auto', padding: 16 }}>
+               <OpsConsole />
+             </div>
+          </Sider>
+        </Layout>
       } />
       <Route path="/upload" element={
-        <div className="p-6 h-full flex items-center justify-center">
+        <div style={{ padding: 24, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <ConfigUploader onConfigLoaded={handleConfigLoaded} />
         </div>
       } />
       <Route path="/monitoring" element={
-        <div className="p-6 h-full">
+        <div style={{ height: '100%', overflow: 'hidden' }}>
           <MonitoringPanel />
         </div>
       } />
       <Route path="/ops" element={ 
-          <div className="p-6 h-full">
+          <div style={{ padding: 24, height: '100%', overflow: 'auto' }}>
              <OpsConsole />
           </div>
       } />
@@ -114,11 +123,20 @@ const AppContent = () => {
  */
 function App() {
   return (
-    <BrowserRouter>
-      <MainLayout>
-        <AppContent />
-      </MainLayout>
-    </BrowserRouter>
+    <ConfigProvider
+      theme={{
+        algorithm: theme.darkAlgorithm,
+        token: {
+          colorPrimary: '#1890ff',
+        },
+      }}
+    >
+      <BrowserRouter>
+        <MainLayout>
+          <AppContent />
+        </MainLayout>
+      </BrowserRouter>
+    </ConfigProvider>
   );
 }
 

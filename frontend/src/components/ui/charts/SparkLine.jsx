@@ -49,7 +49,7 @@ const SparkLine = ({
         <polygon
           points={fillPoints}
           fill={`url(#gradient-${color.replace('#','')})`}
-          className="transition-all duration-500 ease-in-out"
+          style={{ transition: 'all 0.5s ease-in-out' }}
         />
       )}
       
@@ -60,7 +60,7 @@ const SparkLine = ({
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
-        className="transition-all duration-500 ease-in-out drop-shadow-md"
+        style={{ transition: 'all 0.5s ease-in-out', filter: 'drop-shadow(0 4px 3px rgb(0 0 0 / 0.07)) drop-shadow(0 2px 2px rgb(0 0 0 / 0.06))' }}
       />
       
       <circle 

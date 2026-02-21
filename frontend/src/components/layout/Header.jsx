@@ -1,103 +1,84 @@
-/**
- * 顶部导航栏组件。
- *
- * Author: Adorrain
- * Date: 2026-01-30
- */
-
-import React, { useState } from 'react';
+import React from 'react';
+import { Layout, Button, Badge, Popover, List, Avatar, Space, Typography } from 'antd';
 import { 
-  Menu,
-  X,
-  Bell,
-  Search,
-  User
-} from 'lucide-react';
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  BellOutlined,
+  UserOutlined,
+  InfoCircleOutlined,
+  CheckCircleOutlined,
+  WarningOutlined,
+  CloseCircleOutlined
+} from '@ant-design/icons';
 import { useAppStore } from '../../stores';
 
-/**
- * Header：包含标题、通知入口与移动端侧边栏开关。
- *
- * @returns {JSX.Element} Header 组件。
- */
+const { Header: AntHeader } = Layout;
+const { Text } = Typography;
+
 const Header = () => {
-  const store = useAppStore();
-  const { ui, updateUI } = store;
-  const [showNotifications, setShowNotifications] = useState(false);
-  
-  /**
-   * 切换移动端侧边栏显示状态。
-   */
-  const toggleSidebar = () => {
-    updateUI({ sidebarOpen: !ui.sidebarOpen });
+  const { ui, updateUI, markNotificationAsRead } = useAppStore();
+  const collapsed = ui.sidebarCollapsed;
+
+  const getIcon = (type) => {
+    switch (type) {
+      case 'success': return <CheckCircleOutlined style={{ color: '#52c41a' }} />;
+      case 'warning': return <WarningOutlined style={{ color: '#faad14' }} />;
+      case 'error': return <CloseCircleOutlined style={{ color: '#f5222d' }} />;
+      default: return <InfoCircleOutlined style={{ color: '#1890ff' }} />;
+    }
   };
-  
-  const unreadCount = ui.notifications.filter(n => !n.read).length;
+
+  const notificationContent = (
+    <List
+      dataSource={ui.notifications}
+      renderItem={(item) => (
+        <List.Item 
+            onClick={() => markNotificationAsRead(item.id)} 
+            style={{ 
+                cursor: 'pointer', 
+                opacity: item.read ? 0.5 : 1,
+                backgroundColor: item.read ? 'transparent' : 'rgba(24, 144, 255, 0.1)'
+            }}
+        >
+          <List.Item.Meta
+            avatar={getIcon(item.type)}
+            title={<Text strong={!item.read}>{item.title}</Text>}
+            description={<Text type="secondary" style={{ fontSize: '12px' }}>{item.message}</Text>}
+          />
+        </List.Item>
+      )}
+      style={{ width: 320, maxHeight: 400, overflow: 'auto' }}
+      locale={{ emptyText: '暂无通知' }}
+    />
+  );
 
   return (
-    <header className="h-16 bg-slate-900/80 backdrop-blur-md border-b border-slate-700/50 px-6 flex items-center justify-between z-30 sticky top-0">
-      <div className="flex items-center gap-4">
-        <button
-          onClick={toggleSidebar}
-          className="lg:hidden p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
-        >
-          {ui.sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
-        <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-cyan-400 tracking-wide hidden sm:block">
+    <AntHeader style={{ padding: '0 24px', background: '#001529', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #303030' }}>
+      <div style={{ flex: 1, textAlign: 'center' }}>
+        <h1 style={{ color: '#fff', margin: 0, fontSize: '18px', fontWeight: 600, letterSpacing: '1px' }}>
            NetOps 数字孪生平台
         </h1>
       </div>
-      
-      <div className="flex items-center gap-4">
-         <div className="relative">
-           <button 
-             className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition-colors relative"
-             onClick={() => setShowNotifications(!showNotifications)}
-           >
-             <Bell className="w-5 h-5" />
-             {unreadCount > 0 && (
-               <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-slate-900 animate-pulse"></span>
-             )}
-           </button>
 
-           {showNotifications && (
-             <div className="absolute right-0 top-full mt-2 w-80 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden z-50 animate-fade-in origin-top-right">
-               <div className="px-4 py-3 border-b border-slate-800 flex justify-between items-center bg-slate-900/95 backdrop-blur">
-                 <span className="font-semibold text-sm text-white">系统通知</span>
-                 <span className="text-xs text-slate-500 bg-slate-800 px-2 py-0.5 rounded-full">{ui.notifications.length}</span>
-               </div>
-               <div className="max-h-96 overflow-y-auto custom-scrollbar">
-                 {ui.notifications.length === 0 ? (
-                   <div className="p-8 text-center text-slate-500 text-sm">暂无新通知</div>
-                 ) : (
-                   ui.notifications.map(notification => (
-                     <div key={notification.id} className={`p-4 border-b border-slate-800/50 hover:bg-slate-800/50 transition-colors ${!notification.read ? 'bg-blue-900/10' : ''}`}>
-                       <div className="flex justify-between items-start mb-1">
-                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
-                           notification.type === 'error' ? 'bg-red-500/20 text-red-400' :
-                           notification.type === 'warning' ? 'bg-yellow-500/20 text-yellow-400' :
-                           notification.type === 'success' ? 'bg-green-500/20 text-green-400' :
-                           'bg-blue-500/20 text-blue-400'
-                         }`}>
-                           {notification.type}
-                         </span>
-                         <span className="text-[10px] text-slate-500">{notification.timestamp.toLocaleTimeString()}</span>
-                       </div>
-                       <h4 className="text-sm font-medium text-slate-200 mb-0.5">{notification.title}</h4>
-                       <p className="text-xs text-slate-400 leading-relaxed">{notification.message}</p>
-                     </div>
-                   ))
-                 )}
-               </div>
-             </div>
-           )}
-         </div>
-
-         <button className="p-1.5 rounded-full bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 transition-all">
-            <User className="w-5 h-5" />
-         </button>
-      </div> 
-    </header>
+      <Space size="large">
+        <Popover 
+            content={notificationContent} 
+            title={
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>系统通知</span>
+                    <Badge count={ui.notifications.filter(n => !n.read).length} overflowCount={99} />
+                </div>
+            } 
+            trigger="click" 
+            placement="bottomRight"
+        >
+            <Badge count={ui.notifications.filter(n => !n.read).length} size="small" offset={[-5, 5]}>
+                <Button type="text" icon={<BellOutlined style={{ color: '#fff', fontSize: '20px' }} />} />
+            </Badge>
+        </Popover>
+        <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#1890ff', cursor: 'pointer' }} />
+      </Space>
+    </AntHeader>
   );
 };
 

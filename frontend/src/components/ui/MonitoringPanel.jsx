@@ -1,82 +1,29 @@
-/**
- * 系统监控面板组件。
- *
- * 作者: Adorrain
- * 创建时间: 2026-01-30
- */
-
 import React, { useMemo } from 'react';
+import { Card, Row, Col, Statistic, Progress, Empty, Tag } from 'antd';
+import { 
+  DashboardOutlined, 
+  CloudServerOutlined, 
+  WarningOutlined, 
+  ThunderboltOutlined,
+  CheckCircleOutlined
+} from '@ant-design/icons';
 import { useAppStore } from '../../stores';
 import { DeviceStatus } from '../../types';
 import SparkLine from './charts/SparkLine';
-import { Activity, Server, Zap, AlertTriangle, CheckCircle } from 'lucide-react';
 import { isLinkActive, getAllVlans, getEndpointAccessVlan } from '../../utils/net';
 
-/**
- * 统计卡片组件。
- *
- * @param {{title:string,value:any,subValue?:any,icon:any,color:string,data?:number[],footer?:any}} props 组件属性。
- * @returns {JSX.Element} 卡片组件。
- */
-const StatCard = ({ title, value, subValue, icon, color, data, footer }) => {
-  const Icon = icon;
-  return (
-  <div className="bg-slate-800/40 backdrop-blur-md border border-slate-700/50 rounded-2xl p-6 relative overflow-hidden group hover:bg-slate-800/60 transition-colors">
-     <div className={`absolute -right-6 -top-6 w-24 h-24 rounded-full opacity-10 blur-xl bg-${color}-500 group-hover:opacity-20 transition-opacity`}></div>
-     
-     <div className="flex justify-between items-start mb-4 relative z-10">
-        <div>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{title}</p>
-          <div className="flex items-baseline gap-2">
-             <h3 className="text-3xl font-bold text-white tracking-tight">{value}</h3>
-             {subValue && <span className="text-sm text-slate-500 font-medium">{subValue}</span>}
-          </div>
-        </div>
-        <div className={`p-3 rounded-xl bg-${color}-500/10 text-${color}-400 border border-${color}-500/20 shadow-[0_0_15px_rgba(0,0,0,0.2)]`}>
-          <Icon className="w-6 h-6" />
-        </div>
-     </div>
-     
-     {data && (
-       <div className="h-10 mt-2 relative opacity-80">
-          <SparkLine data={data} width={200} height={40} color={color === 'blue' ? '#3b82f6' : color === 'yellow' ? '#eab308' : '#10b981'} fill={true} />
-       </div>
-     )}
-     
-     {footer && (
-       <div className="mt-4 pt-3 border-t border-slate-700/50 flex items-center gap-2 text-xs font-medium">
-          {footer}
-       </div>
-     )}
-  </div>
-  );
-};
-
-/**
- * MonitoringPanel：展示系统健康度、设备/链路统计与 VLAN/OSPF 概览。
- *
- * @returns {JSX.Element} 监控面板组件。
- */
 const MonitoringPanel = () => {
-  const networkTopology = useAppStore(state => state.networkTopology);
-  const deviceStatuses = useAppStore(state => state.deviceStatuses);
+  const { networkTopology, deviceStatuses } = useAppStore();
 
   const devices = useMemo(() => networkTopology?.devices || [], [networkTopology]);
   const connections = useMemo(() => networkTopology?.links || networkTopology?.connections || [], [networkTopology]);
 
-  /**
-   * 规范化设备状态到前端状态枚举。
-   *
-   * @param {any} status 状态值。
-   * @returns {string} DeviceStatus 枚举值。
-   */
   const normalizeStatus = (status) => {
     const s = String(status || '').toLowerCase();
     if (s === 'up' || s === 'active' || s === 'online') return DeviceStatus.ONLINE;
     if (s === 'down' || s === 'offline') return DeviceStatus.OFFLINE;
     if (s === 'warning') return DeviceStatus.WARNING;
     if (s === 'error') return DeviceStatus.ERROR;
-    if (s === 'maintenance') return DeviceStatus.MAINTENANCE;
     return DeviceStatus.ONLINE;
   };
 
@@ -90,11 +37,8 @@ const MonitoringPanel = () => {
     
     devices.forEach(device => {
       const status = normalizeStatus(deviceStatuses.get(device.id) || device.status || DeviceStatus.OFFLINE);
-      if (counts[status] !== undefined) {
-        counts[status]++;
-      }
+      if (counts[status] !== undefined) counts[status]++;
     });
-    
     return counts;
   }, [devices, deviceStatuses]);
 
@@ -105,177 +49,124 @@ const MonitoringPanel = () => {
         if (status === DeviceStatus.ONLINE) return acc + 100;
         if (status === DeviceStatus.WARNING) return acc + 70;
         if (status === DeviceStatus.ERROR) return acc + 40;
-        if (status === DeviceStatus.OFFLINE) return acc + 0;
-        return acc + 100;
+        return acc + 0;
     }, 0);
     return Math.round(totalScore / devices.length);
   }, [devices, deviceStatuses]);
 
-  /**
-   * 安全提取设备的 OSPF Area。
-   *
-   * @param {any} device 设备对象。
-   * @returns {any} OSPF Area 值（可能为 0/undefined）。
-   */
   const getOspfArea = (device) => {
     const ospf = device.ospf || device.configuration?.ospf;
     return ospf?.area;
   };
 
-  /**
-   * 生成用于展示的随机趋势数据。
-   *
-   * @returns {number[]} 随机数数组。
-   */
   const getRandomData = () => Array.from({ length: 10 }, () => Math.floor(Math.random() * 40) + 60);
 
   return (
-    <div className="p-6 h-full overflow-y-auto custom-scrollbar">
-      <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
-        <Activity className="w-6 h-6 text-blue-400" />
-        系统监控
+    <div style={{ padding: 24, height: '100%', overflowY: 'auto' }}>
+      <h2 style={{ color: '#fff', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <DashboardOutlined style={{ color: '#1890ff' }} /> 系统监控
       </h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
-        <StatCard 
-          title="系统健康度" 
-          value={`${systemHealth}%`} 
-          icon={Activity} 
-          color="blue" 
-          data={[65, 70, 68, 72, 75, 80, 85, 82, 88, systemHealth]}
-        />
+      <Row gutter={[24, 24]}>
+        <Col xs={24} sm={12} xl={6}>
+          <Card bordered={false} hoverable style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(8px)', borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+            <Statistic 
+              title={<span style={{ color: '#94a3b8' }}>系统健康度</span>}
+              value={systemHealth} 
+              suffix="%" 
+              valueStyle={{ color: systemHealth > 80 ? '#52c41a' : systemHealth > 50 ? '#faad14' : '#f5222d', fontWeight: 'bold' }}
+              prefix={<DashboardOutlined style={{ marginRight: 8 }} />}
+            />
+            <div style={{ height: 40, marginTop: 16 }}>
+               <SparkLine data={[65, 70, 68, 72, 75, 80, 85, 82, 88, systemHealth]} width={200} height={40} color="#1890ff" fill />
+            </div>
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} xl={6}>
+          <Card bordered={false} hoverable style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(8px)', borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+            <Statistic 
+              title={<span style={{ color: '#94a3b8' }}>在线设备</span>}
+              value={statusCounts[DeviceStatus.ONLINE]} 
+              suffix={`/ ${devices.length}`}
+              valueStyle={{ color: '#52c41a', fontWeight: 'bold' }}
+              prefix={<CloudServerOutlined style={{ marginRight: 8 }} />}
+            />
+            <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 8, color: '#52c41a', background: 'rgba(82,196,26,0.1)', padding: '4px 8px', borderRadius: 4, width: 'fit-content' }}>
+              <CheckCircleOutlined /> 系统运行正常
+            </div>
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} xl={6}>
+          <Card bordered={false} hoverable style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(8px)', borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+            <Statistic 
+              title={<span style={{ color: '#94a3b8' }}>活跃告警</span>}
+              value={statusCounts[DeviceStatus.WARNING] + statusCounts[DeviceStatus.ERROR]} 
+              valueStyle={{ color: '#faad14', fontWeight: 'bold' }}
+              prefix={<WarningOutlined style={{ marginRight: 8 }} />}
+            />
+            <div style={{ height: 40, marginTop: 16 }}>
+              <SparkLine data={getRandomData()} width={200} height={40} color="#faad14" fill />
+            </div>
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} xl={6}>
+          <Card bordered={false} hoverable style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(8px)', borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+            <Statistic 
+              title={<span style={{ color: '#94a3b8' }}>活跃链路</span>}
+              value={connections.filter(c => isLinkActive(c.status)).length} 
+              suffix={`/ ${connections.length}`}
+              valueStyle={{ color: '#722ed1', fontWeight: 'bold' }}
+              prefix={<ThunderboltOutlined style={{ marginRight: 8 }} />}
+            />
+            <Progress percent={100} showInfo={false} strokeColor={{ from: '#722ed1', to: '#c084fc' }} trailColor="rgba(255,255,255,0.05)" style={{ marginTop: 24 }} />
+          </Card>
+        </Col>
+      </Row>
 
-        <StatCard 
-          title="在线设备" 
-          value={statusCounts[DeviceStatus.ONLINE]} 
-          subValue={`/ ${devices.length}`}
-          icon={Server} 
-          color="green" 
-          footer={
-            <>
-              <CheckCircle className="w-4 h-4 text-green-400" />
-              <span className="text-green-400">系统运行正常</span>
-            </>
-          }
-        />
-
-        <StatCard 
-          title="活跃告警" 
-          value={statusCounts[DeviceStatus.WARNING] + statusCounts[DeviceStatus.ERROR]} 
-          icon={AlertTriangle} 
-          color="yellow" 
-          data={getRandomData()}
-        />
-
-        <StatCard 
-          title="活跃链路" 
-          // value={connectionCounts[ConnectionStatus.ACTIVE] + 1} 
-          value={connections.filter(c => isLinkActive(c.status)).length}
-          subValue={`/ ${connections.length}`}
-          icon={Zap} 
-          color="purple" 
-          footer={
-             <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-purple-500 rounded-full" 
-                  style={{ width: `100%` }}
-                ></div>
-             </div>
-          }
-        />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-slate-800/40 backdrop-blur-md border border-slate-700/50 rounded-2xl p-6">
-          <h3 className="flex items-center gap-2 text-lg font-bold text-white mb-6">
-            <div className="w-1 h-5 bg-blue-500 rounded-full shadow-[0_0_10px_#3b82f6]"></div>
-            设备分布
-          </h3>
-          <div className="space-y-4">
+      <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
+        <Col xs={24} lg={8}>
+          <Card title={<span style={{ color: '#e2e8f0' }}>设备分布</span>} bordered={false} hoverable style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(8px)', borderRadius: 12, height: '100%', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} headStyle={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
              {Object.entries(devices.reduce((acc, curr) => {
                const type = (curr.role || curr.deviceType || curr.device_type || 'unknown').toLowerCase();
                acc[type] = (acc[type] || 0) + 1;
                return acc;
              }, {})).map(([type, count]) => {
-                const typeMap = { 
-                  pc: '终端 PC', 
-                  host: '主机',
-                  terminal: '终端',
-                  router: '路由器', 
-                  switch: '交换机', 
-                  server: '服务器', 
-                  firewall: '防火墙', 
-                  access_point: '无线 AP',
-                  core: '核心设备',
-                  aggregation: '汇聚设备',
-                  access: '接入设备'
-                };
                 const percentage = (count / devices.length) * 100;
                 return (
-                <div key={type} className="group">
-                   <div className="flex justify-between items-center mb-1.5 text-sm">
-                      <span className="text-slate-300 font-medium capitalize">{typeMap[type] || type}</span>
-                      <span className="text-slate-400 font-mono text-xs bg-slate-800 px-2 py-0.5 rounded">{count}</span>
-                   </div>
-                   <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-blue-500 group-hover:bg-blue-400 transition-colors relative" 
-                        style={{ width: `${percentage}%` }}
-                      >
-                         <div className="absolute inset-0 bg-white/20"></div>
-                      </div>
-                   </div>
-                </div>
+                  <div key={type} style={{ marginBottom: 16 }}>
+                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ textTransform: 'capitalize', color: '#cbd5e1' }}>{type}</span>
+                        <span style={{ color: '#94a3b8' }}>{count}</span>
+                     </div>
+                     <Progress percent={percentage} showInfo={false} strokeColor={{ from: '#108ee9', to: '#87d068' }} trailColor="rgba(255,255,255,0.05)" />
+                  </div>
                 );
              })}
-          </div>
-        </div>
-
-        <div className="bg-slate-800/40 backdrop-blur-md border border-slate-700/50 rounded-2xl p-6">
-          <h3 className="flex items-center gap-2 text-lg font-bold text-white mb-6">
-             <div className="w-1 h-5 bg-purple-500 rounded-full shadow-[0_0_10px_#a855f7]"></div>
-            VLAN 配置
-          </h3>
-          <div className="grid grid-cols-2 gap-3">
+          </Card>
+        </Col>
+        <Col xs={24} lg={8}>
+          <Card title={<span style={{ color: '#e2e8f0' }}>VLAN 配置</span>} bordered={false} hoverable style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(8px)', borderRadius: 12, height: '100%', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} headStyle={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
              {(() => {
                 const allVlans = new Set();
-                devices.forEach(d => {
-                    getAllVlans(d).forEach(v => allVlans.add(v));
-                });
+                devices.forEach(d => getAllVlans(d).forEach(v => allVlans.add(v)));
                 const sortedVlans = Array.from(allVlans).sort((a,b) => a-b).slice(0, 10);
                 
-                if (sortedVlans.length === 0) {
-                    return (
-                        <div className="col-span-2 py-10 text-center text-slate-500 text-sm border-2 border-dashed border-slate-800 rounded-xl">
-                          未发现 VLAN 配置
-                        </div>
-                    );
-                }
+                if (sortedVlans.length === 0) return <Empty description={<span style={{ color: '#64748b' }}>未发现 VLAN 配置</span>} image={Empty.PRESENTED_IMAGE_SIMPLE} />;
 
                 return sortedVlans.map(vlanId => {
                    const count = devices.filter(d => getEndpointAccessVlan(d) === vlanId).length;
                    return (
-                       <div key={vlanId} className="bg-slate-900/40 border border-slate-700/50 rounded-xl p-3 flex justify-between items-center hover:bg-slate-800/60 transition-colors">
-                         <div className="flex items-center gap-2">
-                           <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-                           <span className="text-sm font-medium text-slate-300">VLAN {vlanId}</span>
-                         </div>
-                         <span className="text-xs bg-purple-500/10 text-purple-400 px-1.5 py-0.5 rounded border border-purple-500/20">
-                           {count} 设备
-                         </span>
+                       <div key={vlanId} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                         <span><Tag color="purple" style={{ borderRadius: 4, border: 'none', background: 'rgba(114, 46, 209, 0.2)' }}>VLAN {vlanId}</Tag></span>
+                         <span style={{ color: '#94a3b8' }}>{count} 设备</span>
                        </div>
                    );
                 });
              })()}
-          </div>
-        </div>
-
-        <div className="bg-slate-800/40 backdrop-blur-md border border-slate-700/50 rounded-2xl p-6">
-           <h3 className="flex items-center gap-2 text-lg font-bold text-white mb-6">
-             <div className="w-1 h-5 bg-green-500 rounded-full shadow-[0_0_10px_#22c55e]"></div>
-            OSPF 区域
-          </h3>
-          <div className="space-y-3">
+          </Card>
+        </Col>
+        <Col xs={24} lg={8}>
+          <Card title={<span style={{ color: '#e2e8f0' }}>OSPF 区域</span>} bordered={false} hoverable style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(8px)', borderRadius: 12, height: '100%', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} headStyle={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
              {(() => {
                 const areas = new Set();
                 devices.forEach(d => {
@@ -284,33 +175,28 @@ const MonitoringPanel = () => {
                 });
                 const sortedAreas = Array.from(areas).sort();
 
-                if (sortedAreas.length === 0) {
-                    return (
-                        <div className="py-10 text-center text-slate-500 text-sm border-2 border-dashed border-slate-800 rounded-xl">
-                           未发现 OSPF 配置
-                        </div>
-                    );
-                }
+                if (sortedAreas.length === 0) return <Empty description={<span style={{ color: '#64748b' }}>未发现 OSPF 配置</span>} image={Empty.PRESENTED_IMAGE_SIMPLE} />;
 
                 return sortedAreas.map(areaId => (
-                    <div key={areaId} className="bg-slate-900/40 border border-slate-700/50 rounded-xl p-4 flex justify-between items-center hover:bg-slate-800/60 transition-colors relative overflow-hidden">
-                       <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500/50"></div>
-                       <div>
-                          <span className="text-xs text-slate-500 uppercase tracking-wider font-bold block mb-0.5">区域 ID (Area)</span>
-                          <span className="text-xl font-mono text-white font-bold">{areaId}</span>
+                    <Card key={areaId} size="small" bordered={false} style={{ marginBottom: 12, background: 'linear-gradient(135deg, rgba(82, 196, 26, 0.1) 0%, rgba(82, 196, 26, 0.05) 100%)', borderRadius: 8 }}>
+                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                             <div style={{ fontSize: 12, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Area ID</div>
+                             <div style={{ fontSize: 20, fontWeight: 'bold', color: '#e2e8f0' }}>{areaId}</div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                             <div style={{ fontSize: 24, fontWeight: 'bold', color: '#52c41a' }}>
+                               {devices.filter(d => getOspfArea(d) === areaId).length}
+                             </div>
+                             <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase' }}>路由器</div>
+                          </div>
                        </div>
-                       <div className="text-right">
-                         <span className="text-2xl font-bold text-green-400 block leading-none">
-                           {devices.filter(d => getOspfArea(d) === areaId).length}
-                         </span>
-                         <span className="text-xs text-slate-500 uppercase font-semibold">路由器</span>
-                       </div>
-                    </div>
+                    </Card>
                  ));
              })()}
-          </div>
-        </div>
-      </div>
+          </Card>
+        </Col>
+      </Row>
     </div>
   );
 };

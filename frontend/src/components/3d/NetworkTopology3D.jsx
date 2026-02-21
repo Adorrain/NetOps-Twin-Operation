@@ -480,7 +480,7 @@ function Scene({ topology, onDeviceClick }) {
         sectionColor="#334155"
       />
       {safe.devices.map((device) => (
-        <DeviceMesh key={device.id} device={device} onClick={() => onDeviceClick && onDeviceClick(device)} />
+        <DeviceMesh key={device.id} device={device} onClick={(e) => { e.stopPropagation(); onDeviceClick && onDeviceClick(device); }} />
       ))}
       {safe.links.filter(l => isLinkActive(l.status)).map((link) => (
         <React.Fragment key={link.id}>
@@ -507,7 +507,7 @@ export default function NetworkTopology3D({ topology, onDeviceClick }) {
           <pointLight position={[-10, 10, -10]} intensity={2.0} />
           {/* <Environment preset="city" /> */} 
 
-          <Suspense fallback={<Html center><div className="text-white">Loading 3D Engine...</div></Html>}>
+          <Suspense fallback={<Html center><div style={{ color: 'white' }}>Loading 3D Engine...</div></Html>}>
             <Scene topology={topology} onDeviceClick={onDeviceClick} />
           </Suspense>
 

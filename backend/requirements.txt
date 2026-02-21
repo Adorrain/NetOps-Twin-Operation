@@ -1,8 +1,8 @@
-fastapi
-uvicorn
+flask
+flask-cors
 sqlalchemy
-asyncpg
+pydantic
 pydantic-settings
 pyyaml
-python-multipart
 python-dotenv
+gunicorn

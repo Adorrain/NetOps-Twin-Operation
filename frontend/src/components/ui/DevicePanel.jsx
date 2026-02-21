@@ -1,71 +1,49 @@
-/**
- * 设备详情面板组件。
- *
- * Author: Adorrain
- * Date: 2026-01-30
- */
-
-import React from 'react';
-import { DeviceStatus } from '../../types';
-import { getAllVlans } from '../../utils/net';
+import React, { useMemo } from 'react';
+import { Descriptions, Table, Tag, Typography, Button, ConfigProvider, theme } from 'antd';
 import { 
-  Computer, 
-  Router, 
-  ToggleRight as SwitchIcon, 
-  Server, 
-  Shield, 
-  Wifi,
-  Settings,
-  ArrowUp,
-  ArrowDown,
-  Network,
-  Cpu,
-  Layers,
-  FileText,
-  Info
-} from 'lucide-react';
+  LaptopOutlined, 
+  ClusterOutlined, 
+  PartitionOutlined, 
+  SettingOutlined,
+  CloseOutlined,
+  CloudServerOutlined,
+  GatewayOutlined,
+  SafetyCertificateOutlined,
+  ArrowUpOutlined,
+  ApiOutlined
+} from '@ant-design/icons';
+import { useAppStore } from '../../stores';
+import { DeviceStatus } from '../../types';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
+import { getAllVlans } from '../../utils/net';
 
-/**
- * DevicePanel：展示设备基本信息、接口、VLAN 与 OSPF 配置等详情。
- *
- * @param {{device:any, onClose: ()=>void}} props 组件属性。
- * @returns {JSX.Element} 设备详情面板。
- */
-const DevicePanel = ({ device, onClose }) => {
-  if (!device) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full text-slate-500 p-8">
-        <div className="text-6xl mb-4 opacity-50 animate-pulse">📱</div>
-        <p className="text-sm">选择设备以查看详情</p>
-      </div>
-    );
-  }
-  
-  /**
-   * 根据设备类型渲染对应图标。
-   *
-   * @param {any} deviceType 设备类型描述。
-   * @returns {JSX.Element} 图标组件。
-   */
-  const getDeviceIcon = (deviceType) => {
-    const props = { className: "w-8 h-8 text-white" };
-    const type = (deviceType || '').toLowerCase();
-    
-    if (type.includes('pc') || type.includes('host') || type.includes('terminal')) return <Computer {...props} />;
-    if (type.includes('router')) return <Router {...props} />;
-    if (type.includes('switch')) return <SwitchIcon {...props} />;
-    if (type.includes('server')) return <Server {...props} />;
-    if (type.includes('firewall')) return <Shield {...props} />;
-    if (type.includes('access_point')) return <Wifi {...props} />;
-    return <Computer {...props} />;
+const { Text, Title } = Typography;
+
+const DevicePanel = () => {
+  const { selectedDeviceId, setSelectedDevice, networkTopology, deviceStatuses } = useAppStore();
+
+  const device = useMemo(() => {
+    if (!selectedDeviceId || !networkTopology || !Array.isArray(networkTopology.devices)) return null;
+    return networkTopology.devices.find(d => d.id === selectedDeviceId);
+  }, [selectedDeviceId, networkTopology]);
+
+  const onClose = () => {
+    setSelectedDevice(null);
   };
-  
-  /**
-   * 根据设备类型生成中文标签。
-   *
-   * @param {any} deviceType 设备类型描述。
-   * @returns {string} 中文标签。
-   */
+
+  if (!selectedDeviceId || !device) return null;
+
+  // Helpers
+  const getDeviceIcon = (type) => {
+    const t = (type || '').toLowerCase();
+    const style = { fontSize: 24, color: '#fff' };
+    if (t.includes('router')) return <ClusterOutlined style={style} />;
+    if (t.includes('switch')) return <GatewayOutlined style={style} />;
+    if (t.includes('server')) return <CloudServerOutlined style={style} />;
+    if (t.includes('firewall')) return <SafetyCertificateOutlined style={style} />;
+    return <LaptopOutlined style={style} />;
+  };
+
   const typeLabel = (deviceType) => {
     const type = (deviceType || '').toLowerCase();
     if (type.includes('pc') || type.includes('host') || type.includes('terminal')) return '终端主机';
@@ -76,13 +54,7 @@ const DevicePanel = ({ device, onClose }) => {
     if (type.includes('access_point')) return '无线 AP';
     return '通用设备';
   };
-  
-  /**
-   * 规范化设备状态到前端状态枚举。
-   *
-   * @param {any} status 状态值。
-   * @returns {string} DeviceStatus 枚举值或原值。
-   */
+
   const normalizeStatus = (status) => {
     const s = String(status || '').toLowerCase();
     if (s === 'up' || s === 'active' || s === 'online') return DeviceStatus.ONLINE;
@@ -93,46 +65,38 @@ const DevicePanel = ({ device, onClose }) => {
     return status;
   };
 
-  const effectiveStatus = normalizeStatus(device.status);
+  const effectiveStatus = deviceStatuses.get(device.id) || normalizeStatus(device.status);
 
-  /**
-   * 获取状态点颜色样式类名。
-   *
-   * @param {string} status DeviceStatus 枚举值。
-   * @returns {string} Tailwind 类名字符串。
-   */
   const getStatusColor = (status) => {
     switch (status) {
-      case DeviceStatus.ONLINE: return 'bg-green-500 shadow-[0_0_10px_#22c55e]';
-      case DeviceStatus.WARNING: return 'bg-yellow-500 shadow-[0_0_10px_#eab308]';
-      case DeviceStatus.ERROR: return 'bg-red-500 shadow-[0_0_10px_#ef4444]';
-      case DeviceStatus.OFFLINE: return 'bg-slate-500 shadow-[0_0_10px_#64748b]';
-      default: return 'bg-slate-500';
+      case DeviceStatus.ONLINE: return '#22c55e'; // green-500
+      case DeviceStatus.WARNING: return '#eab308'; // yellow-500
+      case DeviceStatus.ERROR: return '#ef4444'; // red-500
+      case DeviceStatus.OFFLINE: return '#64748b'; // slate-500
+      default: return '#64748b';
     }
   };
 
-  /**
-   * 获取状态背景样式类名。
-   *
-   * @param {string} status DeviceStatus 枚举值。
-   * @returns {string} Tailwind 类名字符串。
-   */
   const getStatusBg = (status) => {
-     switch (status) {
-      case DeviceStatus.ONLINE: return 'bg-green-500/10 border-green-500/30';
-      case DeviceStatus.WARNING: return 'bg-yellow-500/10 border-yellow-500/30';
-      case DeviceStatus.ERROR: return 'bg-red-500/10 border-red-500/30';
-      case DeviceStatus.OFFLINE: return 'bg-slate-500/10 border-slate-500/30';
-      default: return 'bg-slate-500/10 border-slate-500/30';
+    switch (status) {
+      case DeviceStatus.ONLINE: return 'rgba(34, 197, 94, 0.1)';
+      case DeviceStatus.WARNING: return 'rgba(234, 179, 8, 0.1)';
+      case DeviceStatus.ERROR: return 'rgba(239, 68, 68, 0.1)';
+      case DeviceStatus.OFFLINE: return 'rgba(100, 116, 139, 0.1)';
+      default: return 'rgba(100, 116, 139, 0.1)';
     }
   };
-  
-  /**
-   * 获取状态展示文本。
-   *
-   * @param {string} status DeviceStatus 枚举值。
-   * @returns {string} 文本标签。
-   */
+
+  const getStatusBorder = (status) => {
+      switch (status) {
+        case DeviceStatus.ONLINE: return 'rgba(34, 197, 94, 0.3)';
+        case DeviceStatus.WARNING: return 'rgba(234, 179, 8, 0.3)';
+        case DeviceStatus.ERROR: return 'rgba(239, 68, 68, 0.3)';
+        case DeviceStatus.OFFLINE: return 'rgba(100, 116, 139, 0.3)';
+        default: return 'rgba(100, 116, 139, 0.3)';
+      }
+  };
+
   const statusLabel = (status) => {
     switch (status) {
       case DeviceStatus.ONLINE: return '在线 (Online)';
@@ -143,25 +107,11 @@ const DevicePanel = ({ device, onClose }) => {
       default: return '未知';
     }
   };
-  
-  const dType = device.role || device.deviceType || device.device_type;
 
-  /**
-   * 获取设备 OSPF 配置（兼容不同字段结构）。
-   *
-   * @param {any} deviceObj 设备对象。
-   * @returns {any} OSPF 配置对象。
-   */
   const getOspfConfig = (device) => {
     return device.ospf || device.ospf_config || device.configuration?.ospf;
   };
 
-  /**
-   * 获取设备 VLAN 信息（含名称映射）。
-   *
-   * @param {any} deviceObj 设备对象。
-   * @returns {{id:number,name:string}[]} VLAN 列表。
-   */
   const getVlanInfo = (device) => {
     const nameMap = new Map();
     const list = device.vlans || device.configuration?.vlans;
@@ -173,17 +123,11 @@ const DevicePanel = ({ device, onClose }) => {
     return getAllVlans(device).map(id => ({ id, name: nameMap.get(id) || `VLAN ${id}` }));
   };
 
-  /**
-   * 提取可展示的简单扩展属性（忽略对象/数组等复杂结构）。
-   *
-   * @param {any} deviceObj 设备对象。
-   * @returns {{key:string,value:any}[]} 扩展属性列表。
-   */
   const getExtraAttributes = (device) => {
     const ignoredKeys = new Set([
-        'id', 'name', 'role', 'type', 'deviceType', 'device_type', 'status', 
-        'position', 'interfaces', 'ospf', 'ospf_config', 'vlan', 'vlans', 
-        'configuration', 'metrics', 'description'
+        'id', 'name', 'role', 'type', 'deviceType', 'device_type', 'status',
+        'position', 'interfaces', 'ospf', 'ospf_config', 'vlan', 'vlans',
+        'configuration', 'metrics', 'description', 'mgmt_ip', 'ip_address', 'ip'
     ]);
 
     const extras = [];
@@ -198,170 +142,286 @@ const DevicePanel = ({ device, onClose }) => {
   const ospfConfig = getOspfConfig(device);
   const vlanList = getVlanInfo(device);
   const extraAttributes = getExtraAttributes(device);
-  
+  const dType = device.role || device.deviceType || device.device_type;
+  const statusColor = getStatusColor(effectiveStatus);
+
+  const interfaceColumns = [
+    { 
+        title: '名称', 
+        dataIndex: 'name', 
+        key: 'name', 
+        width: 100,
+        render: text => <span style={{ fontWeight: 500, color: '#e2e8f0', fontFamily: 'monospace' }}>{text}</span>
+    },
+    { 
+        title: 'IP 地址', 
+        dataIndex: 'ip', 
+        key: 'ip', 
+        width: 140,
+        render: text => <span style={{ fontFamily: 'monospace', color: '#94a3b8' }}>{text || '-'}</span>
+    },
+    { 
+        title: 'VLAN', 
+        key: 'vlan', 
+        render: (_, record) => {
+            if (record.mode === 'trunk') return <span style={{ fontSize: 11, color: '#fdba74', background: 'rgba(249, 115, 22, 0.1)', padding: '2px 6px', borderRadius: 4, border: '1px solid rgba(249, 115, 22, 0.2)' }}>TRUNK</span>;
+            return record.vlan ? <span style={{ fontSize: 11, color: '#d8b4fe', background: 'rgba(168, 85, 247, 0.1)', padding: '2px 6px', borderRadius: 4, border: '1px solid rgba(168, 85, 247, 0.2)' }}>{record.vlan}</span> : '-';
+        } 
+    },
+    { 
+        title: '模式', 
+        dataIndex: 'mode',
+        key: 'mode',
+        render: text => <span style={{ color: '#94a3b8', fontSize: 12 }}>{text || '-'}</span>
+    },
+    { 
+        title: '状态', 
+        dataIndex: 'status', 
+        key: 'status', 
+        render: s => {
+            const isUp = (s === 'up' || !s);
+            return (
+                <span style={{ 
+                    fontSize: 11, 
+                    fontWeight: 'bold',
+                    color: isUp ? '#4ade80' : '#f87171',
+                    background: isUp ? 'rgba(74, 222, 128, 0.1)' : 'rgba(248, 113, 113, 0.1)',
+                    padding: '2px 6px',
+                    borderRadius: 4,
+                    border: isUp ? '1px solid rgba(74, 222, 128, 0.2)' : '1px solid rgba(248, 113, 113, 0.2)'
+                }}>
+                    {isUp ? 'UP' : 'DOWN'}
+                </span>
+            );
+        } 
+    }
+  ];
+
   return (
-    <div className="flex flex-col h-full text-slate-200">
-
-      <div className="p-6 border-b border-slate-700/50 flex items-start justify-between bg-slate-900/80 backdrop-blur-md sticky top-0 z-10">
-        <div className="flex items-center gap-5">
-          <div className={`p-4 rounded-xl shadow-lg border backdrop-blur-sm ${getStatusBg(effectiveStatus)}`}>
-             {getDeviceIcon(dType)}
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-white tracking-tight mb-1">{device.name}</h2>
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-medium px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-blue-300 uppercase tracking-wide">
-                {typeLabel(dType)}
-              </span>
-              <span className="flex items-center gap-1.5 text-xs font-medium text-slate-300 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
-                <span className={`w-2 h-2 rounded-full ${getStatusColor(effectiveStatus)}`}></span>
-                {statusLabel(effectiveStatus)}
-              </span>
-            </div>
-          </div>
-        </div>
-        <button 
-          onClick={onClose} 
-          className="p-2 rounded-lg text-slate-400 hover:bg-slate-700/50 hover:text-white transition-colors"
+    <AnimatePresence>
+        <Motion.div
+          initial={{ y: -50, opacity: 0, scale: 0.95 }}
+          animate={{ y: 0, opacity: 1, scale: 1 }}
+          exit={{ y: -50, opacity: 0, scale: 0.95 }}
+          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+          style={{
+            position: 'absolute',
+            top: 24,
+            left: '50%',
+            x: '-50%',
+            zIndex: 1000,
+            width: 700,
+            maxHeight: '85vh',
+            display: 'flex',
+            flexDirection: 'column',
+            background: 'rgba(15, 23, 42, 0.9)', // Slate-900
+            backdropFilter: 'blur(16px)',
+            border: '1px solid rgba(56, 189, 248, 0.2)', // Sky-400 border
+            borderRadius: 16,
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
+            color: '#f8fafc',
+            overflow: 'hidden'
+          }}
         >
-          ✕
-        </button>
-      </div>
-      
-      <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-4 hover:bg-slate-800/60 transition-colors">
-            <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold block mb-1">IP 地址</span>
-            {extraAttributes.length > 0 ? (
-                <div className="space-y-2">
-                    {extraAttributes.map((attr, idx) => (
-                        <div key={idx} className="flex justify-between items-center border-b border-slate-700/30 pb-1 last:border-0">
-                            <span className="text-xs text-slate-500 uppercase font-medium">{attr.key.replace(/_/g, ' ')}</span>
-                            <span className="text-sm text-blue-300 font-mono text-right truncate pl-2" title={String(attr.value)}>
-                                {String(attr.value)}
-                            </span>
+          {/* Header */}
+          <div style={{ 
+              padding: '16px 24px', 
+              borderBottom: '1px solid rgba(51, 65, 85, 0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'linear-gradient(90deg, rgba(56, 189, 248, 0.1) 0%, rgba(15, 23, 42, 0) 100%)',
+              position: 'sticky',
+              top: 0,
+              zIndex: 10
+          }}>
+             <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+                <div style={{ 
+                    padding: 16, 
+                    borderRadius: 12, 
+                    background: getStatusBg(effectiveStatus),
+                    border: `1px solid ${getStatusBorder(effectiveStatus)}`,
+                    backdropFilter: 'blur(4px)',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                }}>
+                   {getDeviceIcon(dType)}
+                </div>
+                <div>
+                    <h2 style={{ margin: '0 0 4px 0', color: '#fff', fontSize: 20, fontWeight: 700, letterSpacing: '-0.025em' }}>{device.name}</h2>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <span style={{ 
+                            fontSize: 11, 
+                            fontWeight: 600, 
+                            padding: '2px 8px', 
+                            borderRadius: 4, 
+                            background: '#1e293b', 
+                            border: '1px solid #334155',
+                            color: '#93c5fd',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em'
+                        }}>
+                            {typeLabel(dType)}
+                        </span>
+                        <span style={{ 
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            fontSize: 11, 
+                            fontWeight: 600, 
+                            padding: '2px 8px', 
+                            borderRadius: 4, 
+                            background: '#1e293b', 
+                            border: '1px solid #334155',
+                            color: '#cbd5e1'
+                        }}>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor, boxShadow: `0 0 8px ${statusColor}` }} />
+                            {statusLabel(effectiveStatus)}
+                        </span>
+                    </div>
+                </div>
+             </div>
+             <Button 
+                type="text" 
+                icon={<CloseOutlined style={{ fontSize: 16, color: '#94a3b8' }} />} 
+                onClick={onClose}
+                style={{ 
+                    borderRadius: 8, 
+                    width: 36, 
+                    height: 36, 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.05)'
+                }}
+             />
+          </div>
+
+          {/* Body */}
+          <div style={{ padding: 24, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 24 }}>
+             <ConfigProvider
+                theme={{
+                    algorithm: theme.darkAlgorithm,
+                    token: {
+                        colorBgContainer: 'transparent',
+                        colorBorderSecondary: 'rgba(51, 65, 85, 0.5)', // slate-700/50
+                        colorText: '#e2e8f0',
+                        colorTextSecondary: '#94a3b8',
+                        colorPrimary: '#38bdf8'
+                    },
+                    components: {
+                        Table: {
+                            headerBg: 'rgba(30, 41, 59, 0.5)', // slate-800/50
+                            headerColor: '#94a3b8', // slate-400
+                            headerSplitColor: 'transparent',
+                            borderColor: 'rgba(51, 65, 85, 0.3)',
+                            rowHoverBg: 'rgba(56, 189, 248, 0.05)',
+                            cellPaddingBlockSM: 12
+                        }
+                    }
+                }}
+             >
+                {/* Info Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+                    <div style={{ background: 'rgba(30, 41, 59, 0.4)', border: '1px solid rgba(51, 65, 85, 0.5)', borderRadius: 12, padding: 16 }}>
+                        <span style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600, display: 'block', marginBottom: 4, letterSpacing: '0.05em' }}>IP 地址</span>
+                        {extraAttributes.length > 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                {extraAttributes.map((attr, idx) => (
+                                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: idx < extraAttributes.length - 1 ? '1px solid rgba(51, 65, 85, 0.3)' : 'none', paddingBottom: 4 }}>
+                                        <span style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', fontWeight: 500 }}>{attr.key.replace(/_/g, ' ')}</span>
+                                        <span style={{ fontSize: 13, color: '#93c5fd', fontFamily: 'monospace', textAlign: 'right', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '60%' }} title={String(attr.value)}>
+                                            {String(attr.value)}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <span style={{ fontFamily: 'monospace', color: '#93c5fd', fontSize: 16 }}>{device.mgmt_ip || device.ipAddress || device.ip || '-'}</span>
+                        )}
+                    </div>
+                    <div style={{ background: 'rgba(30, 41, 59, 0.4)', border: '1px solid rgba(51, 65, 85, 0.5)', borderRadius: 12, padding: 16 }}>
+                        <span style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600, display: 'block', marginBottom: 4, letterSpacing: '0.05em' }}>角色 (Role)</span>
+                        <span style={{ color: '#e2e8f0', fontSize: 16, textTransform: 'capitalize' }}>{device.role || '-'}</span>
+                    </div>
+                    {device.description && (
+                        <div style={{ gridColumn: 'span 2', background: 'rgba(30, 41, 59, 0.4)', border: '1px solid rgba(51, 65, 85, 0.5)', borderRadius: 12, padding: 16 }}>
+                            <span style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600, display: 'block', marginBottom: 4, letterSpacing: '0.05em' }}>描述</span>
+                            <span style={{ color: '#cbd5e1', lineHeight: 1.5 }}>{device.description}</span>
                         </div>
-                    ))}
+                    )}
                 </div>
-            ) : (
-                <span className="font-mono text-blue-300 text-lg block">{device.ip_address || device.mgmt_ip || device.ip || '-'}</span>
-            )}
+
+                {/* Details Section */}
+                <div>
+                    <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 600, color: '#fff', marginBottom: 16, marginTop: 8 }}>
+                        <SettingOutlined style={{ color: '#c084fc' }} />
+                        详细配置
+                    </h3>
+
+                    {/* VLANs */}
+                    {vlanList.length > 0 && (
+                        <div style={{ marginBottom: 16, background: 'rgba(30, 41, 59, 0.3)', border: '1px solid rgba(51, 65, 85, 0.5)', borderRadius: 12, overflow: 'hidden' }}>
+                             <div style={{ background: 'rgba(30, 41, 59, 0.8)', padding: '8px 16px', borderBottom: '1px solid rgba(51, 65, 85, 0.5)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 600, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                <PartitionOutlined style={{ color: '#c084fc' }} /> VLAN 配置
+                             </div>
+                             <div style={{ padding: 16, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                {vlanList.map((v, idx) => (
+                                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(168, 85, 247, 0.1)', border: '1px solid rgba(168, 85, 247, 0.2)', padding: '6px 12px', borderRadius: 8 }}>
+                                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#c084fc', boxShadow: '0 0 5px #a855f7' }} />
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                            <span style={{ fontSize: 11, color: '#e9d5ff', fontWeight: 700, lineHeight: 1 }}>ID: {v.id}</span>
+                                            {v.name && <span style={{ fontSize: 10, color: 'rgba(192, 132, 252, 0.7)', lineHeight: 1, marginTop: 2 }}>{v.name}</span>}
+                                        </div>
+                                    </div>
+                                ))}
+                             </div>
+                        </div>
+                    )}
+
+                    {/* OSPF */}
+                    {ospfConfig && (
+                        <div style={{ marginBottom: 16, background: 'rgba(30, 41, 59, 0.3)', border: '1px solid rgba(51, 65, 85, 0.5)', borderRadius: 12, overflow: 'hidden' }}>
+                            <div style={{ background: 'rgba(30, 41, 59, 0.8)', padding: '8px 16px', borderBottom: '1px solid rgba(51, 65, 85, 0.5)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 600, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                <ArrowUpOutlined style={{ color: '#4ade80' }} /> OSPF 协议
+                             </div>
+                             <div style={{ padding: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                                <div style={{ background: 'rgba(15, 23, 42, 0.3)', padding: 12, borderRadius: 8, border: '1px solid rgba(51, 65, 85, 0.3)' }}>
+                                    <span style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>路由器 ID</span>
+                                    <span style={{ fontFamily: 'monospace', color: '#e2e8f0', fontWeight: 700 }}>{ospfConfig.router_id || ospfConfig.routerId}</span>
+                                </div>
+                                <div style={{ background: 'rgba(15, 23, 42, 0.3)', padding: 12, borderRadius: 8, border: '1px solid rgba(51, 65, 85, 0.3)' }}>
+                                    <span style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>区域 (Area)</span>
+                                    <span style={{ fontFamily: 'monospace', color: '#4ade80', fontWeight: 700, fontSize: 16 }}>{ospfConfig.area}</span>
+                                </div>
+                             </div>
+                        </div>
+                    )}
+
+                    {/* Interfaces */}
+                    <div style={{ background: 'rgba(30, 41, 59, 0.3)', border: '1px solid rgba(51, 65, 85, 0.5)', borderRadius: 12, overflow: 'hidden' }}>
+                        <div style={{ background: 'rgba(30, 41, 59, 0.8)', padding: '8px 16px', borderBottom: '1px solid rgba(51, 65, 85, 0.5)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 600, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            <ApiOutlined style={{ color: '#38bdf8' }} /> 接口列表 ({device.interfaces?.length || 0})
+                        </div>
+                        {device.interfaces && device.interfaces.length > 0 ? (
+                            <Table 
+                                dataSource={device.interfaces} 
+                                columns={interfaceColumns} 
+                                pagination={false} 
+                                size="small"
+                                rowKey="name"
+                            />
+                        ) : (
+                            <div style={{ textAlign: 'center', padding: 24, color: '#64748b', borderTop: '1px dashed rgba(51, 65, 85, 0.5)', fontSize: 13 }}>
+                                暂无接口信息
+                            </div>
+                        )}
+                    </div>
+                </div>
+             </ConfigProvider>
           </div>
-          <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-4 hover:bg-slate-800/60 transition-colors">
-            <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold block mb-1">角色 (Role)</span>
-            <span className="text-slate-200 text-lg capitalize">{device.role || '-'}</span>
-          </div>
-          {device.description && (
-            <div className="col-span-1 md:col-span-2 bg-slate-800/40 border border-slate-700/50 rounded-xl p-4 hover:bg-slate-800/60 transition-colors">
-              <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold block mb-1">描述</span>
-              <span className="text-slate-300 leading-relaxed">{device.description}</span>
-            </div>
-          )}
-        </div>
-
-        <div>
-            <h3 className="flex items-center gap-2 text-lg font-semibold text-white mb-4">
-              <Settings className="w-5 h-5 text-purple-400" />
-              详细配置
-            </h3>
-            
-            {vlanList.length > 0 && (
-              <div className="mb-4 bg-slate-800/30 border border-slate-700/50 rounded-xl overflow-hidden">
-                <div className="bg-slate-800/80 px-4 py-2 border-b border-slate-700/50 flex items-center gap-2 text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                   <Layers className="w-3.5 h-3.5 text-purple-400" />
-                   VLAN 配置
-                </div>
-                <div className="p-4 flex flex-wrap gap-2">
-                   {vlanList.map((v, idx) => (
-                      <div key={idx} className="flex items-center gap-2 bg-purple-500/10 border border-purple-500/20 px-3 py-1.5 rounded-lg">
-                         <div className="w-2 h-2 rounded-full bg-purple-400 shadow-[0_0_5px_#a855f7]"></div>
-                         <div className="flex flex-col">
-                            <span className="text-xs text-purple-200 font-bold leading-none">ID: {v.id}</span>
-                            <span className="text-[10px] text-purple-400/70 leading-none mt-0.5">{v.name}</span>
-                         </div>
-                      </div>
-                   ))}
-                </div>
-              </div>
-            )}
-
-            {ospfConfig && (
-              <div className="mb-4 bg-slate-800/30 border border-slate-700/50 rounded-xl overflow-hidden">
-                <div className="bg-slate-800/80 px-4 py-2 border-b border-slate-700/50 flex items-center gap-2 text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                   <ArrowUp className="w-3.5 h-3.5 text-green-400" />
-                   OSPF 协议
-                </div>
-                <div className="p-4 grid grid-cols-2 gap-4">
-                     <div className="bg-slate-900/30 p-3 rounded-lg border border-slate-700/30">
-                       <span className="text-xs text-slate-500 block mb-1">路由器 ID</span>
-                       <span className="font-mono text-slate-200 font-bold">
-                         {ospfConfig.router_id || ospfConfig.routerId}
-                       </span>
-                     </div>
-                     <div className="bg-slate-900/30 p-3 rounded-lg border border-slate-700/30">
-                       <span className="text-xs text-slate-500 block mb-1">区域 (Area)</span>
-                       <span className="font-mono text-green-400 font-bold text-lg">
-                         {ospfConfig.area}
-                       </span>
-                     </div>
-                </div>
-              </div>
-            )}
-
-            {device.interfaces && device.interfaces.length > 0 ? (
-              <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl overflow-hidden">
-                <div className="bg-slate-800/80 px-4 py-2 border-b border-slate-700/50 flex items-center gap-2 text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                   <Network className="w-3.5 h-3.5 text-blue-400" />
-                   接口列表 ({device.interfaces.length})
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-700/50 text-xs text-slate-400 uppercase bg-slate-800/50">
-                        <th className="p-3 font-semibold">名称</th>
-                        <th className="p-3 font-semibold">IP 地址</th>
-                        <th className="p-3 font-semibold">VLAN</th>
-                        <th className="p-3 font-semibold">模式</th>
-                        <th className="p-3 font-semibold">状态</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-700/30">
-                      {device.interfaces.map((it, idx) => (
-                          <tr key={idx} className="hover:bg-slate-700/20 transition-colors">
-                            <td className="p-3 text-sm font-medium text-slate-200 font-mono">{it.name}</td>
-                            <td className="p-3 text-sm font-mono text-slate-400">{it.ip || it.ip_address || '-'}</td>
-                            <td className="p-3 text-sm font-mono text-slate-400">
-                                {it.vlan ? (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase bg-purple-500/10 text-purple-400 border border-purple-500/20">
-                                        {it.vlan}
-                                    </span>
-                                ) : '-'}
-                            </td>
-                            <td className="p-3 text-sm font-mono text-slate-400">{it.mode || '-'}</td>
-                            <td className="p-3">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase ${
-                                (it.status === 'up' || !it.status) 
-                                  ? 'bg-green-500/10 text-green-400 border border-green-500/20' 
-                                  : 'bg-red-500/10 text-red-400 border border-red-500/20'
-                              }`}>
-                                {it.status || 'UP'}
-                              </span>
-                            </td>
-                          </tr>
-                        )
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ) : (
-                <div className="text-center py-6 border border-dashed border-slate-700 rounded-xl text-slate-500 text-sm">
-                    暂无接口信息
-                </div>
-            )}
-        </div>
-      </div>
-    </div>
+        </Motion.div>
+    </AnimatePresence>
   );
 };
 
