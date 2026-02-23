@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layout, Button, Badge, Popover, List, Avatar, Space, Typography } from 'antd';
+import { Layout, Button, Badge, Popover, List, Avatar, Space, Typography, theme } from 'antd';
 import { 
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -16,8 +16,8 @@ const { Header: AntHeader } = Layout;
 const { Text } = Typography;
 
 const Header = () => {
-  const { ui, updateUI, markNotificationAsRead } = useAppStore();
-  const collapsed = ui.sidebarCollapsed;
+  const { token } = theme.useToken();
+  const { ui, markNotificationAsRead } = useAppStore();
 
   const getIcon = (type) => {
     switch (type) {
@@ -37,7 +37,7 @@ const Header = () => {
             style={{ 
                 cursor: 'pointer', 
                 opacity: item.read ? 0.5 : 1,
-                backgroundColor: item.read ? 'transparent' : 'rgba(24, 144, 255, 0.1)'
+                backgroundColor: item.read ? 'transparent' : token.colorFillSecondary
             }}
         >
           <List.Item.Meta
@@ -53,31 +53,32 @@ const Header = () => {
   );
 
   return (
-    <AntHeader style={{ padding: '0 24px', background: '#001529', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #303030' }}>
-      <div style={{ flex: 1, textAlign: 'center' }}>
-        <h1 style={{ color: '#fff', margin: 0, fontSize: '18px', fontWeight: 600, letterSpacing: '1px' }}>
-           NetOps 数字孪生平台
-        </h1>
-      </div>
+    <AntHeader style={{ padding: 0, background: 'transparent', height: 72, lineHeight: '72px' }}>
+      <div className="app-glass" style={{ position: 'relative', height: '100%', borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 16px' }}>
+        <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
+          <Text strong style={{ color: token.colorText, fontSize: 16, letterSpacing: 0.2 }}>
+            NetOps 数字孪生平台
+          </Text>
+        </div>
 
-      <Space size="large">
-        <Popover 
-            content={notificationContent} 
-            title={
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>系统通知</span>
-                    <Badge count={ui.notifications.filter(n => !n.read).length} overflowCount={99} />
-                </div>
-            } 
-            trigger="click" 
-            placement="bottomRight"
-        >
-            <Badge count={ui.notifications.filter(n => !n.read).length} size="small" offset={[-5, 5]}>
-                <Button type="text" icon={<BellOutlined style={{ color: '#fff', fontSize: '20px' }} />} />
-            </Badge>
-        </Popover>
-        <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#1890ff', cursor: 'pointer' }} />
-      </Space>
+        <Space size="large">
+          <Popover 
+              content={notificationContent} 
+              title={
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>系统通知</span>
+                      <Badge count={ui.notifications.filter(n => !n.read).length} overflowCount={99} />
+                  </div>
+              } 
+              trigger="click" 
+              placement="bottomRight"
+          >
+              <Badge count={ui.notifications.filter(n => !n.read).length} size="small" offset={[-5, 5]}>
+                  <Button type="text" icon={<BellOutlined style={{ color: token.colorText, fontSize: 20 }} />} />
+              </Badge>
+          </Popover>
+        </Space>
+      </div>
     </AntHeader>
   );
 };

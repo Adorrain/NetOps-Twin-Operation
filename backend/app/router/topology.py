@@ -7,6 +7,7 @@
 """
 
 from flask import Blueprint, request, jsonify, abort
+from werkzeug.exceptions import HTTPException
 from datetime import datetime
 import os
 
@@ -87,6 +88,8 @@ def upload_topology():
             # logging exception here would be good
             pass
         return jsonify(dump_model(topology_data))
+    except HTTPException:
+        raise
     except TopologyValidationError as e:
         abort(400, description=str(e))
     except Exception as e:

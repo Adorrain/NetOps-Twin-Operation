@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, message, Typography, Card, List } from 'antd';
+import { Upload, message, Typography, Card, Spin } from 'antd';
 import { InboxOutlined, FileTextOutlined } from '@ant-design/icons';
 import { useAppStore } from '../../stores';
 import { uploadTopologyFile } from '../../features/topology/topologyApi';
@@ -43,7 +43,7 @@ const ConfigUploader = ({ onConfigLoaded }) => {
       setLoading('config-upload', false);
       setUploading(false);
     }
-    return false; // Prevent automatic upload by Antd
+    return false;
   };
 
   const uploadProps = {
@@ -51,9 +51,6 @@ const ConfigUploader = ({ onConfigLoaded }) => {
     multiple: false,
     showUploadList: false,
     beforeUpload: handleUpload,
-    onDrop(e) {
-      console.log('Dropped files', e.dataTransfer.files);
-    },
   };
 
   return (
@@ -65,7 +62,7 @@ const ConfigUploader = ({ onConfigLoaded }) => {
               width: '100%',
               maxWidth: 800,
               borderRadius: 16, 
-              background: 'rgba(30, 41, 59, 0.8)', // slate-800 with opacity
+              background: 'rgba(30, 41, 59, 0.8)',
               backdropFilter: 'blur(10px)',
               boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
               display: 'flex',
@@ -77,6 +74,7 @@ const ConfigUploader = ({ onConfigLoaded }) => {
           }}
       >
         <div style={{ height: 360 }}>
+            <div style={{ height: '100%', position: 'relative' }}>
             <Dragger 
                 {...uploadProps} 
                 disabled={uploading} 
@@ -98,6 +96,12 @@ const ConfigUploader = ({ onConfigLoaded }) => {
                     支持 YAML (.yaml, .yml) 和 JSON (.json) 格式
                 </p>
             </Dragger>
+            {uploading && (
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(2, 6, 23, 0.55)', backdropFilter: 'blur(6px)', borderRadius: 12 }}>
+                <Spin size="large" tip="正在解析配置…" />
+              </div>
+            )}
+            </div>
         </div>
 
         <div style={{ padding: 24, background: 'rgba(15, 23, 42, 0.6)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.05)' }}>

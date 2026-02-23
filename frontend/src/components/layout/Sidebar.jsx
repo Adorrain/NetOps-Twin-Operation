@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layout, Menu, Button } from 'antd';
+import { Layout, Menu, theme } from 'antd';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   CloudServerOutlined, 
@@ -14,15 +14,16 @@ import { useAppStore } from '../../stores';
 const { Sider } = Layout;
 
 const Sidebar = () => {
+  const { token } = theme.useToken();
   const { ui, updateUI } = useAppStore();
   const navigate = useNavigate();
   const location = useLocation();
   const collapsed = ui.sidebarCollapsed;
 
   const menuItems = [
-    { key: 'topology', label: <span style={{ fontSize: '18px', fontWeight: 500, marginLeft: 10 }}>网络拓扑</span>, icon: <CloudServerOutlined style={{ fontSize: '20px' }} />, style: { marginTop: 20, marginBottom: 20 } },
-    { key: 'monitoring', label: <span style={{ fontSize: '18px', fontWeight: 500, marginLeft: 10 }}>监控面板</span>, icon: <DashboardOutlined style={{ fontSize: '20px' }} />, style: { marginBottom: 20 } },
-    { key: 'upload', label: <span style={{ fontSize: '18px', fontWeight: 500, marginLeft: 10 }}>配置上传</span>, icon: <UploadOutlined style={{ fontSize: '20px' }} />, style: { marginBottom: 20 } },
+    { key: 'topology', label: '网络拓扑', icon: <CloudServerOutlined /> },
+    { key: 'monitoring', label: '监控面板', icon: <DashboardOutlined /> },
+    { key: 'upload', label: '配置上传', icon: <UploadOutlined /> },
   ];
 
   const handleMenuClick = ({ key }) => {
@@ -30,7 +31,8 @@ const Sidebar = () => {
     navigate(`/${key}`);
   };
 
-  const selectedKey = location.pathname.substring(1) || 'topology';
+  const pathKey = location.pathname.substring(1) || 'topology';
+  const selectedKey = menuItems.some(i => i.key === pathKey) ? pathKey : 'topology';
 
   return (
     <Sider 
@@ -40,63 +42,70 @@ const Sidebar = () => {
         trigger={null}
         breakpoint="lg"
         width={260}
+        collapsedWidth={84}
         style={{
-            overflow: 'hidden',
             height: '100vh',
             position: 'sticky',
             left: 0,
             top: 0,
             bottom: 0,
-            borderRight: '1px solid #303030', // Match dark theme border
-            display: 'flex',
-            flexDirection: 'column'
+            background: 'transparent',
+            padding: 12
         }}
     >
-      <div style={{ 
-          height: 64, 
-          margin: 16, 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center', 
+      <div
+        className="app-glass"
+        style={{
+          height: '100%',
+          borderRadius: 18,
           overflow: 'hidden',
-          whiteSpace: 'nowrap',
-          flexShrink: 0
-      }}>
-         <HomeOutlined style={{ fontSize: '28px', color: '#1890ff' }} />
-         {!collapsed && <span style={{ marginLeft: 12, color: '#fff', fontWeight: 'bold', fontSize: '20px' }}>NetOps Twin</span>}
-      </div>
-      
-      <div style={{ flex: 1, overflowY: 'auto', marginBottom: 48 }}>
-        <Menu
-            theme="dark"
-            mode="inline"
-            selectedKeys={[selectedKey]}
-            onClick={handleMenuClick}
-            items={menuItems}
-            style={{ borderRight: 0, fontSize: '16px' }}
-        />
-      </div>
-
-      <div style={{ 
-          height: 48, 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center', 
-          borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-          background: '#001529',
-          cursor: 'pointer',
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          transition: 'background-color 0.3s',
-          zIndex: 10
-      }} 
-        onClick={() => updateUI({ sidebarCollapsed: !collapsed })}
-        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#002140'}
-        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#001529'}
+          display: 'flex',
+          flexDirection: 'column'
+        }}
       >
-          {collapsed ? <RightOutlined style={{ color: '#fff', fontSize: '16px' }} /> : <LeftOutlined style={{ color: '#fff', fontSize: '16px' }} />}
+        <div style={{ 
+            height: 64,
+            margin: 12,
+            borderRadius: 14,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+            background: token.colorFillTertiary,
+            border: `1px solid ${token.colorBorderSecondary}`
+        }}>
+          <HomeOutlined style={{ fontSize: 24, color: token.colorPrimary }} />
+          {!collapsed && <span style={{ marginLeft: 10, color: token.colorText, fontWeight: 650, fontSize: 16, letterSpacing: 0.4 }}>NetOps Twin</span>}
+        </div>
+        
+        <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
+          <Menu
+              theme="dark"
+              mode="inline"
+              selectedKeys={[selectedKey]}
+              onClick={handleMenuClick}
+              items={menuItems}
+              inlineIndent={18}
+              style={{ borderRight: 0, background: 'transparent' }}
+          />
+        </div>
+
+        <div
+          className="sidebar-trigger"
+          style={{ 
+            height: 44,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderTop: `1px solid ${token.colorBorderSecondary}`,
+            cursor: 'pointer'
+          }} 
+          onClick={() => updateUI({ sidebarCollapsed: !collapsed })}
+        >
+          {collapsed ? <RightOutlined style={{ color: token.colorText, fontSize: 16 }} /> : <LeftOutlined style={{ color: token.colorText, fontSize: 16 }} />}
+        </div>
       </div>
     </Sider>
   );

@@ -11,6 +11,7 @@ import React, { Suspense, useMemo, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Grid, Text, Cone, RoundedBox, Line, Html, Environment, Float } from '@react-three/drei';
 import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
+import { Spin } from 'antd';
 import * as THREE from 'three';
 import { getDisplayVlanId } from '../../utils/net';
 
@@ -507,7 +508,14 @@ export default function NetworkTopology3D({ topology, onDeviceClick }) {
           <pointLight position={[-10, 10, -10]} intensity={2.0} />
           {/* <Environment preset="city" /> */} 
 
-          <Suspense fallback={<Html center><div style={{ color: 'white' }}>Loading 3D Engine...</div></Html>}>
+          <Suspense fallback={
+            <Html center>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                <Spin size="large" />
+                <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, letterSpacing: 0.4 }}>正在加载 3D 场景…</div>
+              </div>
+            </Html>
+          }>
             <Scene topology={topology} onDeviceClick={onDeviceClick} />
           </Suspense>
 

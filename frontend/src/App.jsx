@@ -28,6 +28,7 @@ const AppContent = () => {
   const { networkTopology, setSelectedDevice, setNetworkTopology, updateUI } = useAppStore();
   const location = useLocation();
   const navigate = useNavigate();
+  const { token } = theme.useToken();
 
   useEffect(() => {
     const path = location.pathname.substring(1) || 'topology';
@@ -48,8 +49,8 @@ const AppContent = () => {
     <Routes>
       <Route path="/" element={<Navigate to="/topology" replace />} />
       <Route path="/topology" element={
-        <Layout style={{ height: '100%' }}>
-          <Content style={{ position: 'relative', background: '#0f172a' }}>
+        <Layout style={{ height: '100%', background: 'transparent' }}>
+          <Content style={{ position: 'relative', background: 'transparent', borderRadius: 16, overflow: 'hidden' }}>
              {networkTopology ? (
                <NetworkTopology3D 
                  key={networkTopology.id || 'default-topo'}
@@ -57,13 +58,13 @@ const AppContent = () => {
                  onDeviceClick={(device) => setSelectedDevice(device?.id)}
                />
              ) : (
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                    <Empty
                       image={Empty.PRESENTED_IMAGE_SIMPLE}
                       description={
-                        <div style={{ color: 'rgba(255,255,255,0.4)' }}>
-                          <Title level={3} style={{ color: 'rgba(255,255,255,0.3)', margin: 0 }}>NO TOPOLOGY</Title>
-                          <Text type="secondary">Please upload configuration via /upload</Text>
+                        <div style={{ color: token.colorTextSecondary }}>
+                          <Title level={3} style={{ color: 'rgba(255,255,255,0.55)', margin: 0 }}>NO TOPOLOGY</Title>
+                          <Text type="secondary">请先前往「配置上传」加载拓扑</Text>
                         </div>
                       }
                    />
@@ -107,11 +108,6 @@ const AppContent = () => {
           <MonitoringPanel />
         </div>
       } />
-      <Route path="/ops" element={ 
-          <div style={{ padding: 24, height: '100%', overflow: 'auto' }}>
-             <OpsConsole />
-          </div>
-      } />
     </Routes>
   );
 };
@@ -127,7 +123,33 @@ function App() {
       theme={{
         algorithm: theme.darkAlgorithm,
         token: {
-          colorPrimary: '#1890ff',
+          colorPrimary: '#3b82f6',
+          colorInfo: '#3b82f6',
+          colorSuccess: '#10b981',
+          borderRadius: 12,
+          fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+          colorBgLayout: 'transparent',
+          colorBgContainer: 'rgba(2, 6, 23, 0.55)',
+          colorFillSecondary: 'rgba(255, 255, 255, 0.06)',
+          colorFillTertiary: 'rgba(255, 255, 255, 0.04)',
+          colorBorderSecondary: 'rgba(255, 255, 255, 0.10)',
+        },
+        components: {
+          Layout: {
+            headerBg: 'rgba(2, 6, 23, 0.65)',
+            siderBg: 'rgba(2, 6, 23, 0.65)',
+            bodyBg: 'transparent',
+          },
+          Menu: {
+            darkItemBg: 'transparent',
+            darkSubMenuItemBg: 'transparent',
+            darkItemHoverBg: 'rgba(255, 255, 255, 0.06)',
+            darkItemSelectedBg: 'rgba(59, 130, 246, 0.18)',
+            darkItemSelectedColor: '#e6f4ff',
+            itemBorderRadius: 12,
+            itemHeight: 44,
+            itemMarginInline: 8,
+          },
         },
       }}
     >

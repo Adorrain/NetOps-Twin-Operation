@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Card, Row, Col, Statistic, Progress, Empty, Tag } from 'antd';
+import { Button, Card, Row, Col, Statistic, Progress, Empty, Tag, Typography } from 'antd';
 import { 
   DashboardOutlined, 
   CloudServerOutlined, 
@@ -60,7 +60,6 @@ const MonitoringPanel = () => {
   };
 
   const getRandomData = () => Array.from({ length: 10 }, () => Math.floor(Math.random() * 40) + 60);
-
   return (
     <div style={{ padding: 24, height: '100%', overflowY: 'auto' }}>
       <h2 style={{ color: '#fff', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
