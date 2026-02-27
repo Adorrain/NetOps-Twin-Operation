@@ -54,7 +54,7 @@ const Header = () => {
 
   return (
     <AntHeader style={{ padding: 0, background: 'transparent', height: 72, lineHeight: '72px' }}>
-      <div className="app-glass" style={{ position: 'relative', height: '100%', borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 16px' }}>
+      <div style={{ position: 'relative', height: '100%', borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 16px', background: 'rgba(15, 23, 42, 0.65)', border: `1px solid ${token.colorBorderSecondary}`, backdropFilter: 'blur(12px)', boxShadow: '0 10px 40px rgba(0, 0, 0, 0.35)' }}>
         <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
           <Text strong style={{ color: token.colorText, fontSize: 16, letterSpacing: 0.2 }}>
             NetOps 数字孪生平台

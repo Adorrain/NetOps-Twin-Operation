@@ -68,8 +68,10 @@ const SparkLine = ({
         cy={height - ((data[data.length - 1] - min) / range) * height} 
         r="3" 
         fill={color}
-        className="animate-pulse"
-      />
+        style={{ opacity: 0.9 }}
+      >
+        <animate attributeName="opacity" values="1;0.5;1" dur="2s" repeatCount="indefinite" />
+      </circle>
     </svg>
   );
 };

@@ -31,17 +31,6 @@ export const DeviceStatus = {
 };
 
 /**
- * 连接类型枚举。
- * @type {{ETHERNET:string, FIBER:string, WIRELESS:string, SERIAL:string}}
- */
-export const ConnectionType = {
-  ETHERNET: 'ethernet',
-  FIBER: 'fiber',
-  WIRELESS: 'wireless',
-  SERIAL: 'serial'
-};
-
-/**
  * 连接状态枚举。
  * @type {{ACTIVE:string, INACTIVE:string, DEGRADED:string, FAILED:string}}
  */

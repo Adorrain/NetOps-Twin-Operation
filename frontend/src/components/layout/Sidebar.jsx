@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Layout, Menu, theme } from 'antd';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
@@ -19,6 +19,7 @@ const Sidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const collapsed = ui.sidebarCollapsed;
+  const [triggerHover, setTriggerHover] = useState(false);
 
   const menuItems = [
     { key: 'topology', label: '网络拓扑', icon: <CloudServerOutlined /> },
@@ -54,13 +55,16 @@ const Sidebar = () => {
         }}
     >
       <div
-        className="app-glass"
         style={{
           height: '100%',
           borderRadius: 18,
           overflow: 'hidden',
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
+          background: 'rgba(15, 23, 42, 0.65)',
+          border: `1px solid ${token.colorBorderSecondary}`,
+          backdropFilter: 'blur(12px)',
+          boxShadow: '0 10px 40px rgba(0, 0, 0, 0.35)'
         }}
       >
         <div style={{ 
@@ -93,15 +97,18 @@ const Sidebar = () => {
         </div>
 
         <div
-          className="sidebar-trigger"
           style={{ 
             height: 44,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             borderTop: `1px solid ${token.colorBorderSecondary}`,
-            cursor: 'pointer'
+            cursor: 'pointer',
+            transition: 'background-color 160ms ease',
+            backgroundColor: triggerHover ? 'rgba(255, 255, 255, 0.06)' : 'transparent'
           }} 
+          onMouseEnter={() => setTriggerHover(true)}
+          onMouseLeave={() => setTriggerHover(false)}
           onClick={() => updateUI({ sidebarCollapsed: !collapsed })}
         >
           {collapsed ? <RightOutlined style={{ color: token.colorText, fontSize: 16 }} /> : <LeftOutlined style={{ color: token.colorText, fontSize: 16 }} />}

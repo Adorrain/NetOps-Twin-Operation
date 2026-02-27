@@ -678,13 +678,13 @@ const OpsConsole = () => {
              />
              <Text type="secondary">攻击强度: {ddosIntensity} Gbps</Text>
              <Slider min={1} max={100} value={ddosIntensity} onChange={setDdosIntensity} />
-             <Button 
+            <Button 
                 type="primary" 
                 danger={!isDDoSing} 
                 block 
                 onClick={toggleDDoS} 
                 disabled={!ddosTarget}
-                style={isDDoSing ? { background: '#f5222d', borderColor: '#f5222d', animation: 'pulse 1s infinite' } : {}}
+                style={isDDoSing ? { background: '#f5222d', borderColor: '#f5222d', boxShadow: '0 0 0 4px rgba(245, 34, 45, 0.2)' } : {}}
              >
                 {isDDoSing ? '停止攻击' : '开始攻击'}
              </Button>

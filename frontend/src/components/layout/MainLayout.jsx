@@ -31,6 +31,22 @@ const MainLayout = ({ children }) => {
   
   return (
     <Layout style={{ minHeight: '100vh', background: 'transparent' }}>
+      <style>{`
+        ::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+          background: rgba(255, 255, 255, 0.05);
+        }
+        ::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.2);
+          border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.3);
+        }
+      `}</style>
       {contextHolder}
       <Sidebar />
       <Layout style={{ height: '100vh', overflow: 'hidden', background: 'transparent', padding: 12, gap: 12 }}>

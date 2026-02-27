@@ -338,40 +338,5 @@ const useAppStore = create((set, get) => ({
   handleNetworkEvent: createHandleNetworkEvent(get)
 }));
 
-/**
- * 读取当前网络拓扑。
- *
- * @returns {any} 网络拓扑对象。
- */
-export const useNetworkTopology = () => useAppStore((state) => state.networkTopology);
-
-/**
- * 读取当前选中设备 ID。
- *
- * @returns {any} 设备 ID。
- */
-export const useSelectedDevice = () => useAppStore((state) => state.selectedDeviceId);
-
-/**
- * 读取设备状态映射。
- *
- * @returns {Map<any, any>} 设备状态映射。
- */
-export const useDeviceStatuses = () => useAppStore((state) => state.deviceStatuses);
-
-/**
- * 读取 3D 场景状态。
- *
- * @returns {object} 3D 场景状态对象。
- */
-export const useScene3D = () => useAppStore((state) => state.scene3D);
-
-/**
- * 读取 UI 状态。
- *
- * @returns {object} UI 状态对象。
- */
-export const useUI = () => useAppStore((state) => state.ui);
-
 export { useAppStore };
 export default useAppStore;
