@@ -81,7 +81,7 @@ devices:
         status: up
         mode: access
         vlan: 10
-      - name: g1/3 # 补上，用于连接 pc-3
+      - name: g1/3
         status: up
         mode: access
         vlan: 10
@@ -112,7 +112,7 @@ devices:
   - id: pc-1
     name: 教学PC-1
     role: terminal
-    device_type: pc # 修改：host → pc
+    device_type: pc
     ip: 192.168.10.10/24
     gateway: 192.168.10.1
     vlan: 10
@@ -127,7 +127,7 @@ devices:
   - id: pc-2
     name: 教学PC-2
     role: terminal
-    device_type: pc # 修改：host → pc
+    device_type: pc
     ip: 192.168.10.11/24
     gateway: 192.168.10.1
     vlan: 10
@@ -142,7 +142,7 @@ devices:
   - id: pc-3
     name: 教学PC-3
     role: terminal
-    device_type: pc # 修改：host → pc
+    device_type: pc
     ip: 192.168.10.12/24
     gateway: 192.168.10.1
     vlan: 10
@@ -160,7 +160,7 @@ devices:
   - id: server-1
     name: 办公服务器
     role: server
-    device_type: server # 保持不变，已符合标准
+    device_type: server
     ip: 192.168.20.10/24
     gateway: 192.168.20.1
     vlan: 20

@@ -60,6 +60,36 @@ def _validate_topology_dict(data: Dict[str, Any]) -> None:
         if not d_type:
             raise TopologyValidationError(f"devices[{idx}] missing device_type/deviceType")
 
+        cfg = d.get("configuration")
+        static_routes = None
+        if isinstance(cfg, dict):
+            static_routes = cfg.get("static_routes")
+        if static_routes is None:
+            static_routes = d.get("static_routes")
+        if static_routes is not None:
+            if not isinstance(static_routes, list):
+                raise TopologyValidationError(f"devices[{idx}].static_routes must be a list")
+            for k, r in enumerate(static_routes):
+                if not isinstance(r, dict):
+                    raise TopologyValidationError(f"devices[{idx}].static_routes[{k}] must be an object")
+                prefix = r.get("prefix") or r.get("destination") or r.get("dst")
+                next_hop = r.get("next_hop") or r.get("nextHop") or r.get("gateway")
+                if not prefix or not next_hop:
+                    raise TopologyValidationError(f"devices[{idx}].static_routes[{k}] requires prefix and next_hop")
+                try:
+                    ipaddress.ip_network(str(prefix), strict=False)
+                except Exception:
+                    raise TopologyValidationError(f"Invalid static route prefix on {dev_id}: {prefix}")
+
+        host_vlan = d.get("vlan")
+        if host_vlan is not None:
+            try:
+                host_vlan_int = int(host_vlan)
+            except Exception:
+                raise TopologyValidationError(f"Invalid devices[{idx}].vlan on {dev_id}: {host_vlan}")
+            if host_vlan_int < 1 or host_vlan_int > 4094:
+                raise TopologyValidationError(f"devices[{idx}].vlan out of range on {dev_id}: {host_vlan_int}")
+
         iface_names = set()
         raw_ifaces = d.get("interfaces", [])
         if raw_ifaces is None:
@@ -74,6 +104,40 @@ def _validate_topology_dict(data: Dict[str, Any]) -> None:
                 if name in iface_names:
                     raise TopologyValidationError(f"Duplicate interface name on {dev_id}: {name}")
                 iface_names.add(name)
+
+            mode = str(iface.get("mode") or "access").lower()
+            if mode not in ("access", "trunk"):
+                raise TopologyValidationError(f"Invalid interface mode on {dev_id}:{name or f'iface[{j}]'}: {mode}")
+
+            if mode == "access":
+                if "allowed_vlans" in iface and iface.get("allowed_vlans") is not None:
+                    raise TopologyValidationError(f"access interface must not set allowed_vlans on {dev_id}:{name or f'iface[{j}]'}")
+                vlan_val = iface.get("vlan")
+                if vlan_val is not None:
+                    try:
+                        vlan_int = int(vlan_val)
+                    except Exception:
+                        raise TopologyValidationError(f"Invalid access vlan on {dev_id}:{name or f'iface[{j}]'}: {vlan_val}")
+                    if vlan_int < 1 or vlan_int > 4094:
+                        raise TopologyValidationError(f"Access vlan out of range on {dev_id}:{name or f'iface[{j}]'}: {vlan_int}")
+            else:
+                if "vlan" in iface and iface.get("vlan") is not None:
+                    raise TopologyValidationError(f"trunk interface must not set vlan on {dev_id}:{name or f'iface[{j}]'}")
+                allowed = iface.get("allowed_vlans")
+                if allowed is not None:
+                    if not isinstance(allowed, list):
+                        raise TopologyValidationError(f"allowed_vlans must be a list on {dev_id}:{name or f'iface[{j}]'}")
+                    normalized = []
+                    for v in allowed:
+                        try:
+                            vi = int(v)
+                        except Exception:
+                            raise TopologyValidationError(f"Invalid allowed_vlans value on {dev_id}:{name or f'iface[{j}]'}: {v}")
+                        if vi < 1 or vi > 4094:
+                            raise TopologyValidationError(f"allowed_vlans out of range on {dev_id}:{name or f'iface[{j}]'}: {vi}")
+                        normalized.append(vi)
+                    if len(set(normalized)) != len(normalized):
+                        raise TopologyValidationError(f"Duplicate allowed_vlans on {dev_id}:{name or f'iface[{j}]'}")
 
             ip_val = iface.get("ip")
             if ip_val:

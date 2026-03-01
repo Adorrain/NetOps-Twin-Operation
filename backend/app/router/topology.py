@@ -15,6 +15,7 @@ from app.utils.yaml_loader import load_topology_from_yaml, TopologyValidationErr
 from app.config.database import get_db
 from app.model.db_models import TopologySnapshot
 from app.utils.serialization import dump_model
+from app.controller.simulation_service import SimulationService
 
 bp = Blueprint('topology', __name__)
 
@@ -87,7 +88,8 @@ def upload_topology():
         except Exception:
             # logging exception here would be good
             pass
-        return jsonify(dump_model(topology_data))
+        service = SimulationService(topology_data)
+        return jsonify(dump_model(service.topology))
     except HTTPException:
         raise
     except TopologyValidationError as e:
@@ -112,7 +114,8 @@ def get_topology():
     try:
         config_path = _get_config_path("campus.yaml")
         topology_data = load_topology_from_yaml(config_path)
-        return jsonify(dump_model(topology_data))
+        service = SimulationService(topology_data)
+        return jsonify(dump_model(service.topology))
     except FileNotFoundError:
         abort(404, description="Topology configuration not found")
     except Exception as e:

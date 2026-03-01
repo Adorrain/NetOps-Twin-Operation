@@ -79,6 +79,8 @@ export const buildFrontendTopology = (cfg) => {
   const devices = (cfg.devices || []).map((d) => {
     const derivedVlans = getAllVlans(d);
     const normalizedVlans = Array.isArray(d.vlans) && d.vlans.length > 0 ? d.vlans : derivedVlans.map((v) => ({ vlan_id: v, name: `VLAN${v}` }));
+    const routingTableRaw = d.routing_table || d.routingTable || d.configuration?.routing_table || d.configuration?.routingTable;
+    const routingTable = Array.isArray(routingTableRaw) ? routingTableRaw : [];
 
     return {
       id: String(d.id),
@@ -91,7 +93,8 @@ export const buildFrontendTopology = (cfg) => {
       configuration: {
         ...d.configuration,
         ospf: d.ospf,
-        vlans: normalizedVlans
+        vlans: normalizedVlans,
+        routing_table: routingTable
       },
       metrics: d.metrics || {
         cpuUsage: Math.floor(Math.random() * 30),
@@ -107,7 +110,8 @@ export const buildFrontendTopology = (cfg) => {
       description: d.description,
       interfaces: d.interfaces || [],
       ospf: d.ospf,
-      vlans: normalizedVlans
+      vlans: normalizedVlans,
+      routing_table: routingTable
     };
   });
 
