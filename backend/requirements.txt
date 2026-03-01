@@ -3,6 +3,4 @@ flask-cors
 sqlalchemy
 pydantic
 pydantic-settings
-pyyaml
-python-dotenv
-gunicorn
+

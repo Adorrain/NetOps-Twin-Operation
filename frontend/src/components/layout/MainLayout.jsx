@@ -8,10 +8,7 @@ const { Content } = Layout;
 const { Text } = Typography;
 
 /**
- * 主布局：包含 Header、Sidebar、内容区与通知区域。
- *
- * @param {{children: any}} props 组件属性。
- * @returns {JSX.Element} 布局组件。
+ * 主布局：包含 Header、Sidebar、内容区与通知区域
  */
 const MainLayout = ({ children }) => {
   const { token } = theme.useToken();

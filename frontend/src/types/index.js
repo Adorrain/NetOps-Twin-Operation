@@ -1,13 +1,12 @@
 /**
- * 前端通用类型与枚举常量。
+ * 仿真拓扑类型状态枚举
  *
  * Author: Adorrain
  * Date: 2026-01-30
  */
 
 /**
- * 网络设备类型枚举。
- * @type {{PC:string, ROUTER:string, SWITCH:string, SERVER:string, FIREWALL:string, ACCESS_POINT:string}}
+ * 网络设备类型枚举
  */
 export const DeviceType = {
   PC: 'pc',
@@ -19,8 +18,7 @@ export const DeviceType = {
 };
 
 /**
- * 设备状态枚举。
- * @type {{ONLINE:string, OFFLINE:string, WARNING:string, ERROR:string, MAINTENANCE:string}}
+ * 设备状态枚举
  */
 export const DeviceStatus = {
   ONLINE: 'online',
@@ -31,8 +29,7 @@ export const DeviceStatus = {
 };
 
 /**
- * 连接状态枚举。
- * @type {{ACTIVE:string, INACTIVE:string, DEGRADED:string, FAILED:string}}
+ * 连接状态枚举
  */
 export const ConnectionStatus = {
   ACTIVE: 'active',

@@ -1,94 +1,58 @@
-"""拓扑相关接口路由。
+"""Topology API 路由
 
-提供拓扑 YAML 上传与读取能力，并在上传时可选地将快照写入数据库。
+提供网络拓扑的上传和解析功能
 
 作者: Adorrain
-创建时间: 2026-01-30
+修改时间: 2026-03-01
 """
-
+import os
+import yaml
 from flask import Blueprint, request, jsonify, abort
 from werkzeug.exceptions import HTTPException
-from datetime import datetime
-import os
 
-from app.utils.yaml_loader import load_topology_from_yaml, TopologyValidationError
-from app.config.database import get_db
-from app.model.db_models import TopologySnapshot
-from app.utils.serialization import dump_model
+from app.utils.serialization import dump_model, validate_topology_dict, TopologyValidationError
 from app.controller.simulation_service import SimulationService
+from app.config.database import get_db
+from app.dao.snapshot_dao import save_new_state
+from app.model.topology import TopologyData
 
 bp = Blueprint('topology', __name__)
 
 
-def _get_config_path(filename: str) -> str:
-    """获取配置文件绝对路径（兼容原 config_storage 逻辑）。"""
-    # topology.py -> router -> app -> backend
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    config_dir = os.path.join(base_dir, "config")
-    os.makedirs(config_dir, exist_ok=True)
-    return os.path.join(config_dir, filename)
-
-
 @bp.route("/network/topology/upload", methods=['POST'])
 def upload_topology():
-    """上传拓扑 YAML 文件并解析为拓扑数据。
-
-    上传文件会落盘到后端 config/ 目录，然后解析为 TopologyData。
-    解析成功后尝试写入一条 TopologySnapshot（写入失败不会影响接口返回）。
-
-    Returns:
-        解析后的拓扑数据（TopologyData）。
-
-    Raises:
-        400: 文件类型不支持、文件为空。
-        413: 文件过大。
-        500: 解析/内部错误。
-    """
-    db = get_db()
     try:
-        if 'file' not in request.files:
-             abort(400, description="No file part")
-        
-        file = request.files['file']
-        if file.filename == '':
-            abort(400, description="No selected file")
-
-        original_name = os.path.basename(file.filename or "topology.yaml")
-        _, ext = os.path.splitext(original_name)
-        ext = ext.lower()
+        file = request.files.get('file')
+        if not file:
+            abort(400, description="文件不存在")
+        original_name = os.path.basename(file.filename )
+        ext = os.path.splitext(original_name)[1].lower()
         if ext not in (".yaml", ".yml"):
-            abort(400, description="Only .yaml/.yml files are supported")
-
-        # Check content length if possible, or read and check size
-        # Flask doesn't automatically limit size per route easily without reading
-        # For simplicity, we read content
+            abort(400, description="仅支持 .yaml/.yml 文件")
         content = file.read()
-        
         if not content:
-            abort(400, description="Empty upload")
-        
-        if len(content) > 2 * 1024 * 1024:
-            abort(413, description="YAML file too large (max 2MB)")
-
-        safe_name = original_name
-        file_path = _get_config_path(safe_name)
-        with open(file_path, "wb") as f:
-            f.write(content)
-
-        topology_data = load_topology_from_yaml(file_path)
+            abort(400, description="文件为空")
         try:
-            snapshot = TopologySnapshot(
-                name=f"Upload: {safe_name}",
-                description="Initial state from YAML upload",
-                data=dump_model(topology_data),
-                created_at=datetime.now(),
-            )
-            db.add(snapshot)
-            db.commit()
+            text = content.decode("utf-8")
         except Exception:
-            # logging exception here would be good
-            pass
+            text = content.decode("utf-8", errors="ignore")
+        data = yaml.safe_load(text)
+        validate_topology_dict(data)
+        devices = data.get("devices", [])
+        links = data.get("links", [])
+        topology_meta = data.get("topology", {})
+        topology_data = TopologyData(topology=topology_meta, devices=devices, links=links)
         service = SimulationService(topology_data)
+        db = get_db()
+        save_new_state(
+            db,
+            topology_data,
+            f"上传拓扑配置: {original_name}",
+            "TopologyUpload",
+            snapshot_type="topology_only",
+            trigger_event="manual",
+            event_trigger="user_action",
+        )
         return jsonify(dump_model(service.topology))
     except HTTPException:
         raise
@@ -98,26 +62,3 @@ def upload_topology():
         abort(500, description=str(e))
 
 
-@bp.route("/topology", methods=['GET'])
-def get_topology():
-    """获取当前拓扑配置。
-
-    默认从 config/campus.yaml 读取并解析拓扑数据。
-
-    Returns:
-        拓扑数据（TopologyData）。
-
-    Raises:
-        404: 配置文件不存在。
-        500: 解析/内部错误。
-    """
-    try:
-        config_path = _get_config_path("campus.yaml")
-        topology_data = load_topology_from_yaml(config_path)
-        service = SimulationService(topology_data)
-        return jsonify(dump_model(service.topology))
-    except FileNotFoundError:
-        abort(404, description="Topology configuration not found")
-    except Exception as e:
-        print(f"Error loading topology: {e}")
-        abort(500, description=str(e))

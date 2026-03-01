@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Descriptions, Table, Tag, Typography, Button, ConfigProvider, theme, Modal, Input } from 'antd';
+import { Table, Typography, Button, ConfigProvider, theme, Modal, Input } from 'antd';
 import { 
   LaptopOutlined, 
   ClusterOutlined, 
@@ -112,11 +112,11 @@ const DevicePanel = () => {
   };
 
   const getOspfConfig = (device) => {
-    return device.ospf || device.ospf_config || device.configuration?.ospf;
+    return device.ospf || device.configuration?.ospf;
   };
 
   const getRoutingTable = (device) => {
-    const rt = device.routing_table || device.routingTable || device.configuration?.routing_table || device.configuration?.routingTable;
+    const rt = device.routing_table || device.configuration?.routing_table;
     return Array.isArray(rt) ? rt : [];
   };
 
@@ -131,36 +131,21 @@ const DevicePanel = () => {
     return getAllVlans(device).map(id => ({ id, name: nameMap.get(id) || `VLAN ${id}` }));
   };
 
-  const getExtraAttributes = (device) => {
-    const ignoredKeys = new Set([
-        'id', 'name', 'role', 'type', 'deviceType', 'device_type', 'status',
-        'position', 'interfaces', 'ospf', 'ospf_config', 'vlan', 'vlans',
-        'configuration', 'metrics', 'description', 'mgmt_ip', 'ip_address', 'ip'
-    ]);
-
-    const extras = [];
-    Object.entries(device).forEach(([key, value]) => {
-        if (!ignoredKeys.has(key) && typeof value !== 'object' && value !== null && value !== undefined) {
-            extras.push({ key, value });
-        }
-    });
-    return extras;
-  };
-
   const ospfConfig = getOspfConfig(device);
   const routingTable = getRoutingTable(device);
   const vlanList = getVlanInfo(device);
-  const extraAttributes = getExtraAttributes(device);
-  const dType = device.role || device.deviceType || device.device_type;
+  const dType = device.role || device.device_type;
   const statusColor = getStatusColor(effectiveStatus);
+  const primaryIp = device.ip || '-';
+  const primaryNetmask = device.netmask || device.interfaces?.[0]?.netmask;
 
   const q = String(routingFilter || '').trim().toLowerCase();
   const filteredRoutingTable = !q
     ? routingTable
     : routingTable.filter((r) => {
         const destination = String(r?.destination ?? '').toLowerCase();
-        const nextHop = String(r?.next_hop ?? r?.nextHop ?? '').toLowerCase();
-        const outIf = String(r?.out_interface ?? r?.outInterface ?? '').toLowerCase();
+        const nextHop = String(r?.next_hop ?? '').toLowerCase();
+        const outIf = String(r?.out_interface ?? '').toLowerCase();
         const cost = String(r?.cost ?? '').toLowerCase();
         return destination.includes(q) || nextHop.includes(q) || outIf.includes(q) || cost.includes(q);
       });
@@ -179,20 +164,20 @@ const DevicePanel = () => {
       key: 'next_hop',
       width: 120,
       render: (_, record) => {
-        const v = record?.next_hop ?? record?.nextHop;
+        const v = record?.next_hop;
         return <span style={{ fontFamily: 'monospace', color: '#93c5fd' }}>{v || '-'}</span>;
       },
-      sorter: (a, b) => String(a?.next_hop ?? a?.nextHop ?? '').localeCompare(String(b?.next_hop ?? b?.nextHop ?? ''))
+      sorter: (a, b) => String(a?.next_hop ?? '').localeCompare(String(b?.next_hop ?? ''))
     },
     {
       title: '出接口',
       key: 'out_interface',
       width: 120,
       render: (_, record) => {
-        const v = record?.out_interface ?? record?.outInterface;
+        const v = record?.out_interface;
         return <span style={{ fontFamily: 'monospace', color: '#94a3b8' }}>{v || '-'}</span>;
       },
-      sorter: (a, b) => String(a?.out_interface ?? a?.outInterface ?? '').localeCompare(String(b?.out_interface ?? b?.outInterface ?? ''))
+      sorter: (a, b) => String(a?.out_interface ?? '').localeCompare(String(b?.out_interface ?? ''))
     },
     {
       title: 'Cost',
@@ -363,15 +348,15 @@ const DevicePanel = () => {
                     algorithm: theme.darkAlgorithm,
                     token: {
                         colorBgContainer: 'transparent',
-                        colorBorderSecondary: 'rgba(51, 65, 85, 0.5)', // slate-700/50
+                        colorBorderSecondary: 'rgba(51, 65, 85, 0.5)', 
                         colorText: '#e2e8f0',
                         colorTextSecondary: '#94a3b8',
                         colorPrimary: '#38bdf8'
                     },
                     components: {
                         Table: {
-                            headerBg: 'rgba(30, 41, 59, 0.5)', // slate-800/50
-                            headerColor: '#94a3b8', // slate-400
+                            headerBg: 'rgba(30, 41, 59, 0.5)', 
+                            headerColor: '#94a3b8',
                             headerSplitColor: 'transparent',
                             borderColor: 'rgba(51, 65, 85, 0.3)',
                             rowHoverBg: 'rgba(56, 189, 248, 0.05)',
@@ -384,20 +369,17 @@ const DevicePanel = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
                     <div style={{ background: 'rgba(30, 41, 59, 0.4)', border: '1px solid rgba(51, 65, 85, 0.5)', borderRadius: 12, padding: 16 }}>
                         <span style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600, display: 'block', marginBottom: 4, letterSpacing: '0.05em' }}>IP 地址</span>
-                        {extraAttributes.length > 0 ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                {extraAttributes.map((attr, idx) => (
-                                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: idx < extraAttributes.length - 1 ? '1px solid rgba(51, 65, 85, 0.3)' : 'none', paddingBottom: 4 }}>
-                                        <span style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', fontWeight: 500 }}>{attr.key.replace(/_/g, ' ')}</span>
-                                        <span style={{ fontSize: 13, color: '#93c5fd', fontFamily: 'monospace', textAlign: 'right', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '60%' }} title={String(attr.value)}>
-                                            {String(attr.value)}
-                                        </span>
-                                    </div>
-                                ))}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <span style={{ fontFamily: 'monospace', color: '#93c5fd', fontSize: 16 }}>{primaryIp}</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', fontWeight: 500 }}>子网掩码</span>
+                                <span style={{ fontSize: 13, color: '#93c5fd', fontFamily: 'monospace', textAlign: 'right', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '60%' }} title={String(primaryNetmask || '-')}>
+                                    {primaryNetmask || '-'}
+                                </span>
                             </div>
-                        ) : (
-                            <span style={{ fontFamily: 'monospace', color: '#93c5fd', fontSize: 16 }}>{device.mgmt_ip || device.ipAddress || device.ip || '-'}</span>
-                        )}
+                        </div>
                     </div>
                     <div style={{ background: 'rgba(30, 41, 59, 0.4)', border: '1px solid rgba(51, 65, 85, 0.5)', borderRadius: 12, padding: 16 }}>
                         <span style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600, display: 'block', marginBottom: 4, letterSpacing: '0.05em' }}>角色 (Role)</span>
@@ -530,7 +512,7 @@ const DevicePanel = () => {
                 dataSource={filteredRoutingTable}
                 columns={routingColumns}
                 size="small"
-                rowKey={(r, idx) => `${r?.destination ?? 'dst'}-${r?.next_hop ?? r?.nextHop ?? 'nh'}-${r?.out_interface ?? r?.outInterface ?? 'oi'}-${idx}`}
+                rowKey={(r, idx) => `${r?.destination ?? 'dst'}-${r?.next_hop ?? 'nh'}-${r?.out_interface ?? 'oi'}-${idx}`}
                 pagination={{ pageSize: 10, showSizeChanger: false }}
             />
         </Modal>

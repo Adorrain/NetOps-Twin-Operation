@@ -42,12 +42,6 @@ function normalizeTopology(raw) {
  */
 
 // 1. 机架式交换机/服务器 (机架式风格)
-/**
- * 机架设备（交换机/服务器）几何体渲染。
- *
- * @param {{size:number[], color:any, ports?:boolean, isServer?:boolean, statusColor:any}} props 组件属性。
- * @returns {JSX.Element} 3D 设备组件。
- */
 const RackDevice = ({ size, color, ports = false, isServer = false, statusColor }) => {
   return (
     <group>
@@ -94,12 +88,6 @@ const RackDevice = ({ size, color, ports = false, isServer = false, statusColor 
 };
 
 // 2. 路由器 (未来派集线器)
-/**
- * 路由器几何体渲染。
- *
- * @param {{size:number[], color:any, statusColor:any}} props 组件属性。
- * @returns {JSX.Element} 3D 设备组件。
- */
 const RouterDevice = ({ size, color, statusColor }) => {
   return (
     <group>
@@ -133,12 +121,6 @@ const RouterDevice = ({ size, color, statusColor }) => {
 };
 
 // 3. 防火墙 (盾牌/堡垒外观)
-/**
- * 防火墙几何体渲染。
- *
- * @param {{size:number[], color:any, statusColor:any}} props 组件属性。
- * @returns {JSX.Element} 3D 设备组件。
- */
 const FirewallDevice = ({ size, color, statusColor }) => {
   return (
     <group>
@@ -202,7 +184,8 @@ const TerminalDevice = ({ size, color, statusColor }) => {
  * ===========================
  */
 function DeviceMesh({ device, onClick }) {
-  const { position = { x: 0, y: 0, z: 0 }, type, deviceType, role, name, status, metrics } = device;
+  const { position = { x: 0, y: 0, z: 0 }, role, name, status, metrics } = device;
+  const device_type = device.device_type || device.deviceType || device.type;
   
   // 尺寸配置
   const config = {
@@ -215,7 +198,7 @@ function DeviceMesh({ device, onClick }) {
     pc: { size: [0.8, 0.6, 0.1] },
   };
 
-  const renderType = (role || deviceType || type || 'access').toLowerCase();
+  const renderType = (role || device_type || 'access').toLowerCase();
   
   // 智能推断类型
   let effectiveType = renderType;
@@ -363,8 +346,11 @@ function DeviceMesh({ device, onClick }) {
  * ===========================
  */
 function LinkLine({ link, devices }) {
-  const from = devices.find((d) => String(d.id) === String(link.from));
-  const to = devices.find((d) => String(d.id) === String(link.to));
+  const srcId = link.src_device || link.source || link.sourceDeviceId || link.from;
+  const dstId = link.dst_device || link.target || link.targetDeviceId || link.to;
+
+  const from = devices.find((d) => String(d.id) === String(srcId));
+  const to = devices.find((d) => String(d.id) === String(dstId));
 
   if (!from || !to || !from.position || !to.position) return null;
 
@@ -406,8 +392,11 @@ function LinkLine({ link, devices }) {
  * ===========================
  */
 function FlowParticles({ link, devices }) {
-  const from = devices.find((d) => String(d.id) === String(link.from));
-  const to = devices.find((d) => String(d.id) === String(link.to));
+  const srcId = link.src_device || link.source || link.sourceDeviceId || link.from;
+  const dstId = link.dst_device || link.target || link.targetDeviceId || link.to;
+
+  const from = devices.find((d) => String(d.id) === String(srcId));
+  const to = devices.find((d) => String(d.id) === String(dstId));
   
   // 先计算派生状态 (即使 from/to 未定义也是安全的)
   const isDDoS = to?.metrics && to.metrics.cpuUsage > 90;

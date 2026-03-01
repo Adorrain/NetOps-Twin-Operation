@@ -20,12 +20,10 @@ const { Content, Sider } = Layout;
 const { Title, Text } = Typography;
 
 /**
- * 路由内容组件：根据 URL 同步 UI 面板状态，并渲染各页面内容。
- *
- * @returns {JSX.Element} 页面内容。
+ * 路由内容组件：根据 URL 同步 UI 面板状态，并渲染各页面内容
  */
 const AppContent = () => {
-  const { networkTopology, setSelectedDevice, setNetworkTopology, updateUI } = useAppStore();
+  const { networkTopology, setSelectedDevice, updateUI } = useAppStore();
   const location = useLocation();
   const navigate = useNavigate();
   const { token } = theme.useToken();
@@ -36,12 +34,9 @@ const AppContent = () => {
   }, [location, updateUI]);
 
   /**
-   * 处理拓扑配置上传成功回调。
-   *
-   * @param {any} topology 上传并解析后的拓扑数据。
+   * 脚本配置成功上传后跳转拓扑页
    */
-  const handleConfigLoaded = (topology) => {
-    setNetworkTopology(topology);
+  const handleConfigLoaded = () => {
     navigate('/topology');
   };
 
@@ -113,9 +108,7 @@ const AppContent = () => {
 };
 
 /**
- * 应用根组件：提供路由与整体布局。
- *
- * @returns {JSX.Element} 根组件。
+ * 应用根组件：提供路由与整体布局
  */
 function App() {
   return (

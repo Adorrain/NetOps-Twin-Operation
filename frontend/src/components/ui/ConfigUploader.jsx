@@ -1,21 +1,119 @@
 import React, { useState } from 'react';
-import { Upload, message, Typography, Card, Spin } from 'antd';
+import { Upload, message, Card, Spin } from 'antd';
 import { InboxOutlined, FileTextOutlined } from '@ant-design/icons';
 import { useAppStore } from '../../stores';
-import { uploadTopologyFile } from '../../features/topology/topologyApi';
-import { buildFrontendTopology } from '../../features/topology/topologyTransform';
+import { uploadTopologyFile } from '../../api/topology/topologyApi';
+import { getAllVlans, getEndpointAccessVlan } from '../../utils/net';
 
 const { Dragger } = Upload;
-const { Title, Text } = Typography;
+
+const inferRole = (device) => {
+  const name = String(device?.name || '').toLowerCase();
+  if (device?.role) return String(device.role).toLowerCase();
+  if (name.includes('核心') || name.includes('core')) return 'core';
+  if (name.includes('汇聚') || name.includes('agg') || name.includes('distribution')) return 'aggregation';
+  if (name.includes('接入') || name.includes('access') || name.includes('edge')) return 'access';
+  if (name.includes('防火墙') || name.includes('firewall') || name.includes('fw')) return 'firewall';
+  const t = String(device?.deviceType || device?.device_type || device?.type || '').toLowerCase();
+  if (t === 'router') return 'core';
+  if (t === 'switch' || t === 'l2_switch') return 'access';
+  if (t === 'l3_switch') return 'aggregation';
+  if (t === 'firewall') return 'firewall';
+  return 'terminal';
+};
+
+const calculateLayout = (devices) => {
+  const core = devices.filter((d) => inferRole(d) === 'core');
+  const agg = devices.filter((d) => inferRole(d) === 'aggregation');
+  const access = devices.filter((d) => inferRole(d) === 'access');
+  const others = devices.filter((d) => !['core', 'aggregation', 'access'].includes(inferRole(d)));
+  const layout = {};
+  const spacingX = 6;
+  core.forEach((d, i) => {
+    layout[d.id] = { x: (i - (core.length - 1) / 2) * spacingX, y: 0, z: -5 };
+  });
+  agg.forEach((d, i) => {
+    layout[d.id] = { x: (i - (agg.length - 1) / 2) * spacingX, y: 0, z: 2 };
+  });
+  access.forEach((d, i) => {
+    layout[d.id] = { x: (i - (access.length - 1) / 2) * spacingX, y: 0, z: 9 };
+  });
+  others.forEach((d, i) => {
+    layout[d.id] = { x: (i - (others.length - 1) / 2) * (spacingX / 2), y: 0, z: 15 };
+  });
+  return layout;
+};
+
+const buildFrontendTopology = (cfg) => {
+  const computedLayout = calculateLayout(cfg.devices || []);
+  const devices = (cfg.devices || []).map((d) => {
+    const derivedVlans = getAllVlans(d);
+    const normalizedVlans = Array.isArray(d.vlans) && d.vlans.length > 0 ? d.vlans : derivedVlans.map((v) => ({ vlan_id: v, name: `VLAN${v}` }));
+    const routingTableRaw = d.routing_table || d.routingTable || d.configuration?.routing_table || d.configuration?.routingTable;
+    const routingTable = Array.isArray(routingTableRaw) ? routingTableRaw : [];
+    return {
+      id: String(d.id),
+      name: d.name,
+      role: inferRole(d),
+      deviceType: d.deviceType || d.device_type || d.type || 'unknown',
+      position: d.position || computedLayout[d.id] || { x: Math.random() * 20 - 10, y: 0, z: Math.random() * 20 - 10 },
+      status: d.status === 'down' || d.status === 'offline' ? 'offline' : 'online',
+      vlan: getEndpointAccessVlan(d) ?? undefined,
+      configuration: {
+        ...d.configuration,
+        ospf: d.ospf,
+        vlans: normalizedVlans,
+        routing_table: routingTable
+      },
+      metrics: d.metrics || {
+        cpuUsage: Math.floor(Math.random() * 30),
+        memoryUsage: Math.floor(Math.random() * 40),
+        diskUsage: 20,
+        networkIn: 0,
+        networkOut: 0,
+        uptime: 0,
+        lastUpdated: new Date()
+      },
+      ipAddress: d.ip || d.ip,
+      macAddress: d.mac_address,
+      description: d.description,
+      interfaces: d.interfaces || [],
+      ospf: d.ospf,
+      vlans: normalizedVlans,
+      routing_table: routingTable
+    };
+  });
+  const connections = (cfg.links || cfg.connections || []).map((c) => ({
+    id: c.id,
+    sourceDeviceId: String(c.src_device_id || c.src_device || c.source || c.sourceDeviceId),
+    targetDeviceId: String(c.dst_device_id || c.dst_device || c.target || c.targetDeviceId),
+    connectionType: c.type || 'ethernet',
+    status: c.status || 'up',
+    from: String(c.src_device_id || c.src_device || c.source || c.sourceDeviceId),
+    to: String(c.dst_device_id || c.dst_device || c.target || c.targetDeviceId),
+    bandwidth: c.bandwidth || 1000,
+    latency: c.latency || 1,
+    packetLoss: c.packet_loss || 0
+  }));
+  return {
+    id: 'imported-topology',
+    name: cfg.topology?.name || cfg.name || '导入的拓扑',
+    description: cfg.description,
+    devices,
+    connections,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+};
 
 const ConfigUploader = ({ onConfigLoaded }) => {
   const { setLoading, addNotification, setNetworkTopology } = useAppStore();
   const [uploading, setUploading] = useState(false);
 
   const handleUpload = async (file) => {
-    const isYamlOrJson = file.name.endsWith('.yaml') || file.name.endsWith('.yml') || file.name.endsWith('.json');
+    const isYamlOrJson = file.name.endsWith('.yaml') || file.name.endsWith('.yml');
     if (!isYamlOrJson) {
-      message.error('请上传 YAML 或 JSON 配置文件');
+      message.error('请上传 YAML 配置文件');
       return Upload.LIST_IGNORE;
     }
 
@@ -46,13 +144,6 @@ const ConfigUploader = ({ onConfigLoaded }) => {
     return false;
   };
 
-  const uploadProps = {
-    name: 'file',
-    multiple: false,
-    showUploadList: false,
-    beforeUpload: handleUpload,
-  };
-
   return (
     <div style={{ width: '100%', height: '100%', padding: 48, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
       <Card 
@@ -76,7 +167,10 @@ const ConfigUploader = ({ onConfigLoaded }) => {
         <div style={{ height: 360 }}>
             <div style={{ height: '100%', position: 'relative' }}>
             <Dragger 
-                {...uploadProps} 
+                name="file"
+                multiple={false}
+                showUploadList={false}
+                beforeUpload={handleUpload}
                 disabled={uploading} 
                 style={{ 
                     padding: 40, 
@@ -93,7 +187,7 @@ const ConfigUploader = ({ onConfigLoaded }) => {
                     点击或拖拽文件到此处上传
                 </p>
                 <p className="ant-upload-hint" style={{ color: '#94a3b8', fontSize: 14, marginTop: 12 }}>
-                    支持 YAML (.yaml, .yml) 和 JSON (.json) 格式
+                    仅支持 YAML (.yaml, .yml)
                 </p>
             </Dragger>
             {uploading && (
@@ -102,27 +196,6 @@ const ConfigUploader = ({ onConfigLoaded }) => {
               </div>
             )}
             </div>
-        </div>
-
-        <div style={{ padding: 24, background: 'rgba(15, 23, 42, 0.6)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.05)' }}>
-          <Title level={5} style={{ color: '#94a3b8', textTransform: 'uppercase', fontSize: 12, marginBottom: 16, letterSpacing: '0.05em', marginTop: 0 }}>
-             配置格式指南
-          </Title>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {[
-              { label: 'topology', desc: '拓扑信息 (name, type)' },
-              { label: 'devices', desc: '设备列表 (id, name, role, device_type, mgmt_ip 等)' },
-              { label: 'links', desc: '链路列表 (id, src_device, dst_device 等)' }
-            ].map((item, index) => (
-              <div key={item.label} style={{ padding: '6px 0', borderBottom: index < 2 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                <Text style={{ color: '#cbd5e1', fontSize: 14 }}>
-                  <span style={{ color: '#3b82f6', marginRight: 10 }}>•</span>
-                  <Text code style={{ color: '#bae6fd', background: 'rgba(56, 189, 248, 0.1)', borderColor: 'transparent', fontSize: 13, marginRight: 8 }}>{item.label}</Text>
-                  <span style={{ color: '#64748b' }}>:</span> {item.desc}
-                </Text>
-              </div>
-            ))}
-          </div>
         </div>
       </Card>
     </div>

@@ -7,12 +7,6 @@
 
 import React from 'react';
 
-/**
- * SparkLine：以 SVG 渲染简单折线，可选填充渐变。
- *
- * @param {{data?: number[], width?: number, height?: number, color?: string, fill?: boolean}} props 组件属性。
- * @returns {JSX.Element|null} 图表组件；数据不足返回 null。
- */
 const SparkLine = ({
   data = [],
   width = 100,

@@ -50,35 +50,6 @@
 - **SQLAlchemy**: ORM 与数据库访问
 - **NetworkX**: 拓扑图与路径计算（仿真）
 
-### 数据库
-
-- **SQLite**: 当前实现默认（`backend/app/netops.db`）
-
-## 项目结构
-
-```
-NetOps-Twin-Operation/
-├── frontend/                      # 前端（Vite + React）
-│   ├── src/
-│   │   ├── components/            # UI/3D/布局组件
-│   │   ├── features/              # 业务功能（ops/topology）
-│   │   ├── stores/                # Zustand store
-│   │   └── utils/                 # 工具与 http 封装
-│   ├── index.html
-│   └── package.json
-├── backend/                       # 后端（FastAPI）
-│   ├── app/
-│   │   ├── router/                # API 路由
-│   │   ├── model/                 # Pydantic/ORM 模型
-│   │   ├── controller/            # 仿真与业务逻辑
-│   │   ├── dao/                   # 快照/日志读写
-│   │   └── utils/                 # YAML/序列化/文件存储
-│   ├── config/                    # YAML 配置文件（含 campus.yaml 示例）
-│   ├── requirements.txt
-│   └── main.py
-└── docs/                          # 项目文档
-```
-
 ## 快速开始
 
 ### 环境要求
@@ -113,7 +84,7 @@ python main.py
 
 ## 使用说明
 
-1. **准备网络拓扑配置**: 参考 `backend/config/campus.yaml` 的格式编写 YAML
+1. **准备网络拓扑配置**: 参考 `docs/techdocs.md` 的 YAML 示例编写配置
 2. **上传配置文件**: 通过前端界面上传或编辑 YAML 配置
 3. **3D 可视化**: 系统自动解析 YAML 并生成 3D 网络拓扑图
 4. **网络运维**: 在 3D 场景中进行设备交互和运维操作
@@ -123,5 +94,19 @@ python main.py
 系统使用 YAML 格式定义网络拓扑结构，核心字段为 `topology / devices / links`：
 
 - `topology`: 拓扑信息（name、type）
-- `devices`: 设备列表（id、name、role、deviceType/device_type、mgmt_ip、interfaces、configuration 等）
+- `devices`: 设备列表（id、name、role、deviceType/device_type、ip、interfaces、configuration 等）
 - `links`: 链路列表（id、src_device、dst_device、src_interface、dst_interface、status 等）
+
+拓扑变化 / ping失败
+↓
+构建运行态快照
+↓
+规则引擎分析
+↓
+生成事实层结构
+↓
+AI Agent增强分析
+↓
+生成结构化报告
+↓
+存储 AnalysisReport

@@ -22,14 +22,14 @@
 ### 2.1 核心用户流程
 
 1. 配置上传：用户在前端上传 YAML 拓扑文件
-2. 后端解析校验：后端落盘、校验结构与 IP 合法性，返回结构化拓扑数据
+2. 后端解析校验：后端校验结构与 IP 合法性，返回结构化拓扑数据
 3. 前端建模渲染：前端将返回结果转换为渲染友好的前端拓扑模型（补齐布局、归一化链路字段等），渲染 3D 场景
 4. 运维操作：用户在控制台执行运维动作（状态修改、VLAN、OSPF 等）
 5. 状态演化与留痕：后端生成新拓扑状态并落库快照与操作日志；前端展示结果
 
 ### 2.2 功能模块划分
 
-- 拓扑管理：上传拓扑、读取默认拓扑
+- 拓扑管理：上传拓扑
 - 3D 数字孪生：设备模型渲染、链路光束与数据流粒子、点击选中与标签
 - 运维仿真：
   - 连通性：Ping、Traceroute
@@ -51,7 +51,7 @@
 
 - 拓扑上传链路：
   - 前端上传文件到后端
-  - 后端写入 `backend/config/` 并解析，返回 `TopologyData`
+  - 后端解析并返回 `TopologyData`
   - 前端将 `TopologyData` 转换为前端拓扑模型并渲染
 - 运维动作链路：
   - 前端调用 `/api/ops/*`
@@ -182,7 +182,7 @@ devices:
     name: "Core-Router"
     role: "core"
     deviceType: "router" # 或 device_type
-    mgmt_ip: "10.0.0.1/24"
+    ip: "10.0.0.1/24"
     status: "up"
     interfaces:
       - name: "ge0/0"
@@ -214,7 +214,7 @@ links:
 - device.id、link.id 必填且不能重复
 - link 引用的 src/dst 设备必须存在
 - 若 link 指定 src_interface/dst_interface，则接口名必须在对应 device.interfaces 中存在
-- mgmt_ip 与接口 ip 必须是合法 IP（支持 CIDR），且全拓扑 IP 不允许重复
+- ip 与接口 ip 必须是合法 IP（支持 CIDR），且全拓扑 IP 不允许重复
 
 ## 9. 接口设计
 
@@ -230,19 +230,13 @@ links:
 
 #### POST /api/network/topology/upload
 
-- 用途：上传 YAML/YML 文件（最大 2MB），后端落盘并解析校验
+- 用途：上传 YAML/YML 文件（最大 2MB），后端解析校验
 - 请求：multipart 表单字段 `file`
 - 成功响应：直接返回 `TopologyData`
 - 可能的错误：
   - 400：文件类型不支持、YAML 校验失败
   - 413：文件过大
   - 500：解析/内部错误
-
-#### GET /api/topology
-
-- 用途：读取默认配置 `campus.yaml` 并返回
-- 成功响应：`TopologyData`
-- 可能的错误：404（配置不存在）、500（解析失败）
 
 ### 9.3 Ops（前缀 /api/ops）
 

@@ -1,10 +1,7 @@
 import React from 'react';
-import { Layout, Button, Badge, Popover, List, Avatar, Space, Typography, theme } from 'antd';
+import { Layout, Button, Badge, Popover, List, Space, Typography, theme } from 'antd';
 import { 
-  MenuFoldOutlined,
-  MenuUnfoldOutlined,
   BellOutlined,
-  UserOutlined,
   InfoCircleOutlined,
   CheckCircleOutlined,
   WarningOutlined,
