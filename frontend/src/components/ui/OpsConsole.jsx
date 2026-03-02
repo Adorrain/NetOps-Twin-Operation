@@ -336,12 +336,13 @@ const OpsConsole = () => {
   const handleOspfSelect = (devId) => {
     setOspfDeviceId(devId);
     const dev = devices.find(d => d.id === devId);
-    if (dev && dev.configuration?.ospf) {
-        setOspfRouterId(dev.configuration.ospf.routerId || dev.configuration.ospf.router_id || '');
-        setOspfArea(dev.configuration.ospf.area ?? 0);
+    const ospf = dev && (dev.configuration?.ospf || dev.ospf);
+    if (ospf) {
+      setOspfRouterId(ospf.routerId || ospf.router_id || '');
+      setOspfArea(ospf.area ?? 0);
     } else {
-        setOspfRouterId('');
-        setOspfArea(0);
+      setOspfRouterId('');
+      setOspfArea(0);
     }
   };
 
@@ -364,29 +365,7 @@ const OpsConsole = () => {
         message.error(e.message);
     }
   };
-
-  const resetOspfProcessAction = async () => {
-    if (!ospfDeviceId) return;
-    const devName = getDeviceName(ospfDeviceId);
-    addLog('warning', `正在重置 ${devName} 的 OSPF 进程 1...`);
-    try {
-        const res = await opsApi.resetOspf(ospfDeviceId);
-        if (res.success) {
-            addLog('warning', `OSPF 邻居状态改变: ${devName} 所有邻居 Down`);
-            message.info('OSPF 进程已重启，邻居关系正在重新建立...');
-            setTimeout(() => addLog('info', `OSPF: ${devName} 状态进入 ExStart/Exchange...`), 5000);
-            setTimeout(() => addLog('success', `OSPF 邻居状态改变: ${devName} 邻居关系恢复 Full`), 15000);
-        } else {
-            const msg = res.message;
-            addLog('error', `OSPF 重置失败: ${msg}`);
-            message.error(msg);
-        }
-    } catch (e) {
-        addLog('error', `OSPF 重置异常: ${e.message}`);
-        message.error(e.message);
-    }
-  };
-
+  
   const handleGetNeighbors = async () => {
     if (!ospfDeviceId) return;
     try {
@@ -662,10 +641,10 @@ const OpsConsole = () => {
                     placeholder="选择路由器" 
                     value={ospfDeviceId}
                     onChange={handleOspfSelect}
-                    options={devices.filter(d => (d.configuration && d.configuration.ospf) || checkDeviceType(d, DeviceType.ROUTER)).map(d => ({ 
-                        value: d.id, 
-                        label: (d.configuration?.ospf?.routerId) ? `${d.name} (${d.configuration.ospf.routerId})` : d.name 
-                    }))}
+options={devices.filter(d => (d.configuration?.ospf || d.ospf) || checkDeviceType(d, DeviceType.ROUTER)).map(d => {
+                        const ospf = d.configuration?.ospf || d.ospf;
+                        return { value: d.id, label: (ospf?.routerId || ospf?.router_id) ? `${d.name} (${ospf.routerId || ospf.router_id})` : d.name };
+                    })}
               />
               {ospfDeviceId && (
                   <>
@@ -675,9 +654,8 @@ const OpsConsole = () => {
                     </Row>
                     <Row gutter={8}>
                         <Col span={12}><Button type="primary" block onClick={updateOspfConfigAction}>更新</Button></Col>
-                        <Col span={12}><Button danger block onClick={resetOspfProcessAction}>重置进程</Button></Col>
+                        <Col span={12}><Button danger block onClick={handleGetNeighbors}>查看邻居表</Button></Col>
                     </Row>
-                    <Button block onClick={handleGetNeighbors}>查看邻居表</Button>
                   </>
               )}
           </Space>

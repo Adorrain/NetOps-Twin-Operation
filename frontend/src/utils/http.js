@@ -7,14 +7,23 @@
 import { API_BASE } from '../config.js';
 
 /**
- * 向后端发起 JSON POST 请求并解析返回 JSON
+ * 向后端发起 JSON POST 请求并解析返回 JSON。
+ * 若无法连接后端（如未启动），会抛出更明确的错误提示。
  */
 export const postJson = (path, body) =>
   fetch(`${API_BASE}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
-  }).then(res => res.json());
+  })
+    .then(res => res.json())
+    .catch(err => {
+      const msg = err && (err.message || String(err));
+      if (msg === 'Failed to fetch' || msg.includes('Load failed') || msg.includes('NetworkError')) {
+        throw new Error('无法连接后端，请确认已在 backend 目录启动：python main.py（端口 8000）');
+      }
+      throw err;
+    });
 
 /**
  * 带超时控制的 fetch 请求

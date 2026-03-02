@@ -10,6 +10,12 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  server: {
+    proxy: {
+      // 开发时把 /api 请求转发到后端，避免跨域与 localhost 连接问题
+      '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true },
+    },
+  },
   test: {
     globals: true,
     environment: 'jsdom',

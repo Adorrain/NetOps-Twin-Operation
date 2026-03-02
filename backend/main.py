@@ -14,9 +14,9 @@ from app.config.database import engine, Base, close_db, ensure_sqlite_schema
 # 创建 Flask 实例
 app = Flask(__name__)
 
-# 配置 CORS（一般情况下是配置.env文件，通过load_dotenv加载）
-origins = "http://localhost:5173"
-CORS(app, resources={r"/api/*": {"origins": origins}})
+# 配置 CORS：允许前端开发地址访问 /api 下所有接口
+_cors_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+CORS(app, resources={r"/api.*": {"origins": _cors_origins}})
 
 # 注册蓝图
 app.register_blueprint(topology.bp, url_prefix="/api")

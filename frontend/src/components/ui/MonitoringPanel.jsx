@@ -153,7 +153,7 @@ const MonitoringPanel = () => {
                 if (sortedVlans.length === 0) return <Empty description={<span style={{ color: '#64748b' }}>未发现 VLAN 配置</span>} image={Empty.PRESENTED_IMAGE_SIMPLE} />;
 
                 return sortedVlans.map(vlanId => {
-                   const count = devices.filter(d => getEndpointAccessVlan(d) === vlanId).length;
+                   const count = devices.filter(d => getAllVlans(d).includes(vlanId)).length;
                    return (
                        <div key={vlanId} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                          <span><Tag color="purple" style={{ borderRadius: 4, border: 'none', background: 'rgba(114, 46, 209, 0.2)' }}>VLAN {vlanId}</Tag></span>

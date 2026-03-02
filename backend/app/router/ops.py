@@ -3,7 +3,7 @@
 from flask import Blueprint, request, jsonify, abort
 
 from app.config.database import get_db
-from app.model.api_schemas import OSPFConfigBody, OSPFResetBody, OSPFNeighborsBody
+from app.model.api_schemas import OSPFConfigBody, OSPFNeighborsBody
 from app.dao.snapshot_dao import save_new_state
 from app.utils.serialization import dump_model
 from app.config.service_session import get_simulation_service
@@ -251,26 +251,6 @@ def update_ospf_config():
     )
 
     return success("OSPF config updated", device_data)
-
-
-@bp.route("/ospf/reset", methods=["POST"])
-def reset_ospf_process():
-    service = get_simulation_service()
-    db = get_db()
-    body = OSPFResetBody(**get_json())
-
-    updated = service.reset_ospf(body.device_id)
-
-    device_data = persist(
-        db,
-        updated,
-        f"Reset OSPF process on {body.device_id}",
-        "OSPF_Reset",
-        body.device_id,
-        body.device_id,
-    )
-
-    return success("OSPF process reset", device_data)
 
 
 @bp.route("/ospf/neighbors", methods=["POST"])

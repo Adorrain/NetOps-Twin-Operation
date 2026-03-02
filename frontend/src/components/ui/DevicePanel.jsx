@@ -136,8 +136,9 @@ const DevicePanel = () => {
   const vlanList = getVlanInfo(device);
   const dType = device.role || device.device_type;
   const statusColor = getStatusColor(effectiveStatus);
-  const primaryIp = device.ip || '-';
-  const primaryNetmask = device.netmask || device.interfaces?.[0]?.netmask;
+  const rawIp = device.ip ?? device.ipAddress ?? device.interfaces?.find(i => i?.ip)?.ip;
+  const primaryIp = rawIp != null && rawIp !== '' ? (typeof rawIp === 'string' && rawIp.includes('/') ? rawIp.split('/')[0] : rawIp) : '-';
+  const primaryNetmask = device.netmask ?? device.interfaces?.find(i => i?.ip)?.netmask ?? device.interfaces?.[0]?.netmask ?? (typeof rawIp === 'string' && rawIp.includes('/') ? `/${rawIp.split('/')[1]}` : undefined);
 
   const q = String(routingFilter || '').trim().toLowerCase();
   const filteredRoutingTable = !q

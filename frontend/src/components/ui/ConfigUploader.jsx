@@ -51,6 +51,8 @@ const buildFrontendTopology = (cfg) => {
     const normalizedVlans = Array.isArray(d.vlans) && d.vlans.length > 0 ? d.vlans : derivedVlans.map((v) => ({ vlan_id: v, name: `VLAN${v}` }));
     const routingTableRaw = d.routing_table || d.routingTable || d.configuration?.routing_table || d.configuration?.routingTable;
     const routingTable = Array.isArray(routingTableRaw) ? routingTableRaw : [];
+    // 后端 normalize 后 OSPF 在 configuration.ospf，保留两者以便 OSPF 操作与系统监控都能拿到
+    const ospfConfig = d.ospf ?? d.configuration?.ospf;
     return {
       id: String(d.id),
       name: d.name,
@@ -61,7 +63,7 @@ const buildFrontendTopology = (cfg) => {
       vlan: getEndpointAccessVlan(d) ?? undefined,
       configuration: {
         ...d.configuration,
-        ospf: d.ospf,
+        ospf: ospfConfig,
         vlans: normalizedVlans,
         routing_table: routingTable
       },
@@ -74,11 +76,13 @@ const buildFrontendTopology = (cfg) => {
         uptime: 0,
         lastUpdated: new Date()
       },
-      ipAddress: d.ip || d.ip,
+      ip: d.ip ?? (Array.isArray(d.interfaces) && d.interfaces.length > 0 ? d.interfaces.find(it => it?.ip)?.ip?.split?.('/')?.[0] ?? d.interfaces[0]?.ip : undefined),
+      netmask: d.netmask ?? (Array.isArray(d.interfaces) && d.interfaces.length > 0 ? d.interfaces.find(it => it?.ip)?.netmask ?? d.interfaces[0]?.netmask : undefined),
+      ipAddress: d.ip ?? (Array.isArray(d.interfaces) && d.interfaces.length > 0 ? d.interfaces.find(it => it?.ip)?.ip : undefined),
       macAddress: d.mac_address,
       description: d.description,
       interfaces: d.interfaces || [],
-      ospf: d.ospf,
+      ospf: ospfConfig,
       vlans: normalizedVlans,
       routing_table: routingTable
     };

@@ -6,19 +6,18 @@
 创建时间: 2026-01-30
 """
 
-from pydantic import BaseModel, Field
 from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class OSPFConfigBody(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     device_id: str = Field(..., alias="deviceId")
     area: int
     router_id: Optional[str] = Field(None, alias="routerId")
 
 
-class OSPFResetBody(BaseModel):
-    device_id: str = Field(..., alias="deviceId")
-
-
 class OSPFNeighborsBody(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     device_id: str = Field(..., alias="deviceId")
