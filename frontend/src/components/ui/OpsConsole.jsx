@@ -338,7 +338,7 @@ const OpsConsole = () => {
     const dev = devices.find(d => d.id === devId);
     const ospf = dev && (dev.configuration?.ospf || dev.ospf);
     if (ospf) {
-      setOspfRouterId(ospf.routerId || ospf.router_id || '');
+      setOspfRouterId(ospf.router_id || '');
       setOspfArea(ospf.area ?? 0);
     } else {
       setOspfRouterId('');
@@ -643,7 +643,7 @@ const OpsConsole = () => {
                     onChange={handleOspfSelect}
 options={devices.filter(d => (d.configuration?.ospf || d.ospf) || checkDeviceType(d, DeviceType.ROUTER)).map(d => {
                         const ospf = d.configuration?.ospf || d.ospf;
-                        return { value: d.id, label: (ospf?.routerId || ospf?.router_id) ? `${d.name} (${ospf.routerId || ospf.router_id})` : d.name };
+                        return { value: d.id, label: ospf?.router_id ? `${d.name} (${ospf.router_id})` : d.name };
                     })}
               />
               {ospfDeviceId && (

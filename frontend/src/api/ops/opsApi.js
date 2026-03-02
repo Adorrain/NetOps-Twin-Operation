@@ -28,14 +28,6 @@ const ping = (sourceId, targetIp) => postJson('/ops/ping', { source_id: sourceId
 const traceroute = (sourceId, targetIp) => postJson('/ops/traceroute', { source_id: sourceId, target_ip: targetIp });
 
 /**
- * 触发 DDoS 攻击场景仿真。
- *
- * @param {{target: string}} data 请求参数。
- * @returns {Promise<any>} 后端返回的结果。
- */
-const ddos = (data) => postJson('/ops/ddos/simulate', { target_id: data.target });
-
-/**
  * 更新设备运行状态。
  *
  * @param {string} id 设备 ID。
@@ -72,7 +64,7 @@ const updateInterfaceStatus = (deviceId, ifaceName, status) =>
  * @returns {Promise<any>} 后端返回的结果。
  */
 const updateOspf = (deviceId, data) =>
-  postJson('/ops/ospf/config', { device_id: deviceId, area: data.area, routerId: data.routerId });
+  postJson('/ops/ospf/config', { device_id: deviceId, area: data.area, router_id: data.routerId });
 
 /**
  * 重置设备 OSPF 进程。
@@ -118,7 +110,6 @@ const getOspfNeighbors = (deviceId) => postJson('/ops/ospf/neighbors', { device_
 export const opsApi = {
   ping,
   traceroute,
-  ddos,
   updateDevice,
   updateConnection,
   updateInterfaceStatus,

@@ -3,4 +3,3 @@ flask-cors
 sqlalchemy
 pydantic
 pydantic-settings
-

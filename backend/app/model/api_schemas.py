@@ -8,16 +8,14 @@
 
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel
 
 
 class OSPFConfigBody(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-    device_id: str = Field(..., alias="deviceId")
+    device_id: str
     area: int
-    router_id: Optional[str] = Field(None, alias="routerId")
+    router_id: Optional[str] = None
 
 
 class OSPFNeighborsBody(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-    device_id: str = Field(..., alias="deviceId")
+    device_id: str

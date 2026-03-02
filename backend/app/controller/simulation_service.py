@@ -179,11 +179,8 @@ class SimulationService:
         ospf = cfg.get("ospf")
         if not isinstance(ospf, dict):
             return None
-        if "routerId" not in ospf and "router_id" in ospf:
-            ospf["routerId"] = ospf["router_id"]
-        if "router_id" not in ospf and "routerId" in ospf:
-            ospf["router_id"] = ospf["routerId"]
-        return ospf
+        if "router_id" in ospf:
+            return ospf
 
     def _is_ospf_ready(self, device: Device) -> bool:
         """判断 OSPF 进程是否已就绪（模拟：上次重置超过 2 秒）。"""
@@ -480,13 +477,10 @@ class SimulationService:
             ospf = self._ensure_ospf_dict(dev)
             ospf["area"] = area
             if router_id:
-                ospf["router_id"] = ospf["routerId"] = router_id
-            elif "router_id" not in ospf and "routerId" not in ospf:
+                ospf["router_id"] = router_id
+            elif "router_id" not in ospf:
                 rid = (dev.ip or "1.1.1.1").split("/")[0]
-                ospf["router_id"] = ospf["routerId"] = rid
-            else:
-                ospf.setdefault("routerId", ospf.get("router_id"))
-                ospf.setdefault("router_id", ospf.get("routerId"))
+                ospf["router_id"] = rid
             
             # 强制设置重置时间为 0，使邻居状态立即变为 Full
             ospf["last_reset_time"] = 0 
@@ -516,7 +510,7 @@ class SimulationService:
             iface = self._get_local_interface_on_link(device_id, n_id)
             result.append({
                 "neighbor_id": n_id,
-                "router_id": n_ospf.get("router_id") or n_ospf.get("routerId") or "0.0.0.0",
+                "router_id": n_ospf.get("router_id") or "0.0.0.0",
                 "address": n_dev.ip,
                 "interface": iface,
                 "state": state,
