@@ -50,24 +50,15 @@ def get_latest_topology_data(db: Session) -> tuple[TopologyData, TopologySnapsho
     return topology_data, snapshot
 
 # 保存新状态
-def save_new_state(
+def create_snapshot(
     db: Session,
     topology_data: TopologyData,
     description: str,
     op_type: str,
     target: Optional[str] = None,
-    snapshot_type: Optional[str] = None,
-    trigger_event: Optional[str] = None,
-    event_trigger: Optional[str] = None,
-    related_entity: Optional[str] = None,
 ) -> TopologySnapshot:
 
     snapshot = TopologySnapshot(
-        name=f"Auto-Save: {op_type}",
-        description=description,
-        snapshot_type=snapshot_type or "runtime_state",
-        trigger_event=trigger_event,
-        related_entity=related_entity or target,
         data=dump_model(topology_data),
     )
     db.add(snapshot)
@@ -77,8 +68,6 @@ def save_new_state(
         operation_type=op_type,
         target_id=target,
         details=description,
-        event_trigger=event_trigger,
-        snapshot_id=snapshot.id,
     )
     db.add(log)
     db.commit()

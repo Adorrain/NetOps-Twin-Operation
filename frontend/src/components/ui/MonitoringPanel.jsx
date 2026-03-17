@@ -10,7 +10,7 @@ import {
 import { useAppStore } from '../../stores';
 import { DeviceStatus } from '../../types';
 import SparkLine from './charts/SparkLine';
-import { isLinkActive, getAllVlans, getEndpointAccessVlan } from '../../utils/net';
+import { isLinkActive, getAllVlans } from '../../utils/net';
 
 const MonitoringPanel = () => {
   const { networkTopology, deviceStatuses } = useAppStore();

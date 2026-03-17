@@ -34,7 +34,7 @@ def dump_model(obj, *, by_alias: bool = False):
 """
   校验YAML文件合法性
 """
-def validate_topology_dict(data: Dict[str, Any]) -> None:
+def check_topology(data: Dict[str, Any]) -> None:
     """
     判断文件的数据格式是否为JSON格式
     """

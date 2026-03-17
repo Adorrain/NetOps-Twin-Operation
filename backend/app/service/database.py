@@ -32,25 +32,7 @@ def _get_sqlite_columns(conn, table_name: str):
 
 
 def ensure_sqlite_schema():
-    schema = {
-        "topology_snapshots": {
-            "snapshot_type": "TEXT",
-            "trigger_event": "TEXT",
-            "related_entity": "TEXT",
-        },
-        "operation_logs": {
-            "event_trigger": "TEXT",
-            "snapshot_id": "INTEGER",
-        },
-        "analysis_reports": {
-            "event_type": "TEXT",
-            "severity": "TEXT",
-            "root_cause": "TEXT",
-            "impact_scope": "TEXT",
-            "suggestion": "TEXT",
-            "raw_agent_output": "TEXT",
-        },
-    }
+    schema = {}
     # 如果列名不存在，则添加列
     with engine.connect() as conn:
         for table_name, columns in schema.items():

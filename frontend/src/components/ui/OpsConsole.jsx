@@ -182,7 +182,6 @@ const OpsConsole = () => {
     setTraceResult([]);
   }, [srcId, dstId]);
 
-  // Actions
   const execPing = async () => {
     if (!srcId || !dstId) {
       message.warning('请选择源设备和目标设备');

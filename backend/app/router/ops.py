@@ -1,12 +1,24 @@
 """网络运维与仿真接口路由（简化版）"""
 
 from flask import Blueprint, request, jsonify, abort
+from pydantic import ValidationError
 
-from app.config.database import get_db
-from app.model.api_schemas import OSPFConfigBody, OSPFNeighborsBody
-from app.dao.snapshot_dao import save_new_state
+from app.service.database import get_db
+from app.model.api_schemas import (
+    DeviceStatusBody,
+    InterfaceStatusBody,
+    LinkStatusBody,
+    OSPFConfigBody,
+    OSPFNeighborsBody,
+    PingBody,
+    TracerouteBody,
+    VlanAssignBody,
+    VlanConfigureBody,
+    VlanRemoveBody,
+)
+from app.dao.snapshot_dao import create_snapshot
 from app.utils.serialization import dump_model
-from app.config.service_session import get_simulation_service
+from app.service.service_session import get_simulation_service
 
 bp = Blueprint("ops", __name__)
 
@@ -17,13 +29,11 @@ bp = Blueprint("ops", __name__)
 def get_json():
     return request.get_json() or {}
 
-"""
-校验请求体是否包含必要字段
-"""
-def require_fields(data, *fields):
-    for f in fields:
-        if data.get(f) in (None, ""):
-            abort(400, description=f"{f}字段不能为空")
+def parse_body(model_cls):
+    try:
+        return model_cls(**get_json())
+    except ValidationError as e:
+        abort(400, description=str(e))
 
 """
 构造成功响应体
@@ -40,13 +50,13 @@ def success(message=None, data=None):
 关于状态变更的操作
 """
 def persist(db, topology, desc, op_type, target, device_id=None):
-    save_new_state(db, topology, desc, op_type, target)
+    snapshot = create_snapshot(db, topology, desc, op_type, target)
 
     if device_id:
         device = next((d for d in topology.devices if d.id == device_id), None)
         if device:
-            return dump_model(device, by_alias=True)
-    return None
+            return snapshot, dump_model(device, by_alias=True)
+    return snapshot, None
 
 """
 关于连通性测试的操作
@@ -54,9 +64,11 @@ def persist(db, topology, desc, op_type, target, device_id=None):
 @bp.route("/ping", methods=["POST"])
 def simulate_ping():
     service = get_simulation_service()
-    data = get_json()
-    require_fields(data, "source_id", "target_ip")
-    return jsonify(service.ping(data["source_id"], data["target_ip"]))
+    body = parse_body(PingBody)
+    
+    result = service.ping(body.source_id, body.target_ip)
+
+    return jsonify(result)
 
 """
 关于路由跟踪的操作
@@ -64,9 +76,11 @@ def simulate_ping():
 @bp.route("/traceroute", methods=["POST"])
 def simulate_traceroute():
     service = get_simulation_service()
-    data = get_json()
-    require_fields(data, "source_id", "target_ip")
-    return jsonify(service.traceroute(data["source_id"], data["target_ip"]))
+    body = parse_body(TracerouteBody)
+    
+    result = service.traceroute(body.source_id, body.target_ip)
+
+    return jsonify(result)
 
 """
 关于设备状态的操作
@@ -75,15 +89,14 @@ def simulate_traceroute():
 def update_device_status():
     service = get_simulation_service()
     db = get_db()
-    data = get_json()
-    require_fields(data, "device_id", "status")
+    body = parse_body(DeviceStatusBody)
 
-    device_id = data["device_id"]
-    status = data["status"]
+    device_id = body.device_id
+    status = body.status
 
     updated = service.update_device_status(device_id, status)
 
-    device_data = persist(
+    snapshot, device_data = persist(
         db,
         updated,
         f"Set device {device_id} status to {status}",
@@ -101,13 +114,12 @@ def update_device_status():
 def update_link_status():
     service = get_simulation_service()
     db = get_db()
-    data = get_json()
-    require_fields(data, "status")
+    body = parse_body(LinkStatusBody)
 
-    link_id = data.get("link_id")
-    src_id = data.get("src_id")
-    dst_id = data.get("dst_id")
-    status = data["status"]
+    link_id = body.link_id
+    src_id = body.src_id
+    dst_id = body.dst_id
+    status = body.status
 
     if link_id:
         updated = service.update_link_status(link_id, status)
@@ -118,7 +130,7 @@ def update_link_status():
     else:
         abort(400, description="Provide link_id OR (src_id and dst_id)")
 
-    persist(db, updated, f"Set link {target} status to {status}", "LinkStatus", target)
+    snapshot, _ = persist(db, updated, f"Set link {target} status to {status}", "LinkStatus", target)
 
     return success(f"Link {target} is now {status}")
 
@@ -129,16 +141,15 @@ def update_link_status():
 def update_interface_status():
     service = get_simulation_service()
     db = get_db()
-    data = get_json()
-    require_fields(data, "device_id", "iface_name", "status")
+    body = parse_body(InterfaceStatusBody)
 
-    device_id = data["device_id"]
-    iface = data["iface_name"]
-    status = data["status"]
+    device_id = body.device_id
+    iface = body.iface_name
+    status = body.status
 
     updated = service.update_interface_status(device_id, iface, status)
 
-    device_data = persist(
+    snapshot, device_data = persist(
         db,
         updated,
         f"Set {device_id} interface {iface} to {status}",
@@ -156,16 +167,15 @@ def update_interface_status():
 def assign_vlan():
     service = get_simulation_service()
     db = get_db()
-    data = get_json()
-    require_fields(data, "device_id", "port", "vlan_id")
+    body = parse_body(VlanAssignBody)
 
-    device_id = data["device_id"]
-    port = data["port"]
-    vlan_id = int(data["vlan_id"])
+    device_id = body.device_id
+    port = body.port
+    vlan_id = body.vlan_id
 
     updated = service.assign_vlan(device_id, port, vlan_id)
 
-    device_data = persist(
+    snapshot, device_data = persist(
         db,
         updated,
         f"Assigned VLAN {vlan_id} to {device_id}:{port}",
@@ -181,15 +191,14 @@ def assign_vlan():
 def remove_vlan():
     service = get_simulation_service()
     db = get_db()
-    data = get_json()
-    require_fields(data, "device_id", "port")
+    body = parse_body(VlanRemoveBody)
 
-    device_id = data["device_id"]
-    port = data["port"]
+    device_id = body.device_id
+    port = body.port
 
     updated = service.remove_vlan(device_id, port)
 
-    device_data = persist(
+    snapshot, device_data = persist(
         db,
         updated,
         f"Removed VLAN from {device_id}:{port}",
@@ -205,21 +214,20 @@ def remove_vlan():
 def configure_vlan():
     service = get_simulation_service()
     db = get_db()
-    data = get_json()
-    require_fields(data, "device_id", "port", "mode")
+    body = parse_body(VlanConfigureBody)
 
-    device_id = data["device_id"]
-    port = data["port"]
+    device_id = body.device_id
+    port = body.port
 
     updated = service.configure_vlan(
         device_id,
         port,
-        data["mode"],
-        data.get("vlan_id"),
-        data.get("allowed_vlans"),
+        body.mode,
+        body.vlan_id,
+        body.allowed_vlans,
     )
 
-    device_data = persist(
+    snapshot, device_data = persist(
         db,
         updated,
         f"Configured VLAN on {device_id}:{port}",
@@ -237,11 +245,11 @@ def configure_vlan():
 def update_ospf_config():
     service = get_simulation_service()
     db = get_db()
-    body = OSPFConfigBody(**get_json())
+    body = parse_body(OSPFConfigBody)
 
     updated = service.update_ospf_config(body.device_id, body.area, body.router_id)
 
-    device_data = persist(
+    snapshot, device_data = persist(
         db,
         updated,
         f"Updated OSPF config for {body.device_id}",
@@ -256,6 +264,6 @@ def update_ospf_config():
 @bp.route("/ospf/neighbors", methods=["POST"])
 def get_ospf_neighbors():
     service = get_simulation_service()
-    body = OSPFNeighborsBody(**get_json())
+    body = parse_body(OSPFNeighborsBody)
     neighbors = service.get_ospf_neighbors(body.device_id)
     return success(data=neighbors)

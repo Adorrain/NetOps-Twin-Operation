@@ -1,6 +1,6 @@
 <div align="center">
   <img src="./coverage.png" alt="NetOps Logo" width="80%" style="box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25); border-radius: 12px;" />
-  <h1>NetOps 网络运维数字孪生系统</h1>
+  <h1>基于NetOps的网络运维数字孪生系统的研究与设计</h1>
   <p>基于 NetOps 理念的网络运维数字孪生系统，通过 YAML 脚本定义网络设备参数，使用 Three.js 进行 3D 可视化展示，实现网络拓扑的数字孪生仿真。</p>
 
   <p>
@@ -26,29 +26,8 @@
 
 - 🌐 **网络拓扑可视化**: 基于 YAML 配置的 3D 网络拓扑展示
 - 🔧 **设备参数管理**: 支持 PC、路由器、交换机等设备的参数配置
-- 📊 **实时监控**: 网络设备状态和性能实时监控
 - 🎮 **交互式运维**: 3D 场景中的设备交互和运维操作
 - 📱 **现代化界面**: 响应式设计，支持多设备访问
-
-## 技术栈
-
-### 前端技术
-
-- **React（当前实现为 JSX/JavaScript）**: 现代化前端开发框架
-- **Three.js**: 3D 图形渲染引擎
-- **React Three Fiber**: React 的 Three.js 渲染器
-- **Tailwind CSS**: 现代化 CSS 框架
-- **Zustand**: 轻量级状态管理
-- **Vite**: 快速构建工具
-
-### 后端技术
-
-- **Python 3.10+**: 后端开发语言
-- **FastAPI**: 现代化 Web 框架
-- **Pydantic**: 数据验证和序列化
-- **PyYAML**: YAML 配置文件解析
-- **SQLAlchemy**: ORM 与数据库访问
-- **NetworkX**: 拓扑图与路径计算（仿真）
 
 ## 快速开始
 
@@ -105,8 +84,4 @@ python main.py
 ↓
 生成事实层结构
 ↓
-AI Agent增强分析
-↓
-生成结构化报告
-↓
-存储 AnalysisReport
+生成结构化诊断结果

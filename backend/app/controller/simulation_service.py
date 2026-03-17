@@ -12,16 +12,27 @@ import time
 from typing import Any, Dict, List, Optional, Set
 
 import networkx as nx
+from sqlalchemy.orm import Session
 
-from app.model.topology import Device, Link, TopologyData
+from app.model.topology import Device, TopologyData
+from app.model.db_models import TopologySnapshot
 
 
 class SimulationService:
     """基于拓扑的仿真服务：运行时图、L2/L3 可达性、转发路径、状态与配置管理。"""
 
-    def __init__(self, topology_data: TopologyData):
-        """使用给定拓扑初始化服务，并立即构建运行时图与路由表。"""
+    def __init__(
+        self,
+        topology_data: TopologyData,
+        db: Optional[Session] = None,
+        snapshot: Optional[TopologySnapshot] = None,
+    ):
+        """
+        使用给定拓扑初始化服务，并立即构建运行时图与路由表。
+        """
         self.topology = topology_data
+        self.db: Optional[Session] = db
+        self.snapshot: Optional[TopologySnapshot] = snapshot
         self._rebuild_runtime()
 
     # ==================== 运行时构建 ====================
@@ -269,7 +280,7 @@ class SimulationService:
     # ==================== 转发仿真 (Ping / Traceroute) ====================
 
     def ping(self, src_id: str, target_ip: str) -> Dict:
-        """模拟从源设备向目标 IP 执行 ping：先算转发路径，成功则返回成功信息、RTT、路径与跳数。"""
+        """模拟从源设备向目标 IP 执行 ping：先算转发路径并返回结果。"""
         path_res = self._compute_forwarding_path(src_id, target_ip)
         if not path_res["success"]:
             return path_res
@@ -278,14 +289,20 @@ class SimulationService:
         return {
             "success": True,
             "message": f"Reply from {target_ip}: bytes=32 time={rtt:.2f}ms TTL={64 - hops}",
-            "rtt": rtt, "path": path_res["path"], "hops": hops,
+            "rtt": rtt,
+            "path": path_res["path"],
+            "hops": hops,
         }
 
     def traceroute(self, src_id: str, target_ip: str) -> Dict:
         """模拟 traceroute：计算转发路径后，按跳返回每跳的设备 ID、名称、IP 与模拟 RTT。"""
         path_res = self._compute_forwarding_path(src_id, target_ip)
         if not path_res["success"]:
-            return {"success": False, "message": path_res["message"], "hops": []}
+            return {
+                "success": False,
+                "message": path_res["message"],
+                "hops": [],
+            }
         path = path_res["path"]
         hops_data = [
             {

@@ -9,7 +9,7 @@
 from flask import Flask
 from flask_cors import CORS
 from app.router import topology, ops
-from app.config.database import engine, Base, close_db, ensure_sqlite_schema
+from app.service.database import engine, Base, close_db, ensure_sqlite_schema
 
 # 创建 Flask 实例
 app = Flask(__name__)
