@@ -10,7 +10,6 @@
     <a href="./frontend"><img src="https://img.shields.io/badge/React-18%2B-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React" /></a>
     <a href="./frontend"><img src="https://img.shields.io/badge/Three.js-3D-000000?style=for-the-badge&logo=threedotjs&logoColor=white" alt="Three.js" /></a>
     <a href="./frontend"><img src="https://img.shields.io/badge/Ant%20Design-UI-0170FE?style=for-the-badge&logo=ant-design&logoColor=white" alt="Ant Design" /></a>
-    <a href="./docker-compose.yml"><img src="https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker Compose" /></a>
   </p>
 </div>
 
