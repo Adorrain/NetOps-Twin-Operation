@@ -191,25 +191,15 @@ const OpsConsole = () => {
     setIsPinging(true);
     const srcName = getDeviceName(srcId);
     const dstName = getDeviceName(dstId);
-    const dstDev = devices.find(d => d.id === dstId);
-    const targetIp = dstDev?.ip || dstDev?.ipAddress || dstDev?.interfaces?.[0]?.ip;
-
-    if (!targetIp) {
-         setPingResult('目标设备无 IP 地址');
-         addLog('error', `Ping 失败: 目标设备 ${dstName} 未配置 IP 地址`);
-         setIsPinging(false);
-         return;
-    }
-
-    addLog('info', `开始 Ping: ${srcName} -> ${dstName} (${targetIp})...`);
+    addLog('info', `开始 Ping: ${srcName} -> ${dstName}...`);
     
     try {
-        const data = await opsApi.ping(srcId, targetIp);
+        const data = await opsApi.ping(srcId, dstId);
         if (data.success) {
             const ms = data.rtt ? data.rtt.toFixed(2) : 0;
             setPingResult(`延迟: ${ms} ms`);
             message.success(`${srcName} 到 ${dstName} 延迟 ${ms} ms`);
-            addLog('success', `Ping 成功: ${srcName} 到 ${dstName} (${targetIp}) 延迟 ${ms}ms`);
+            addLog('success', `Ping 成功: ${srcName} 到 ${dstName} 延迟 ${ms}ms`);
         } else {
              const errMsg = getErrorMessage(data);
              setPingResult('不可达');
@@ -234,20 +224,10 @@ const OpsConsole = () => {
     setTraceResult([]);
     const srcName = getDeviceName(srcId);
     const dstName = getDeviceName(dstId);
-    const dstDev = devices.find(d => d.id === dstId);
-    const targetIp = dstDev?.ip || dstDev?.ipAddress || dstDev?.interfaces?.[0]?.ip;
-
-    if (!targetIp) {
-         setTraceResult(['目标设备无 IP 地址']);
-         addLog('error', `Traceroute 失败: 目标设备 ${dstName} 未配置 IP 地址`);
-         setIsTracing(false);
-         return;
-    }
-
-    addLog('info', `开始路由追踪: ${srcName} -> ${dstName} (${targetIp})...`);
+    addLog('info', `开始路由追踪: ${srcName} -> ${dstName}...`);
 
     try {
-        const data = await opsApi.traceroute(srcId, targetIp);
+        const data = await opsApi.traceroute(srcId, dstId);
         if (data.success) {
             const formattedHops = data.hops.map(h => `${h.hop}. ${h.device_name} (${h.ip}) - ${h.rtt}`);
             setTraceResult(formattedHops);

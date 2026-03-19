@@ -13,12 +13,12 @@ from pydantic import BaseModel
 
 class PingBody(BaseModel):
     source_id: str
-    target_ip: str
+    target_id: str
 
 
 class TracerouteBody(BaseModel):
     source_id: str
-    target_ip: str
+    target_id: str
 
 
 class DeviceStatusBody(BaseModel):

@@ -1,4 +1,4 @@
-"""网络运维与仿真接口路由（简化版）"""
+"""网络运维与真实接口路由"""
 
 from flask import Blueprint, request, jsonify, abort
 from pydantic import ValidationError
@@ -66,7 +66,7 @@ def simulate_ping():
     service = get_simulation_service()
     body = parse_body(PingBody)
     
-    result = service.ping(body.source_id, body.target_ip)
+    result = service.ping(body.source_id, body.target_id)
 
     return jsonify(result)
 
@@ -78,7 +78,7 @@ def simulate_traceroute():
     service = get_simulation_service()
     body = parse_body(TracerouteBody)
     
-    result = service.traceroute(body.source_id, body.target_ip)
+    result = service.traceroute(body.source_id, body.target_id)
 
     return jsonify(result)
 

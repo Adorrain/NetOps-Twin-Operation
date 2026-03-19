@@ -1,0 +1,547 @@
+# =========================
+# 数据中心三层映射（兼容你系统）
+# =========================
+topology:
+  name: 数据中心Spine-Leaf拓扑（兼容三层渲染）
+  type: 三层映射结构
+
+devices:
+  # =========================
+  # Core层（Spine）
+  # =========================
+  - id: spine-1
+    name: Spine交换机-1
+    role: core # 👈 关键改动
+    device_type: switch
+    ip: 10.0.0.1
+    netmask: 255.255.255.0
+    status: up
+    ospf: { router_id: 1.1.1.1, area: 0 }
+    interfaces:
+      - { name: g0/0, ip: 10.0.1.1, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.1.5, netmask: 255.255.255.252, status: up }
+      - { name: g0/2, ip: 10.0.1.9, netmask: 255.255.255.252, status: up }
+      - { name: g0/3, ip: 10.0.1.13, netmask: 255.255.255.252, status: up }
+
+  - id: spine-2
+    name: Spine交换机-2
+    role: core
+    device_type: switch
+    ip: 10.0.0.2
+    netmask: 255.255.255.0
+    status: up
+    ospf: { router_id: 2.2.2.2, area: 0 }
+    interfaces:
+      - { name: g0/0, ip: 10.0.2.1, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.2.5, netmask: 255.255.255.252, status: up }
+      - { name: g0/2, ip: 10.0.2.9, netmask: 255.255.255.252, status: up }
+      - { name: g0/3, ip: 10.0.2.13, netmask: 255.255.255.252, status: up }
+
+  # =========================
+  # Aggregation层（Leaf）
+  # =========================
+  - id: leaf-1
+    name: Leaf交换机-1
+    role: aggregation # 👈 关键改动
+    device_type: switch
+    ip: 10.0.0.11
+    netmask: 255.255.255.0
+    status: up
+    ospf: { router_id: 11.11.11.11, area: 0 }
+    vlans: [{ vlan_id: 10, name: 业务网-1 }]
+    interfaces:
+      - { name: g0/0, ip: 10.0.1.2, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.2.2, netmask: 255.255.255.252, status: up }
+      - { name: g1/0, mode: access, vlan: 10, status: up }
+      - { name: g1/1, mode: access, vlan: 10, status: up }
+      - { name: g1/2, mode: access, vlan: 10, status: up }
+
+  - id: leaf-2
+    name: Leaf交换机-2
+    role: aggregation
+    device_type: switch
+    ip: 10.0.0.12
+    netmask: 255.255.255.0
+    status: up
+    ospf: { router_id: 12.12.12.12, area: 0 }
+    vlans: [{ vlan_id: 20, name: 业务网-2 }]
+    interfaces:
+      - { name: g0/0, ip: 10.0.1.6, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.2.6, netmask: 255.255.255.252, status: up }
+      - { name: g1/0, mode: access, vlan: 20, status: up }
+      - { name: g1/1, mode: access, vlan: 20, status: up }
+      - { name: g1/2, mode: access, vlan: 20, status: up }
+
+  - id: leaf-3
+    name: Leaf交换机-3
+    role: aggregation
+    device_type: switch
+    ip: 10.0.0.13
+    netmask: 255.255.255.0
+    status: up
+    ospf: { router_id: 13.13.13.13, area: 0 }
+    vlans: [{ vlan_id: 30, name: 业务网-3 }]
+    interfaces:
+      - { name: g0/0, ip: 10.0.1.10, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.2.10, netmask: 255.255.255.252, status: up }
+      - { name: g1/0, mode: access, vlan: 30, status: up }
+      - { name: g1/1, mode: access, vlan: 30, status: up }
+      - { name: g1/2, mode: access, vlan: 30, status: up }
+
+  - id: leaf-4
+    name: Leaf交换机-4
+    role: aggregation
+    device_type: switch
+    ip: 10.0.0.14
+    netmask: 255.255.255.0
+    status: up
+    ospf: { router_id: 14.14.14.14, area: 0 }
+    vlans: [{ vlan_id: 40, name: 业务网-4 }]
+    interfaces:
+      - { name: g0/0, ip: 10.0.1.14, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.2.14, netmask: 255.255.255.252, status: up }
+      - { name: g1/0, mode: access, vlan: 40, status: up }
+      - { name: g1/1, mode: access, vlan: 40, status: up }
+      - { name: g1/2, mode: access, vlan: 40, status: up }
+
+  # =========================
+  # Terminal层（服务器）
+  # =========================
+  - id: server-1
+    name: 服务器-1
+    role: server
+    device_type: server
+    ip: 192.168.10.10
+    netmask: 255.255.255.0
+    gateway: 192.168.10.1
+    vlan: 10
+    status: up
+    interfaces:
+      - {
+          name: eth0,
+          ip: 192.168.10.10,
+          netmask: 255.255.255.0,
+          vlan: 10,
+          status: up,
+        }
+
+  # 👉 server-2 ~ server-12 完全一样（你直接用我之前那份复制即可）
+  - {
+      id: server-2,
+      name: 服务器-2,
+      role: server,
+      device_type: server,
+      ip: 192.168.10.11,
+      netmask: 255.255.255.0,
+      gateway: 192.168.10.1,
+      vlan: 10,
+      status: up,
+      interfaces:
+        [
+          {
+            name: eth0,
+            ip: 192.168.10.11,
+            netmask: 255.255.255.0,
+            vlan: 10,
+            status: up,
+          },
+        ],
+    }
+  - {
+      id: server-3,
+      name: 服务器-3,
+      role: server,
+      device_type: server,
+      ip: 192.168.10.12,
+      netmask: 255.255.255.0,
+      gateway: 192.168.10.1,
+      vlan: 10,
+      status: up,
+      interfaces:
+        [
+          {
+            name: eth0,
+            ip: 192.168.10.12,
+            netmask: 255.255.255.0,
+            vlan: 10,
+            status: up,
+          },
+        ],
+    }
+
+  # Leaf2
+  - {
+      id: server-4,
+      name: 服务器-4,
+      role: server,
+      device_type: server,
+      ip: 192.168.20.10,
+      netmask: 255.255.255.0,
+      gateway: 192.168.20.1,
+      vlan: 20,
+      status: up,
+      interfaces:
+        [
+          {
+            name: eth0,
+            ip: 192.168.20.10,
+            netmask: 255.255.255.0,
+            vlan: 20,
+            status: up,
+          },
+        ],
+    }
+  - {
+      id: server-5,
+      name: 服务器-5,
+      role: server,
+      device_type: server,
+      ip: 192.168.20.11,
+      netmask: 255.255.255.0,
+      gateway: 192.168.20.1,
+      vlan: 20,
+      status: up,
+      interfaces:
+        [
+          {
+            name: eth0,
+            ip: 192.168.20.11,
+            netmask: 255.255.255.0,
+            vlan: 20,
+            status: up,
+          },
+        ],
+    }
+  - {
+      id: server-6,
+      name: 服务器-6,
+      role: server,
+      device_type: server,
+      ip: 192.168.20.12,
+      netmask: 255.255.255.0,
+      gateway: 192.168.20.1,
+      vlan: 20,
+      status: up,
+      interfaces:
+        [
+          {
+            name: eth0,
+            ip: 192.168.20.12,
+            netmask: 255.255.255.0,
+            vlan: 20,
+            status: up,
+          },
+        ],
+    }
+
+  # Leaf3
+  - {
+      id: server-7,
+      name: 服务器-7,
+      role: server,
+      device_type: server,
+      ip: 192.168.30.10,
+      netmask: 255.255.255.0,
+      gateway: 192.168.30.1,
+      vlan: 30,
+      status: up,
+      interfaces:
+        [
+          {
+            name: eth0,
+            ip: 192.168.30.10,
+            netmask: 255.255.255.0,
+            vlan: 30,
+            status: up,
+          },
+        ],
+    }
+  - {
+      id: server-8,
+      name: 服务器-8,
+      role: server,
+      device_type: server,
+      ip: 192.168.30.11,
+      netmask: 255.255.255.0,
+      gateway: 192.168.30.1,
+      vlan: 30,
+      status: up,
+      interfaces:
+        [
+          {
+            name: eth0,
+            ip: 192.168.30.11,
+            netmask: 255.255.255.0,
+            vlan: 30,
+            status: up,
+          },
+        ],
+    }
+  - {
+      id: server-9,
+      name: 服务器-9,
+      role: server,
+      device_type: server,
+      ip: 192.168.30.12,
+      netmask: 255.255.255.0,
+      gateway: 192.168.30.1,
+      vlan: 30,
+      status: up,
+      interfaces:
+        [
+          {
+            name: eth0,
+            ip: 192.168.30.12,
+            netmask: 255.255.255.0,
+            vlan: 30,
+            status: up,
+          },
+        ],
+    }
+
+  # Leaf4
+  - {
+      id: server-10,
+      name: 服务器-10,
+      role: server,
+      device_type: server,
+      ip: 192.168.40.10,
+      netmask: 255.255.255.0,
+      gateway: 192.168.40.1,
+      vlan: 40,
+      status: up,
+      interfaces:
+        [
+          {
+            name: eth0,
+            ip: 192.168.40.10,
+            netmask: 255.255.255.0,
+            vlan: 40,
+            status: up,
+          },
+        ],
+    }
+  - {
+      id: server-11,
+      name: 服务器-11,
+      role: server,
+      device_type: server,
+      ip: 192.168.40.11,
+      netmask: 255.255.255.0,
+      gateway: 192.168.40.1,
+      vlan: 40,
+      status: up,
+      interfaces:
+        [
+          {
+            name: eth0,
+            ip: 192.168.40.11,
+            netmask: 255.255.255.0,
+            vlan: 40,
+            status: up,
+          },
+        ],
+    }
+  - {
+      id: server-12,
+      name: 服务器-12,
+      role: server,
+      device_type: server,
+      ip: 192.168.40.12,
+      netmask: 255.255.255.0,
+      gateway: 192.168.40.1,
+      vlan: 40,
+      status: up,
+      interfaces:
+        [
+          {
+            name: eth0,
+            ip: 192.168.40.12,
+            netmask: 255.255.255.0,
+            vlan: 40,
+            status: up,
+          },
+        ],
+    }
+
+# =========================
+# 链路定义（Clos全互联）
+# =========================
+links:
+  # Spine ↔ Leaf
+  - {
+      id: l1,
+      src_device: spine-1,
+      src_interface: g0/0,
+      dst_device: leaf-1,
+      dst_interface: g0/0,
+      bandwidth: 10G,
+      status: up,
+    }
+  - {
+      id: l2,
+      src_device: spine-2,
+      src_interface: g0/0,
+      dst_device: leaf-1,
+      dst_interface: g0/1,
+      bandwidth: 10G,
+      status: up,
+    }
+
+  - {
+      id: l3,
+      src_device: spine-1,
+      src_interface: g0/1,
+      dst_device: leaf-2,
+      dst_interface: g0/0,
+      bandwidth: 10G,
+      status: up,
+    }
+  - {
+      id: l4,
+      src_device: spine-2,
+      src_interface: g0/1,
+      dst_device: leaf-2,
+      dst_interface: g0/1,
+      bandwidth: 10G,
+      status: up,
+    }
+
+  - {
+      id: l5,
+      src_device: spine-1,
+      src_interface: g0/2,
+      dst_device: leaf-3,
+      dst_interface: g0/0,
+      bandwidth: 10G,
+      status: up,
+    }
+  - {
+      id: l6,
+      src_device: spine-2,
+      src_interface: g0/2,
+      dst_device: leaf-3,
+      dst_interface: g0/1,
+      bandwidth: 10G,
+      status: up,
+    }
+
+  - {
+      id: l7,
+      src_device: spine-1,
+      src_interface: g0/3,
+      dst_device: leaf-4,
+      dst_interface: g0/0,
+      bandwidth: 10G,
+      status: up,
+    }
+  - {
+      id: l8,
+      src_device: spine-2,
+      src_interface: g0/3,
+      dst_device: leaf-4,
+      dst_interface: g0/1,
+      bandwidth: 10G,
+      status: up,
+    }
+
+  # Leaf → Server
+  - {
+      id: l20,
+      src_device: leaf-1,
+      src_interface: g1/0,
+      dst_device: server-1,
+      dst_interface: eth0,
+      status: up,
+    }
+  - {
+      id: l21,
+      src_device: leaf-1,
+      src_interface: g1/1,
+      dst_device: server-2,
+      dst_interface: eth0,
+      status: up,
+    }
+  - {
+      id: l22,
+      src_device: leaf-1,
+      src_interface: g1/2,
+      dst_device: server-3,
+      dst_interface: eth0,
+      status: up,
+    }
+
+  - {
+      id: l23,
+      src_device: leaf-2,
+      src_interface: g1/0,
+      dst_device: server-4,
+      dst_interface: eth0,
+      status: up,
+    }
+  - {
+      id: l24,
+      src_device: leaf-2,
+      src_interface: g1/1,
+      dst_device: server-5,
+      dst_interface: eth0,
+      status: up,
+    }
+  - {
+      id: l25,
+      src_device: leaf-2,
+      src_interface: g1/2,
+      dst_device: server-6,
+      dst_interface: eth0,
+      status: up,
+    }
+
+  - {
+      id: l26,
+      src_device: leaf-3,
+      src_interface: g1/0,
+      dst_device: server-7,
+      dst_interface: eth0,
+      status: up,
+    }
+  - {
+      id: l27,
+      src_device: leaf-3,
+      src_interface: g1/1,
+      dst_device: server-8,
+      dst_interface: eth0,
+      status: up,
+    }
+  - {
+      id: l28,
+      src_device: leaf-3,
+      src_interface: g1/2,
+      dst_device: server-9,
+      dst_interface: eth0,
+      status: up,
+    }
+
+  - {
+      id: l29,
+      src_device: leaf-4,
+      src_interface: g1/0,
+      dst_device: server-10,
+      dst_interface: eth0,
+      status: up,
+    }
+  - {
+      id: l30,
+      src_device: leaf-4,
+      src_interface: g1/1,
+      dst_device: server-11,
+      dst_interface: eth0,
+      status: up,
+    }
+  - {
+      id: l31,
+      src_device: leaf-4,
+      src_interface: g1/2,
+      dst_device: server-12,
+      dst_interface: eth0,
+      status: up,
+    }

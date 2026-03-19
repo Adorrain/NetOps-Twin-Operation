@@ -40,6 +40,8 @@ class Link(BaseModel):
     status: str = "up"
     bandwidth: Optional[str] = None
 
+    ospf_cost: Optional[int] = None
+
 """
 拓扑数据业务模型
 """

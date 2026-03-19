@@ -279,8 +279,23 @@ class SimulationService:
 
     # ==================== 转发仿真 (Ping / Traceroute) ====================
 
-    def ping(self, src_id: str, target_ip: str) -> Dict:
-        """模拟从源设备向目标 IP 执行 ping：先算转发路径并返回结果。"""
+    def _resolve_device_ip(self, device_id: str) -> Optional[str]:
+        dev = self.device_map.get(device_id)
+        if not dev:
+            return None
+        if dev.ip:
+            return str(dev.ip).split("/")[0]
+        for iface in dev.interfaces:
+            ip = iface.get("ip")
+            if ip:
+                return str(ip).split("/")[0]
+        return None
+
+    def ping(self, src_id: str, target_id: str) -> Dict:
+        """模拟从源设备向目标设备执行 ping：先解析目标设备 IP，再算转发路径并返回结果。"""
+        target_ip = self._resolve_device_ip(target_id)
+        if not target_ip:
+            return {"success": False, "message": "Target device has no IP"}
         path_res = self._compute_forwarding_path(src_id, target_ip)
         if not path_res["success"]:
             return path_res
@@ -294,8 +309,11 @@ class SimulationService:
             "hops": hops,
         }
 
-    def traceroute(self, src_id: str, target_ip: str) -> Dict:
-        """模拟 traceroute：计算转发路径后，按跳返回每跳的设备 ID、名称、IP 与模拟 RTT。"""
+    def traceroute(self, src_id: str, target_id: str) -> Dict:
+        """模拟 traceroute：先解析目标设备 IP，再计算转发路径并按跳返回结果。"""
+        target_ip = self._resolve_device_ip(target_id)
+        if not target_ip:
+            return {"success": False, "message": "Target device has no IP", "hops": []}
         path_res = self._compute_forwarding_path(src_id, target_ip)
         if not path_res["success"]:
             return {

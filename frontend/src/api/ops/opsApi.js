@@ -10,9 +10,9 @@
 import { postJson } from '../../utils/http';
 
 
-const ping = (sourceId, targetIp) => postJson('/ops/ping', { source_id: sourceId, target_ip: targetIp });
+const ping = (sourceId, targetId) => postJson('/ops/ping', { source_id: sourceId, target_id: targetId });
 
-const traceroute = (sourceId, targetIp) => postJson('/ops/traceroute', { source_id: sourceId, target_ip: targetIp });
+const traceroute = (sourceId, targetId) => postJson('/ops/traceroute', { source_id: sourceId, target_id: targetId });
 
 const updateDevice = (id, data) => postJson('/ops/device/status', { device_id: id, status: data.status });
 
