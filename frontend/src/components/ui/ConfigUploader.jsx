@@ -3,7 +3,7 @@ import { Upload, message, Card, Spin } from 'antd';
 import { InboxOutlined, FileTextOutlined } from '@ant-design/icons';
 import { useAppStore } from '../../stores';
 import { uploadTopologyFile } from '../../api/topology/topologyApi';
-import { getAllVlans, getEndpointAccessVlan } from '../../utils/net';
+import { getEndpointAccessVlan } from '../../utils/net';
 
 const { Dragger } = Upload;
 
@@ -47,8 +47,6 @@ const calculateLayout = (devices) => {
 const buildFrontendTopology = (cfg) => {
   const computedLayout = calculateLayout(cfg.devices || []);
   const devices = (cfg.devices || []).map((d) => {
-    const derivedVlans = getAllVlans(d);
-    const normalizedVlans = Array.isArray(d.vlans) && d.vlans.length > 0 ? d.vlans : derivedVlans.map((v) => ({ vlan_id: v, name: `VLAN${v}` }));
     const routingTableRaw = d.routing_table || d.routingTable || d.configuration?.routing_table || d.configuration?.routingTable;
     const routingTable = Array.isArray(routingTableRaw) ? routingTableRaw : [];
     // 后端 normalize 后 OSPF 在 configuration.ospf，保留两者以便 OSPF 操作与系统监控都能拿到
@@ -64,7 +62,6 @@ const buildFrontendTopology = (cfg) => {
       configuration: {
         ...d.configuration,
         ospf: ospfConfig,
-        vlans: normalizedVlans,
         routing_table: routingTable
       },
       metrics: d.metrics || {
@@ -83,7 +80,6 @@ const buildFrontendTopology = (cfg) => {
       description: d.description,
       interfaces: d.interfaces || [],
       ospf: ospfConfig,
-      vlans: normalizedVlans,
       routing_table: routingTable
     };
   });

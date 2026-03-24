@@ -8,17 +8,20 @@ from app.model.api_schemas import (
     DeviceStatusBody,
     InterfaceStatusBody,
     LinkStatusBody,
+    OSPFCostSuggestBody,
+    OSPFCostUpdateBody,
     OSPFConfigBody,
     OSPFNeighborsBody,
     PingBody,
+    TrafficPeakLinkBody,
     TracerouteBody,
-    VlanAssignBody,
     VlanConfigureBody,
-    VlanRemoveBody,
+    VlanPortBody,
 )
 from app.dao.snapshot_dao import create_snapshot
 from app.utils.serialization import dump_model
 from app.service.service_session import get_simulation_service
+from app.service.traffic_generator import traffic_generator
 
 bp = Blueprint("ops", __name__)
 
@@ -163,35 +166,11 @@ def update_interface_status():
 """
 关于VLAN的操作，包括分配、移除和配置
 """
-@bp.route("/vlan/assign", methods=["POST"])
-def assign_vlan():
-    service = get_simulation_service()
-    db = get_db()
-    body = parse_body(VlanAssignBody)
-
-    device_id = body.device_id
-    port = body.port
-    vlan_id = body.vlan_id
-
-    updated = service.assign_vlan(device_id, port, vlan_id)
-
-    snapshot, device_data = persist(
-        db,
-        updated,
-        f"Assigned VLAN {vlan_id} to {device_id}:{port}",
-        "VLAN_Assign",
-        f"{device_id}:{port}",
-        device_id,
-    )
-
-    return success("VLAN assigned", device_data)
-
-
 @bp.route("/vlan/remove", methods=["POST"])
 def remove_vlan():
     service = get_simulation_service()
     db = get_db()
-    body = parse_body(VlanRemoveBody)
+    body = parse_body(VlanPortBody)
 
     device_id = body.device_id
     port = body.port
@@ -267,3 +246,59 @@ def get_ospf_neighbors():
     body = parse_body(OSPFNeighborsBody)
     neighbors = service.get_ospf_neighbors(body.device_id)
     return success(data=neighbors)
+
+
+@bp.route("/ospf/cost/suggest", methods=["POST"])
+def suggest_ospf_cost():
+    service = get_simulation_service()
+    body = parse_body(OSPFCostSuggestBody)
+    try:
+        data = traffic_generator.suggest_cost_for_link(service.topology, body.link_id)
+    except KeyError:
+        abort(404, description=f"Link {body.link_id} not found in current topology")
+    return success("cost suggestion generated", data)
+
+
+@bp.route("/ospf/cost/update", methods=["POST"])
+def update_ospf_cost():
+    service = get_simulation_service()
+    db = get_db()
+    body = parse_body(OSPFCostUpdateBody)
+
+    traffic_generator.ensure_started(service.topology)
+    runtime = traffic_generator.apply_cost(body.link_id, body.new_cost)
+    updated = service.update_ospf_link_cost(body.link_id, body.new_cost)
+    persist(
+        db,
+        updated,
+        f"Updated OSPF cost for link {body.link_id} to {runtime['new_cost']}",
+        "OSPF_Link_Cost",
+        body.link_id,
+    )
+    return success("cost updated", runtime)
+
+
+@bp.route("/traffic/peak/simulate", methods=["POST"])
+def simulate_peak_for_single_link():
+    service = get_simulation_service()
+    db = get_db()
+    body = parse_body(TrafficPeakLinkBody)
+    try:
+        panel = traffic_generator.simulate_peak_for_link(service.topology, body.link_id)
+    except KeyError:
+        abort(404, description=f"Link {body.link_id} not found in current topology")
+    current_cost = int(panel.get("current_cost", 1) or 1)
+    emergency_cost = max(current_cost + 30, current_cost * 20)
+    traffic_generator.apply_cost(body.link_id, emergency_cost)
+    updated = service.update_ospf_link_cost(body.link_id, emergency_cost)
+    persist(
+        db,
+        updated,
+        f"Peak simulated on {body.link_id}, temporary cost raised to {emergency_cost}",
+        "OSPF_Peak_Avoidance",
+        body.link_id,
+    )
+    panel["current_cost"] = emergency_cost
+    panel["recommended_cost"] = emergency_cost
+    panel["policy"] = "avoid_peak_path_first"
+    return success("single link peak simulated", panel)

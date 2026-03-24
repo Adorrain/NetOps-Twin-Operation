@@ -22,9 +22,7 @@ class Device(BaseModel):
     ospf: Optional[Dict[str, Any]] = None
     configuration: Dict[str, Any] = Field(default_factory=dict)
     interfaces: List[Dict[str, Any]] = Field(default_factory=list)
-    vlans: List[Dict[str, Any]] = Field(default_factory=list)
     vlan: Optional[int] = None
-    gateway: Optional[str] = None
 
 """
 链路业务模型
@@ -46,8 +44,5 @@ class Link(BaseModel):
 拓扑数据业务模型
 """
 class TopologyData(BaseModel):
-    name: Optional[str] = None
-    type: Optional[str] = None
-
     devices: List[Device] = Field(default_factory=list)
     links: List[Link] = Field(default_factory=list)

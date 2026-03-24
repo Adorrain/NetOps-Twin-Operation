@@ -17,6 +17,7 @@ import { useAppStore } from '../../stores';
 import { DeviceStatus, ConnectionStatus, DeviceType } from '../../types';
 import { isVlanCapableDevice } from '../../utils/net';
 import { opsApi } from '../../api/ops/opsApi';
+import SparkLine from './charts/SparkLine';
 const checkDeviceType = (device, type) => {
   const dType = device?.deviceType || device?.device_type || '';
   if (dType === type) return true;
@@ -135,6 +136,16 @@ const OpsConsole = () => {
   const [ospfNeighbors, setOspfNeighbors] = useState([]);
   const [showNeighborsModal, setShowNeighborsModal] = useState(false);
 
+  const [peakModalOpen, setPeakModalOpen] = useState(false);
+  const [peakLoading, setPeakLoading] = useState(false);
+  const [peakLinkId, setPeakLinkId] = useState('');
+  const [peakSeries, setPeakSeries] = useState([]);
+  const [peakCurrentCost, setPeakCurrentCost] = useState(1);
+  const [peakRecommendedCost, setPeakRecommendedCost] = useState(null);
+  const [peakNewCost, setPeakNewCost] = useState(1);
+  const [peakCurrentMbps, setPeakCurrentMbps] = useState(0);
+  const peakPollingRef = useRef(null);
+
   // States (Logs)
   const [logsModalOpen, setLogsModalOpen] = useState(false);
 
@@ -160,6 +171,23 @@ const OpsConsole = () => {
     setNetworkTopology(topo);
   };
 
+  const updateTopologyLink = (id, patch) => {
+    if (!networkTopology) return;
+    const mergeLink = (item) => {
+      if (String(item.id) !== String(id)) return item;
+      return { ...item, ...patch };
+    };
+    const topo = { ...networkTopology };
+    if (Array.isArray(topo.links)) {
+      topo.links = topo.links.map(mergeLink);
+    }
+    if (Array.isArray(topo.connections)) {
+      topo.connections = topo.connections.map(mergeLink);
+    }
+    topo.updatedAt = new Date();
+    setNetworkTopology(topo);
+  };
+
   const vlanBaselineRef = useRef(new Map());
 
   useEffect(() => {
@@ -181,6 +209,10 @@ const OpsConsole = () => {
     setPingResult('');
     setTraceResult([]);
   }, [srcId, dstId]);
+
+  useEffect(() => () => {
+    stopPeakPolling();
+  }, []);
 
   const execPing = async () => {
     if (!srcId || !dstId) {
@@ -402,10 +434,15 @@ const OpsConsole = () => {
              const swName = getDeviceName(vlanSwitchId);
              message.success(`${swName} 端口 ${vlanPort} 已恢复为默认配置`);
              addLog('success', `VLAN 恢复: ${swName} 端口 ${vlanPort}`);
-             setVlanMode('access');
-             setVlanId(1);
-             setVlanAllowedVlans('');
-             setVlanCurrentHint(formatVlanHint({ mode: 'access', vlan: 1 }));
+             const iface = (res.data?.interfaces || []).find((it) => it?.name === vlanPort);
+             const restoredMode = iface?.mode || 'access';
+             const restoredVlan = Number(iface?.vlan || 1);
+             const restoredAllowed = Array.isArray(iface?.allowed_vlans) ? iface.allowed_vlans : [];
+             setVlanMode(restoredMode);
+             setVlanId(restoredVlan);
+             setVlanAllowedVlans(restoredAllowed.join(','));
+             setVlanCurrentHint(formatVlanHint({ mode: restoredMode, vlan: restoredMode === 'access' ? restoredVlan : undefined, allowed_vlans: restoredAllowed }));
+             setVlanOriginalHint(formatVlanHint(vlanBaselineRef.current.get(`${vlanSwitchId}:${vlanPort}`)));
         } else {
              const msg = res.message || 'Unknown error';
              addLog('error', `VLAN 恢复失败: ${msg}`);
@@ -414,6 +451,134 @@ const OpsConsole = () => {
     } catch (e) {
         addLog('error', `VLAN 恢复异常: ${e.message}`);
         message.error(e.message);
+    }
+  };
+
+  const stopPeakPolling = () => {
+    if (peakPollingRef.current) {
+      clearInterval(peakPollingRef.current);
+      peakPollingRef.current = null;
+    }
+  };
+
+  const closePeakModal = () => {
+    stopPeakPolling();
+    setPeakModalOpen(false);
+  };
+
+  const syncPeakRealtime = async (linkId) => {
+    const res = await opsApi.suggestOspfCost(linkId);
+    if (!res.success) return;
+    const row = res.data || {};
+    setPeakCurrentMbps(Number(row.current_mbps || 0));
+    setPeakSeries((prev) => {
+      const next = [...prev, Number(row.current_mbps || 0)];
+      return next.slice(-30);
+    });
+    updateTopologyLink(linkId, {
+      utilization: Number(row.current_utilization || 0),
+      is_peak: Number(row.current_utilization || 0) >= 0.75,
+      peak_level: Number(row.current_utilization || 0) >= 0.75 ? 'high' : 'normal',
+      current_mbps: Number(row.current_mbps || 0),
+      current_cost: Number(row.current_cost || peakCurrentCost),
+      optimization_state: Number(row.current_utilization || 0) >= 0.75 ? 'none' : 'optimized',
+    });
+    setPeakCurrentCost(Number(row.current_cost || peakCurrentCost));
+    setPeakRecommendedCost(Number(row.recommended_cost || peakCurrentCost));
+  };
+
+  const openPeakModal = async () => {
+    if (!connId) {
+      message.warning('请选择链路');
+      return;
+    }
+    try {
+      setPeakLoading(true);
+      const res = await opsApi.simulateSingleLinkPeak(connId);
+      if (!res.success) {
+        message.error(getErrorMessage(res));
+        return;
+      }
+      const data = res.data || {};
+      const series = Array.isArray(data.series_mbps) ? data.series_mbps : [];
+      const currentCost = Number(data.current_cost || 1);
+      const realtime = data.realtime_link || {};
+      const currentMbps = Number(realtime.current_mbps ?? (series.length ? series[series.length - 1] : 0));
+      setPeakLinkId(connId);
+      setPeakSeries(series);
+      setPeakCurrentCost(currentCost);
+      setPeakRecommendedCost(null);
+      setPeakNewCost(currentCost);
+      setPeakCurrentMbps(currentMbps);
+      updateTopologyLink(connId, {
+        utilization: Number(realtime.utilization || 0.88),
+        is_peak: true,
+        peak_level: realtime.peak_level || 'high',
+        current_mbps: currentMbps,
+        current_cost: currentCost,
+        optimization_state: 'none',
+      });
+      setPeakModalOpen(true);
+      stopPeakPolling();
+      peakPollingRef.current = setInterval(() => {
+        syncPeakRealtime(connId);
+      }, 2000);
+      addLog('warning', `链路 ${getLinkName(connId)} 已模拟为高峰流量`);
+    } catch (e) {
+      message.error(e.message);
+      addLog('error', `高峰模拟失败: ${e.message}`);
+    } finally {
+      setPeakLoading(false);
+    }
+  };
+
+  const generatePeakSuggestion = async () => {
+    if (!peakLinkId) return;
+    try {
+      setPeakLoading(true);
+      await syncPeakRealtime(peakLinkId);
+      const res = await opsApi.suggestOspfCost(peakLinkId);
+      if (!res.success) {
+        message.error(getErrorMessage(res));
+        return;
+      }
+      const recommended = Number(res.data?.recommended_cost || peakCurrentCost);
+      setPeakRecommendedCost(recommended);
+      setPeakNewCost(recommended);
+      addLog('info', `链路 ${getLinkName(peakLinkId)} 已生成基于实时流量的Cost建议`);
+    } catch (e) {
+      message.error(e.message);
+      addLog('error', `生成建议失败: ${e.message}`);
+    } finally {
+      setPeakLoading(false);
+    }
+  };
+
+  const applyPeakCostUpdate = async () => {
+    if (!peakLinkId) return;
+    try {
+      setPeakLoading(true);
+      const res = await opsApi.updateOspfCost(peakLinkId, Number(peakNewCost));
+      if (!res.success) {
+        message.error(getErrorMessage(res));
+        return;
+      }
+      setPeakCurrentCost(Number(res.data?.new_cost || peakNewCost));
+      updateTopologyLink(peakLinkId, {
+        current_cost: Number(res.data?.new_cost || peakNewCost),
+        utilization: 0.35,
+        is_peak: false,
+        peak_level: 'normal',
+        optimization_state: 'optimized',
+      });
+      addLog('success', `链路 ${getLinkName(peakLinkId)} Cost 已更新为 ${res.data?.new_cost || peakNewCost}`);
+      message.success('Cost 更新成功');
+      closePeakModal();
+    } catch (e) {
+      message.error(e.message);
+      addLog('error', `更新 Cost 异常: ${e.message}`);
+    } finally {
+      setPeakLoading(false);
     }
   };
   const collapseItems = [
@@ -480,6 +645,26 @@ const OpsConsole = () => {
                 options={Object.values(ConnectionStatus).map(s => ({ value: s, label: s }))}
             />
             <Button block onClick={updateConnectionStatusAction}>更新状态</Button>
+          </Space>
+      )
+    },
+    {
+      key: 'peak-sim',
+      label: <Space><ThunderboltOutlined style={{ color: '#f5222d' }} />高峰流量模拟</Space>,
+      children: (
+          <Space orientation="vertical" style={{ width: '100%' }}>
+            <Select 
+                style={{ width: '100%' }} 
+                placeholder="选择链路（复用链路管理）" 
+                value={connId}
+                onChange={setConnId}
+                options={connections.map(c => {
+                    const src = devices.find(d => d.id === c.sourceDeviceId)?.name || c.sourceDeviceId;
+                    const dst = devices.find(d => d.id === c.targetDeviceId)?.name || c.targetDeviceId;
+                    return { value: c.id, label: `${src} -> ${dst}` };
+                })}
+            />
+            <Button block onClick={openPeakModal} loading={peakLoading}>模拟高峰并打开弹窗</Button>
           </Space>
       )
     },
@@ -719,6 +904,54 @@ options={devices.filter(d => (d.configuration?.ospf || d.ospf) || checkDeviceTyp
             rowKey="router_id"
             size="small"
         />
+      </Modal>
+
+      <Modal
+        title={`高峰流量模拟 - ${getLinkName(peakLinkId)}`}
+        open={peakModalOpen}
+        onCancel={closePeakModal}
+        onOk={applyPeakCostUpdate}
+        okText="更新Cost"
+        confirmLoading={peakLoading}
+        width={760}
+      >
+        <Row gutter={16}>
+          <Col span={14}>
+            <div style={{ height: 140, background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: 8 }}>
+              <Text type="secondary">实时流量(Mbps)</Text>
+              <div style={{ height: 96 }}>
+                <SparkLine data={peakSeries} width={300} height={96} color="#ef4444" fill />
+              </div>
+            </div>
+          </Col>
+          <Col span={10}>
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Alert
+                type="warning"
+                showIcon
+                message={`当前流量 ${peakCurrentMbps.toFixed(2)} Mbps`}
+                description="固定强度高峰已注入当前链路"
+              />
+              <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <Text type="secondary">当前Cost</Text>
+                  <Text>{peakCurrentCost}</Text>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <Text type="secondary">建议Cost</Text>
+                  <Text strong>{peakRecommendedCost ?? '-'}</Text>
+                </div>
+                <Button block style={{ marginBottom: 8 }} onClick={generatePeakSuggestion} loading={peakLoading}>基于实时流量生成建议</Button>
+                <Input
+                  type="number"
+                  value={peakNewCost}
+                  onChange={(e) => setPeakNewCost(Number(e.target.value) || 1)}
+                  placeholder="输入新Cost"
+                />
+              </div>
+            </Space>
+          </Col>
+        </Row>
       </Modal>
     </div>
   );

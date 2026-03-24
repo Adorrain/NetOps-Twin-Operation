@@ -1,60 +1,47 @@
-"""数据库连接与会话管理。
+"""数据库连接与会话管理（PostgreSQL）"""
 
-当前使用 SQLite 作为默认数据库，提供 SQLAlchemy Engine、SessionLocal 以及 FastAPI 依赖 get_db。
-
-作者: Adorrain
-创建时间: 2026-01-30
-"""
-
+from app.model import db_models
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from sqlalchemy.orm import sessionmaker
+from flask import g
 import os
 
-# 数据库配置
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-db_path = os.path.join(BASE_DIR, "netops.db")
-SQLALCHEMY_DATABASE_URL = f"sqlite:///{db_path}"
-
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# 声明数据库模型基类
-class Base(DeclarativeBase):
-    pass
-
-# flask数据库会话依赖
-from flask import g
-
-# 获取 SQLite 表的列名
-def _get_sqlite_columns(conn, table_name: str):
-    rows = conn.execute(text(f"PRAGMA table_info({table_name})")).fetchall()
-    return {row[1] for row in rows}
+DB_HOST = os.getenv("DB_HOST", "47.95.157.92")
+DB_PORT = os.getenv("DB_PORT", "5432")
+DB_NAME = os.getenv("DB_NAME", "netops")
+DB_USER = os.getenv("DB_USER", "postgres")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "123456")
 
 
-def ensure_sqlite_schema():
-    schema = {}
-    # 如果列名不存在，则添加列
+
+SQLALCHEMY_DATABASE_URL = ( f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}" f"@{DB_HOST}:{DB_PORT}/{DB_NAME}" )
+
+engine = create_engine( SQLALCHEMY_DATABASE_URL, echo=True, pool_pre_ping=True)
+
+SessionLocal = sessionmaker( autocommit=False, autoflush=False, bind=engine )
+
+def create_database_if_not_exists():
+    url = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/postgres"
+    engine = create_engine(url, isolation_level="AUTOCOMMIT")
+
     with engine.connect() as conn:
-        for table_name, columns in schema.items():
-            existing = _get_sqlite_columns(conn, table_name)
-            if not existing:
-                continue
-            for col_name, col_type in columns.items():
-                if col_name not in existing:
-                    conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}"))
-        if hasattr(conn, "commit"):
-            conn.commit()
+        exists = conn.execute( text("SELECT 1 FROM pg_database WHERE datname=:name"), {"name": DB_NAME}).scalar()
+        if not exists:
+            conn.execute(text(f'CREATE DATABASE "{DB_NAME}"'))
+
+    engine.dispose()
+
+def init_db():
+    create_database_if_not_exists()
+    db_models.Base.metadata.create_all(bind=engine)
+
 
 def get_db():
-    """获取数据库会话
-        SQLAlchemy Session 实例
-    """
     if 'db' not in g:
         g.db = SessionLocal()
     return g.db
 
 def close_db(e=None):
-    """关闭数据库会话"""
     db = g.pop('db', None)
     if db:
         db.close()

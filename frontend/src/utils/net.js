@@ -26,14 +26,6 @@ export const getAllVlans = (device) => {
   const vlans = new Set();
   if (device?.vlan != null) vlans.add(Number(device.vlan));
 
-  const list = device?.vlans || device?.configuration?.vlans;
-  if (Array.isArray(list)) {
-    list.forEach(v => {
-      if (typeof v === 'number' || typeof v === 'string') vlans.add(Number(v));
-      else if (v && typeof v === 'object' && v.vlan_id != null) vlans.add(Number(v.vlan_id));
-    });
-  }
-
   const ifaces = Array.isArray(device?.interfaces) ? device.interfaces : [];
   ifaces.forEach(it => {
     const mode = String(it?.mode || 'access').toLowerCase();
@@ -50,8 +42,6 @@ export const getAllVlans = (device) => {
 export const isVlanCapableDevice = (device) => {
   if (!device) return false;
   if (device.vlan != null) return true;
-  const list = device.vlans || device.configuration?.vlans;
-  if (Array.isArray(list) && list.length > 0) return true;
   const ifaces = Array.isArray(device.interfaces) ? device.interfaces : [];
   return ifaces.some(it => it?.vlan != null || it?.mode || it?.allowed_vlans);
 };
@@ -83,11 +73,6 @@ export const getEndpointAccessVlan = (device) => {
  */
 export const getDisplayVlanId = (device) => {
   if (device?.vlan != null) return Number(device.vlan);
-  if (Array.isArray(device?.vlans) && device.vlans.length > 0) {
-    const first = device.vlans[0];
-    if (typeof first === 'number' || typeof first === 'string') return Number(first);
-    if (first && typeof first === 'object' && first.vlan_id != null) return Number(first.vlan_id);
-  }
   const all = getAllVlans(device);
   return all.length ? all[0] : null;
 };

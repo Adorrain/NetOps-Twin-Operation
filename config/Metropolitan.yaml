@@ -1,0 +1,123 @@
+# =========================
+# 城域网拓扑
+# =========================
+topology:
+  name: 城域网
+  type: 三层网络结构
+
+devices:
+  - id: core-1
+    name: 核心路由器-1
+    role: core
+    device_type: router
+    ip: 10.0.1.10
+    netmask: 255.255.255.0
+    status: up
+    ospf: { router_id: 10.10.10.10, area: 0 }
+    interfaces:
+      - { name: g0/0, ip: 10.0.1.10, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.2.10, netmask: 255.255.255.252, status: up }
+
+  - id: core-2
+    name: 核心路由器-2
+    role: core
+    device_type: router
+    ip: 10.0.2.10
+    netmask: 255.255.255.0
+    status: up
+    ospf: { router_id: 10.10.10.20, area: 0 }
+    interfaces:
+      - { name: g0/0, ip: 10.0.2.10, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.3.10, netmask: 255.255.255.252, status: up }
+
+  - id: agg-1
+    name: 汇聚路由器-1
+    role: agg
+    device_type: router
+    ip: 10.0.3.10
+    netmask: 255.255.255.0
+    status: up
+    ospf: { router_id: 10.10.10.30, area: 1 }
+    interfaces:
+      - { name: g0/0, ip: 10.0.3.10, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.4.10, netmask: 255.255.255.252, status: up }
+
+  - id: agg-2
+    name: 汇聚路由器-2
+    role: agg
+    device_type: router
+    ip: 10.0.4.10
+    netmask: 255.255.255.0
+    status: up
+    ospf: { router_id: 10.10.10.40, area: 1 }
+    interfaces:
+      - { name: g0/0, ip: 10.0.4.10, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.5.10, netmask: 255.255.255.252, status: up }
+
+  - id: agg-3
+    name: 汇聚路由器-3
+    role: agg
+    device_type: router
+    ip: 10.0.5.10
+    netmask: 255.255.255.0
+    status: up
+    ospf: { router_id: 10.10.10.50, area: 1 }
+    interfaces:
+      - { name: g0/0, ip: 10.0.5.10, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.6.10, netmask: 255.255.255.252, status: up }
+
+  - id: agg-4
+    name: 汇聚路由器-4
+    role: agg
+    device_type: router
+    ip: 10.0.6.10
+    netmask: 255.255.255.0
+    status: up
+    ospf: { router_id: 10.10.10.60, area: 1 }
+    interfaces:
+      - { name: g0/0, ip: 10.0.6.10, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.7.10, netmask: 255.255.255.252, status: up }
+
+  - id: access-1
+    name: 接入路由器-1
+    role: access
+    device_type: router
+    ip: 10.0.7.10
+    netmask: 255.255.255.0
+    status: up
+    interfaces:
+      - { name: g0/0, ip: 10.0.7.10, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.8.10, netmask: 255.255.255.252, status: up }
+
+  - id: access-2
+    name: 接入路由器-2
+    role: access
+    device_type: router
+    ip: 10.0.8.10
+    netmask: 255.255.255.0
+    status: up
+    interfaces:
+      - { name: g0/0, ip: 10.0.8.10, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.9.10, netmask: 255.255.255.252, status: up }
+
+  - id: access-3
+    name: 接入路由器-3
+    role: access
+    device_type: router
+    ip: 10.0.9.10
+    netmask: 255.255.255.0
+    status: up
+    interfaces:
+      - { name: g0/0, ip: 10.0.9.10, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.10.10, netmask: 255.255.255.252, status: up }
+
+  - id: access-4
+    name: 接入路由器-4
+    role: access
+    device_type: router
+    ip: 10.0.10.10
+    netmask: 255.255.255.0
+    status: up
+    interfaces:
+      - { name: g0/0, ip: 10.0.10.10, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.11.10, netmask: 255.255.255.252, status: up }

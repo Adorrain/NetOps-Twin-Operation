@@ -3,3 +3,4 @@ flask-cors
 sqlalchemy
 pydantic
 pydantic-settings
+psycopg2-binary

@@ -33,6 +33,8 @@ class SimulationService:
         self.topology = topology_data
         self.db: Optional[Session] = db
         self.snapshot: Optional[TopologySnapshot] = snapshot
+        self.vlan_baseline: Dict[str, Dict[str, Any]] = {}
+        self._init_vlan_baseline()
         self._rebuild_runtime()
 
     # ==================== 运行时构建 ====================
@@ -58,6 +60,19 @@ class SimulationService:
         self.graph = self._build_physical_graph()
         self.ospf_graph = self._build_ospf_graph()
         self.routing_tables = self._build_routing_tables()
+
+    def _init_vlan_baseline(self) -> None:
+        for dev in self.topology.devices:
+            for iface in dev.interfaces:
+                name = iface.get("name")
+                if not name:
+                    continue
+                key = f"{dev.id}:{name}"
+                self.vlan_baseline[key] = {
+                    "mode": iface.get("mode", "access"),
+                    "vlan": iface.get("vlan"),
+                    "allowed_vlans": list(iface.get("allowed_vlans", [])) if isinstance(iface.get("allowed_vlans"), list) else None,
+                }
 
     def _build_ip_map(self) -> Dict[str, str]:
         """构建 IP 地址 -> 设备 ID 的映射（含设备主 IP 与接口 IP），用于根据目标 IP 反查设备。"""
@@ -85,7 +100,7 @@ class SimulationService:
             if not self._is_interface_up(src_iface) or not self._is_interface_up(dst_iface):
                 continue
             allowed_vlans = self._compute_link_allowed_vlans(src_iface, dst_iface)
-            weight = self._get_link_cost(link.bandwidth)
+            weight = self._get_link_cost(link)
             G.add_edge(
                 link.src_device, link.dst_device,
                 weight=weight, allowed_vlans=allowed_vlans,
@@ -108,11 +123,28 @@ class SimulationService:
         """判断接口是否处于 up 状态，无配置时默认视为 up。"""
         return not iface or iface.get("status", "up").lower() == "up"
 
-    def _get_link_cost(self, bandwidth: Optional[str]) -> int:
-        """根据带宽字符串计算链路 cost（用于最短路径），100M 返回 10，其余默认 1。"""
+    def _get_link_cost(self, link) -> int:
+        """根据链路显式 ospf_cost 或带宽字符串计算最短路径 cost。"""
+        if getattr(link, "ospf_cost", None) is not None:
+            try:
+                return max(1, int(link.ospf_cost))
+            except Exception:
+                pass
+        bandwidth = getattr(link, "bandwidth", None)
         if not bandwidth:
             return 1
-        return 10 if "100m" in bandwidth.lower() else 1
+        text = str(bandwidth).strip().lower()
+        mbps = 1000.0
+        try:
+            if text.endswith("g"):
+                mbps = float(text[:-1]) * 1000.0
+            elif text.endswith("m"):
+                mbps = float(text[:-1])
+            else:
+                mbps = float(text)
+        except Exception:
+            mbps = 1000.0
+        return max(1, int(round(1000.0 / max(1.0, mbps))))
 
     def _compute_link_allowed_vlans(self, src_iface: Dict, dst_iface: Dict) -> Optional[Set[int]]:
         """根据两端接口的 mode（access/trunk）与 vlan/allowed_vlans 计算该链路允许通过的 VLAN 集合；None 表示允许全部。"""
@@ -176,7 +208,10 @@ class SimulationService:
         dev = self.device_map.get(device_id)
         if not dev:
             return False
-        if dev.device_type.lower() in ("router", "l3_switch", "multilayer_switch"):
+        device_type = (dev.device_type or "").lower()
+        if device_type in ("server", "host", "pc", "terminal"):
+            return False
+        if device_type in ("router", "l3_switch", "multilayer_switch"):
             return True
         if self._get_ospf_config(dev):
             return True
@@ -460,6 +495,16 @@ class SimulationService:
         self._rebuild_runtime()
         return self.topology
 
+    def update_ospf_link_cost(self, link_id: str, cost: int) -> TopologyData:
+        """更新链路 OSPF cost 并重建运行时。"""
+        new_cost = max(1, int(cost))
+        for link in self.topology.links:
+            if link.id == link_id:
+                link.ospf_cost = new_cost
+                break
+        self._rebuild_runtime()
+        return self.topology
+
     def update_interface_status(self, device_id: str, port_name: str, status: str) -> TopologyData:
         """更新指定设备某端口的状态（up/down）并重建运行时。"""
         dev = self.device_map.get(device_id)
@@ -476,6 +521,13 @@ class SimulationService:
         if dev:
             iface = self._get_interface(dev, port)
             if iface:
+                baseline_key = f"{device_id}:{port}"
+                if baseline_key not in self.vlan_baseline:
+                    self.vlan_baseline[baseline_key] = {
+                        "mode": iface.get("mode", "access"),
+                        "vlan": iface.get("vlan"),
+                        "allowed_vlans": list(iface.get("allowed_vlans", [])) if isinstance(iface.get("allowed_vlans"), list) else None,
+                    }
                 iface["mode"] = mode
                 if mode == "access":
                     if vlan_id is not None:
@@ -492,8 +544,16 @@ class SimulationService:
         return self.configure_vlan(device_id, port, "access", vlan_id=vlan_id)
 
     def remove_vlan(self, device_id: str, port: str) -> TopologyData:
-        """将端口恢复为 access vlan 1。"""
-        return self.configure_vlan(device_id, port, "access", vlan_id=1)
+        """将端口恢复为该接口在拓扑初始状态下的 VLAN 配置。"""
+        key = f"{device_id}:{port}"
+        baseline = self.vlan_baseline.get(key)
+        if not baseline:
+            return self.configure_vlan(device_id, port, "access", vlan_id=1)
+        mode = baseline.get("mode", "access")
+        if mode == "trunk":
+            allowed = baseline.get("allowed_vlans")
+            return self.configure_vlan(device_id, port, "trunk", allowed_vlans=allowed or [])
+        return self.configure_vlan(device_id, port, "access", vlan_id=int(baseline.get("vlan") or 1))
 
     def _ensure_ospf_dict(self, device: Device) -> Dict:
         """保证设备 configuration['ospf'] 存在且为字典，便于写入 area/router_id 等。"""

@@ -39,20 +39,12 @@ class InterfaceStatusBody(BaseModel):
     status: str
 
 
-class VlanAssignBody(BaseModel):
-    device_id: str
-    port: str
-    vlan_id: int
-
-
-class VlanRemoveBody(BaseModel):
+class VlanPortBody(BaseModel):
     device_id: str
     port: str
 
 
-class VlanConfigureBody(BaseModel):
-    device_id: str
-    port: str
+class VlanConfigureBody(VlanPortBody):
     mode: str
     vlan_id: Optional[int] = None
     allowed_vlans: Optional[List[int]] = None
@@ -66,3 +58,16 @@ class OSPFConfigBody(BaseModel):
 
 class OSPFNeighborsBody(BaseModel):
     device_id: str
+
+
+class TrafficPeakLinkBody(BaseModel):
+    link_id: str
+
+
+class OSPFCostSuggestBody(BaseModel):
+    link_id: str
+
+
+class OSPFCostUpdateBody(BaseModel):
+    link_id: str
+    new_cost: int

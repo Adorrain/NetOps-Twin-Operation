@@ -17,48 +17,40 @@ from sqlalchemy import (
     JSON,
     Text
 )
+from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.sql import func
-from app.service.database import Base
 
-"""
-拓扑运行态快照业务模型
-"""
+class Base(DeclarativeBase):
+    pass
+
 class TopologySnapshot(Base):
     """网络运行态快照表（支持故障分析与回溯）"""
-    __tablename__ = "topology_snapshots"
+    __tablename__ = "TopologySnapshot"
 
+    # 主键列，自增
     id = Column(Integer, primary_key=True, index=True)
 
-    # 运行态完整数据
+    # 完整网络运行态数据快照，JSON 格式存储
     data = Column(JSON, nullable=False, comment="完整网络运行态数据快照")
 
+    # 时间戳
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-"""
-运维操作日志业务模型
-"""
 class OperationLog(Base):
     """运维操作日志表"""
-    __tablename__ = "operation_logs"
+    __tablename__ = "OperationLog"
 
+    # 主键列，自增
     id = Column(Integer, primary_key=True, index=True)
 
-    operation_type = Column(
-        String,
-        index=True,
-        comment="操作类型：Modify | Delete | OSPF_Calc | Interface_Shutdown"
-    )
+    # 操作类型
+    operation_type = Column( String, index=True, comment="操作类型")
 
-    target_id = Column(
-        String,
-        nullable=True,
-        comment="操作对象ID，如 device-1"
-    )
+    # 触发设备
+    trigger_device = Column( String, nullable=True, comment="操作对象ID")
 
-    details = Column(
-        Text,
-        nullable=True,
-        comment="操作详情描述"
-    )
+    # 操作详细数据
+    details = Column( Text, nullable=True, comment="操作详情描述")
 
+    # 操作时间
     created_at = Column(DateTime(timezone=True), server_default=func.now())

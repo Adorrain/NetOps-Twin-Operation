@@ -9,7 +9,7 @@
 from flask import Flask
 from flask_cors import CORS
 from app.router import topology, ops
-from app.service.database import engine, Base, close_db, ensure_sqlite_schema
+from app.service.database import close_db, init_db
 
 # 创建 Flask 实例
 app = Flask(__name__)
@@ -27,8 +27,7 @@ app.teardown_appcontext(close_db)
 
 # 初始化数据库表结构（如果不存在）
 with app.app_context():
-    Base.metadata.create_all(bind=engine)
-    ensure_sqlite_schema()
+    init_db()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000, debug=True)

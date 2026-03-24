@@ -89,33 +89,55 @@ const RackDevice = ({ size, color, ports = false, isServer = false, statusColor 
 
 // 2. 路由器 (未来派集线器)
 const RouterDevice = ({ size, color, statusColor }) => {
+  const radius = Math.max(size[0], size[2]) * 0.42;
+  const thickness = size[1] * 0.3;
+  const symbolRadius = radius * 0.58;
   return (
     <group>
-      {/* 中心圆盘 */}
       <mesh position={[0, 0, 0]}>
-        <cylinderGeometry args={[size[0]/2, size[0]/2, size[1]*0.6, 32]} />
+        <cylinderGeometry args={[radius, radius * 0.97, thickness, 56]} />
         <meshPhysicalMaterial 
-          color="#1e293b"
-          roughness={0.2}
-          metalness={0.9}
+          color="#0b67b2"
+          roughness={0.28}
+          metalness={0.35}
         />
       </mesh>
-      
-      {/* 发光环 (状态) */}
-      <mesh position={[0, 0, 0]}>
-        <torusGeometry args={[size[0]/2 + 0.05, 0.05, 16, 100]} />
-        <meshBasicMaterial color={statusColor} toneMapped={false} />
+
+      <mesh position={[0, thickness / 2 + 0.005, 0]}>
+        <cylinderGeometry args={[radius * 0.9, radius * 0.88, thickness * 0.14, 56]} />
+        <meshStandardMaterial color="#0d86d9" roughness={0.35} metalness={0.2} />
       </mesh>
 
-      {/* 悬浮天线 (科幻风格) */}
-      <group rotation={[0, Math.PI / 4, 0]}>
-        {[0, 1, 2, 3].map(i => (
-          <mesh key={i} position={[0, size[1]/2, 0]} rotation={[0, (i * Math.PI) / 2, 0]}>
-            <boxGeometry args={[0.1, 0.8, 0.1]} />
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.5} />
+      <group position={[0, thickness / 2 + 0.04, 0]}>
+        <mesh rotation={[0, Math.PI / 4, 0]}>
+          <boxGeometry args={[radius * 1.1, 0.03, 0.09]} />
+          <meshBasicMaterial color="#ffffff" toneMapped={false} />
+        </mesh>
+        <mesh rotation={[0, -Math.PI / 4, 0]}>
+          <boxGeometry args={[radius * 1.1, 0.03, 0.09]} />
+          <meshBasicMaterial color="#ffffff" toneMapped={false} />
+        </mesh>
+        {[Math.PI / 4, (3 * Math.PI) / 4, (5 * Math.PI) / 4, (7 * Math.PI) / 4].map((angle, i) => (
+          <mesh
+            key={i}
+            position={[Math.cos(angle) * symbolRadius, 0, Math.sin(angle) * symbolRadius]}
+            rotation={[Math.PI / 2, 0, -angle + Math.PI / 2]}
+          >
+            <coneGeometry args={[0.06, 0.16, 3]} />
+            <meshBasicMaterial color={color} toneMapped={false} />
           </mesh>
         ))}
       </group>
+
+      <mesh position={[0, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[radius * 0.95, radius * 1.08, 64]} />
+        <meshBasicMaterial color={statusColor} transparent opacity={0.5} toneMapped={false} />
+      </mesh>
+
+      <mesh position={[0, -thickness / 2 - 0.01, 0]}>
+        <cylinderGeometry args={[radius * 0.88, radius * 0.9, thickness * 0.18, 40]} />
+        <meshStandardMaterial color="#084d86" roughness={0.45} metalness={0.25} />
+      </mesh>
     </group>
   );
 };
@@ -203,10 +225,10 @@ function DeviceMesh({ device, onClick }) {
   // 智能推断类型
   let effectiveType = renderType;
   const lowerName = (name || '').toLowerCase();
-  if (lowerName.includes('core')) effectiveType = 'core';
+  if (String(device_type || '').toLowerCase().includes('router') || renderType.includes('router')) effectiveType = 'router';
+  else if (lowerName.includes('core')) effectiveType = 'core';
   else if (lowerName.includes('agg')) effectiveType = 'aggregation';
   else if (lowerName.includes('fw') || lowerName.includes('firewall')) effectiveType = 'firewall';
-  else if (renderType.includes('router')) effectiveType = 'router';
   else if (renderType.includes('server')) effectiveType = 'server';
   else if (renderType.includes('pc') || renderType.includes('terminal')) effectiveType = 'pc';
   else if (renderType.includes('switch')) effectiveType = 'access';
@@ -360,7 +382,10 @@ function LinkLine({ link, devices }) {
   ];
   
   const isDown = link.status === 'down';
-  const color = isDown ? '#334155' : '#38bdf8'; // 电光蓝
+  const utilization = Number(link.utilization || 0);
+  const isPeak = Boolean(link.is_peak) || utilization >= 0.75 || String(link.peak_level || '').toLowerCase() === 'high' || String(link.peak_level || '').toLowerCase() === 'critical';
+  const isOptimized = String(link.optimization_state || '').toLowerCase() === 'optimized';
+  const color = isDown ? '#334155' : (isOptimized ? '#22c55e' : (isPeak ? '#ef4444' : '#38bdf8'));
 
   return (
     <group>
@@ -369,7 +394,7 @@ function LinkLine({ link, devices }) {
         points={points}
         color={color}
         lineWidth={2}
-        opacity={isDown ? 0.2 : 0.6}
+        opacity={isDown ? 0.2 : (isPeak ? 0.9 : 0.6)}
         transparent
       />
       {/* 辉光层 (只在连接时显示) */}
@@ -378,7 +403,7 @@ function LinkLine({ link, devices }) {
            points={points}
            color={color}
            lineWidth={5}
-           opacity={0.1}
+           opacity={isPeak ? 0.18 : 0.1}
            transparent
          />
       )}

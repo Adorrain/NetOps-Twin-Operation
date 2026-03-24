@@ -121,14 +121,7 @@ const DevicePanel = () => {
   };
 
   const getVlanInfo = (device) => {
-    const nameMap = new Map();
-    const list = device.vlans || device.configuration?.vlans;
-    if (Array.isArray(list)) {
-      list.forEach(v => {
-        if (v && typeof v === 'object' && v.vlan_id != null) nameMap.set(Number(v.vlan_id), v.name);
-      });
-    }
-    return getAllVlans(device).map(id => ({ id, name: nameMap.get(id) || `VLAN ${id}` }));
+    return getAllVlans(device).map(id => ({ id, name: `VLAN ${id}` }));
   };
 
   const ospfConfig = getOspfConfig(device);
