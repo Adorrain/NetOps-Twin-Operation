@@ -425,29 +425,8 @@ function LinkLine({ link, devices }) {
   const isOptimized = String(link.optimization_state || '').toLowerCase() === 'optimized';
   const color = isDown ? '#334155' : (isOptimized ? '#22c55e' : (isPeak ? '#ef4444' : '#38bdf8'));
 
-  const bandwidthRaw = link.bandwidth;
-  const bandwidth = bandwidthRaw != null && bandwidthRaw !== '' ? String(bandwidthRaw) : '';
-  const utilText = `${Math.round(utilization * 100)}%`;
-  const bwText = bandwidth || 'bw';
-
-  const shouldRenderSideLabels = bandwidthRaw != null || link.utilization != null;
-
   const fromSize = getDeviceRenderSize(from);
   const toSize = getDeviceRenderSize(to);
-  // DeviceMesh 世界坐标：group 位置 y = size[1]/2，因此设备顶部 y = size[1]；这里在顶部再抬一点点
-  const fromTopY = fromSize[1] + 0.22;
-  const toTopY = toSize[1] + 0.22;
-  const labelY = (fromTopY + toTopY) / 2;
-
-  // 根据链路方向，在 XZ 平面取法向量，将文本放在“链路两侧”
-  const lx = to.position.x - from.position.x;
-  const lz = to.position.z - from.position.z;
-  const lLen = Math.max(0.0001, Math.hypot(lx, lz));
-  const nx = -lz / lLen;
-  const nz = lx / lLen;
-  const midX = (from.position.x + to.position.x) / 2;
-  const midZ = (from.position.z + to.position.z) / 2;
-  const sideOffset = 0.45;
 
   return (
     <group>
@@ -470,37 +449,6 @@ function LinkLine({ link, devices }) {
          />
       )}
 
-      {/* 链路两侧标签：利用率 + 带宽 */}
-      {shouldRenderSideLabels && (
-        <>
-          <Text
-            // 利用率：一侧
-            position={[midX + nx * sideOffset, labelY, midZ + nz * sideOffset]}
-            fontSize={0.22}
-            color={color}
-            anchorX="center"
-            anchorY="middle"
-            outlineWidth={0.01}
-            outlineColor="#000000"
-            toneMapped={false}
-          >
-            {utilText}
-          </Text>
-          <Text
-            // 带宽：另一侧
-            position={[midX - nx * sideOffset, labelY, midZ - nz * sideOffset]}
-            fontSize={0.22}
-            color={color}
-            anchorX="center"
-            anchorY="middle"
-            outlineWidth={0.01}
-            outlineColor="#000000"
-            toneMapped={false}
-          >
-            {bwText}
-          </Text>
-        </>
-      )}
     </group>
   );
 }
@@ -578,143 +526,6 @@ function Scene({ topology, onDeviceClick }) {
     return s === 'up' || s === 'active' || s === 'online';
   };
 
-  // area 椭圆虚线：在“两个同区设备”之间画椭圆弧线
-  const DashedEllipseArc = ({ p0, p1, color }) => {
-    const geometry = useMemo(() => {
-      if (!p0 || !p1) return null;
-
-      const dx = p1.x - p0.x;
-      const dz = p1.z - p0.z;
-      const dist = Math.max(0.0001, Math.hypot(dx, dz));
-
-      // 让椭圆的主轴长度严格穿过两个端点：rx=dist/2
-      const rx = dist / 2;
-      // 次轴控制“椭圆弧度”大小；太小看不见
-      const rz = Math.max(1.6, rx * 0.55);
-
-      const cx = (p0.x + p1.x) / 2;
-      const cz = (p0.z + p1.z) / 2;
-
-      const angle = Math.atan2(dz, dx); // 主轴方向在 x-z 平面夹角
-
-      // 画完整椭圆：对称再来一个，形成椭圆边界
-      const N = 220; // 采样点
-      const dashSteps = 10; // 实段步数
-      const gapSteps = 8; // 间隔步数
-      const cycle = dashSteps + gapSteps;
-
-      const positions = [];
-      const y = 0.03;
-
-      // t 从 0 -> 2pi
-      let prev = null;
-      for (let i = 0; i <= N; i++) {
-        const t = (i / N) * Math.PI * 2;
-        const localX = rx * Math.cos(t);
-        const localZ = rz * Math.sin(t);
-
-        // rotate local->world
-        const cosA = Math.cos(angle);
-        const sinA = Math.sin(angle);
-        const x = cx + localX * cosA - localZ * sinA;
-        const z = cz + localX * sinA + localZ * cosA;
-
-        const cur = { x, z };
-
-        if (prev) {
-          const shouldDraw = (i - 1) % cycle < dashSteps;
-          if (shouldDraw) {
-            positions.push(prev.x, y, prev.z, cur.x, y, cur.z);
-          }
-        }
-
-        prev = cur;
-      }
-
-      const g = new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-      return g;
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [p0, p1, color]);
-
-    if (!geometry) return null;
-    return (
-      <lineSegments geometry={geometry}>
-        <lineBasicMaterial
-          color={color}
-          transparent
-          opacity={0.55}
-          toneMapped={false}
-        />
-      </lineSegments>
-    );
-  };
-
-  const areaRings = useMemo(() => {
-    // 按你的描述：把椭圆画在“area0 与 areaX 的设备接口之间”
-    // 实现方式：遍历 topology.links，找到 area 不同的链路；若一端为 area0，另一端为 areaX，则在两端设备之间画椭圆。
-
-    const palette = ['#4ade80', '#38bdf8', '#a78bfa', '#f472b6', '#22d3ee', '#fbbf24', '#60a5fa'];
-
-    const devById = new Map(
-      safe.devices.map(d => [String(d.id), d])
-    );
-
-    const getAreaOfDevice = (dev) => {
-      const raw = dev?.ospf?.area ?? dev?.ospf_area ?? dev?.configuration?.ospf?.area;
-      const n = Number(raw);
-      return Number.isFinite(n) ? n : null;
-    };
-
-    const arcsByArea = new Map(); // areaX -> array of {p0,p1}
-    const midSumByArea = new Map(); // areaX -> {x,z,count}
-
-    const addArc = (areaX, p0, p1) => {
-      if (!arcsByArea.has(areaX)) arcsByArea.set(areaX, []);
-      arcsByArea.get(areaX).push({ p0, p1 });
-    };
-
-    safe.links
-      .filter(l => isLinkActive(l.status))
-      .forEach((link) => {
-        const srcId = link.src_device || link.source || link.sourceDeviceId || link.from;
-        const dstId = link.dst_device || link.target || link.targetDeviceId || link.to;
-        if (srcId == null || dstId == null) return;
-
-        const sDev = devById.get(String(srcId));
-        const dDev = devById.get(String(dstId));
-        if (!sDev || !dDev || !sDev.position || !dDev.position) return;
-
-        const sArea = getAreaOfDevice(sDev);
-        const dArea = getAreaOfDevice(dDev);
-        if (sArea == null || dArea == null) return;
-
-        // area0 内部不画：只画 area0 与其他 area 的“外围边界”
-        if (sArea === dArea) return;
-
-        // 只处理包含 area0 的边：0 <-> X
-        if (sArea === 0 && dArea !== 0) {
-          const areaX = dArea;
-          addArc(areaX, { x: sDev.position.x, z: sDev.position.z }, { x: dDev.position.x, z: dDev.position.z });
-        } else if (dArea === 0 && sArea !== 0) {
-          const areaX = sArea;
-          addArc(areaX, { x: dDev.position.x, z: dDev.position.z }, { x: sDev.position.x, z: sDev.position.z });
-        }
-      });
-
-    return Array.from(arcsByArea.entries())
-      // 完全不绘制 Area 0
-      .filter(([areaId]) => Number(areaId) !== 0)
-      .map(([areaId, arcs]) => {
-      const color = palette[Number(areaId) % palette.length];
-      const mid = {
-        x: arcs.reduce((s, a) => s + (a.p0.x + a.p1.x) / 2, 0) / arcs.length,
-        z: arcs.reduce((s, a) => s + (a.p0.z + a.p1.z) / 2, 0) / arcs.length,
-      };
-      return { areaId, arcs, mid, color };
-    });
-  }, [safe.devices]);
-
   return (
     <>
       <Grid
@@ -727,26 +538,6 @@ function Scene({ topology, onDeviceClick }) {
         cellColor="#1e293b"
         sectionColor="#334155"
       />
-
-      {areaRings.map((r) => (
-        <group key={`area-${r.areaId}`}>
-          {r.arcs.map((a, idx) => (
-            <DashedEllipseArc key={`${r.areaId}-arc-${idx}`} p0={a.p0} p1={a.p1} color={r.color} />
-          ))}
-          <Text
-            position={[r.mid.x, 0.1, r.mid.z]}
-            fontSize={0.3}
-            color={r.color}
-            anchorX="center"
-            anchorY="middle"
-            outlineWidth={0.01}
-            outlineColor="#000000"
-            toneMapped={false}
-          >
-            {`Area ${r.areaId}`}
-          </Text>
-        </group>
-      ))}
 
       {safe.devices.map((device) => (
         <DeviceMesh key={device.id} device={device} onClick={(e) => { e.stopPropagation(); onDeviceClick && onDeviceClick(device); }} />
