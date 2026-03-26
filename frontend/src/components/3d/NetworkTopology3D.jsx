@@ -87,84 +87,68 @@ const RackDevice = ({ size, color, ports = false, isServer = false, statusColor 
   );
 };
 
-// 2. 路由器 (未来派集线器)
-const RouterDevice = ({ size, color, statusColor }) => {
-  const radius = Math.max(size[0], size[2]) * 0.42;
-  const thickness = size[1] * 0.3;
-  const symbolRadius = radius * 0.58;
+const RouterDevice = ({ size, color = "#38bdf8", statusColor = "#22c55e" }) => {
+  const radius = Math.max(size[0], size[2]) * 0.4;
+  // 让路由器在视觉上更接近机架交换机高度比例
+  const thickness = size[1] * 0.5;
+
   return (
     <group>
-      <mesh position={[0, 0, 0]}>
-        <cylinderGeometry args={[radius, radius * 0.97, thickness, 56]} />
-        <meshPhysicalMaterial 
-          color="#0b67b2"
-          roughness={0.28}
-          metalness={0.35}
+      {/* 主体（圆盘） */}
+      <mesh>
+        <cylinderGeometry args={[radius, radius, thickness, 48]} />
+        <meshStandardMaterial
+          color="#475569"
+          roughness={0.45}
+          metalness={0.25}
         />
       </mesh>
 
-      <mesh position={[0, thickness / 2 + 0.005, 0]}>
-        <cylinderGeometry args={[radius * 0.9, radius * 0.88, thickness * 0.14, 56]} />
-        <meshStandardMaterial color="#0d86d9" roughness={0.35} metalness={0.2} />
-      </mesh>
+      {/* 顶部图标（经典路由器“交叉箭头”） */}
+      <group position={[0, thickness / 2 + 0.02, 0]}>
+        {/* 横线 */}
+        <mesh>
+          <boxGeometry args={[radius * 1.2, 0.03, 0.06]} />
+          <meshBasicMaterial color="#e2e8f0" toneMapped={false} />
+        </mesh>
 
-      <group position={[0, thickness / 2 + 0.04, 0]}>
-        <mesh rotation={[0, Math.PI / 4, 0]}>
-          <boxGeometry args={[radius * 1.1, 0.03, 0.09]} />
-          <meshBasicMaterial color="#ffffff" toneMapped={false} />
+        {/* 竖线 */}
+        <mesh rotation={[0, Math.PI / 2, 0]}>
+          <boxGeometry args={[radius * 1.2, 0.03, 0.06]} />
+          <meshBasicMaterial color="#e2e8f0" toneMapped={false} />
         </mesh>
-        <mesh rotation={[0, -Math.PI / 4, 0]}>
-          <boxGeometry args={[radius * 1.1, 0.03, 0.09]} />
-          <meshBasicMaterial color="#ffffff" toneMapped={false} />
-        </mesh>
-        {[Math.PI / 4, (3 * Math.PI) / 4, (5 * Math.PI) / 4, (7 * Math.PI) / 4].map((angle, i) => (
+
+        {/* 四个方向箭头 */}
+        {[0, Math.PI / 2, Math.PI, Math.PI * 1.5].map((angle, i) => (
           <mesh
             key={i}
-            position={[Math.cos(angle) * symbolRadius, 0, Math.sin(angle) * symbolRadius]}
-            rotation={[Math.PI / 2, 0, -angle + Math.PI / 2]}
+            position={[
+              Math.cos(angle) * radius * 0.65,
+              0,
+              Math.sin(angle) * radius * 0.65
+            ]}
+            rotation={[Math.PI / 2, 0, -angle]}
           >
-            <coneGeometry args={[0.06, 0.16, 3]} />
+            <coneGeometry args={[0.05, 0.12, 3]} />
             <meshBasicMaterial color={color} toneMapped={false} />
           </mesh>
         ))}
       </group>
 
-      <mesh position={[0, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[radius * 0.95, radius * 1.08, 64]} />
-        <meshBasicMaterial color={statusColor} transparent opacity={0.5} toneMapped={false} />
-      </mesh>
-
-      <mesh position={[0, -thickness / 2 - 0.01, 0]}>
-        <cylinderGeometry args={[radius * 0.88, radius * 0.9, thickness * 0.18, 40]} />
-        <meshStandardMaterial color="#084d86" roughness={0.45} metalness={0.25} />
-      </mesh>
-    </group>
-  );
-};
-
-// 3. 防火墙 (盾牌/堡垒外观)
-const FirewallDevice = ({ size, color, statusColor }) => {
-  return (
-    <group>
-      {/* 坚固的底座 */}
-      <RoundedBox args={[size[0], size[1], size[2]]} radius={0.1}>
-        <meshPhysicalMaterial color="#450a0a" roughness={0.4} metalness={0.6} />
-      </RoundedBox>
-      
-      {/* 红色全息盾牌效果 */}
-      <mesh position={[0, 0, 0]}>
-        <boxGeometry args={[size[0] + 0.2, size[1] + 0.2, size[2] + 0.2]} />
-        <meshBasicMaterial color={color} wireframe transparent opacity={0.3} toneMapped={false} />
-      </mesh>
-
-      {/* 状态核心 */}
-      <mesh position={[0, 0, size[2]/2 + 0.05]}>
-        <circleGeometry args={[0.3, 32]} />
-        <meshBasicMaterial color={statusColor} toneMapped={false} />
+      {/* 状态环（简化但保留高级感） */}
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[radius * 0.95, radius * 1.05, 48]} />
+        <meshBasicMaterial
+          color={statusColor}
+          transparent
+          opacity={0.6}
+          toneMapped={false}
+        />
       </mesh>
     </group>
   );
 };
+
 
 // 4. 终端/PC (显示器风格)
 const TerminalDevice = ({ size, color, statusColor }) => {
@@ -214,9 +198,9 @@ function DeviceMesh({ device, onClick }) {
     core: { size: [3, 0.8, 2] },
     aggregation: { size: [2.5, 0.6, 1.8] },
     access: { size: [2, 0.5, 1.5] },
+    edge: { size: [2.3, 0.7, 1.7] },
     server: { size: [1.2, 2.5, 1.2] },
-    firewall: { size: [1.5, 1.5, 1.5] },
-    router: { size: [1.8, 1, 1.8] },
+    router: { size: [2, 0.5, 1.5] },
     pc: { size: [0.8, 0.6, 0.1] },
   };
 
@@ -225,23 +209,36 @@ function DeviceMesh({ device, onClick }) {
   // 智能推断类型
   let effectiveType = renderType;
   const lowerName = (name || '').toLowerCase();
-  if (String(device_type || '').toLowerCase().includes('router') || renderType.includes('router')) effectiveType = 'router';
+  const lowerDeviceType = String(device_type || '').toLowerCase();
+  if (lowerDeviceType.includes('router') || renderType.includes('router')) effectiveType = 'router';
   else if (lowerName.includes('core')) effectiveType = 'core';
   else if (lowerName.includes('agg')) effectiveType = 'aggregation';
-  else if (lowerName.includes('fw') || lowerName.includes('firewall')) effectiveType = 'firewall';
-  else if (renderType.includes('server')) effectiveType = 'server';
+  else if (renderType.includes('edge') || renderType.includes('firewall') || lowerName.includes('fw')) effectiveType = 'edge';
+  else if (lowerDeviceType.includes('server') || renderType.includes('server')) effectiveType = 'server';
   else if (renderType.includes('pc') || renderType.includes('terminal')) effectiveType = 'pc';
   else if (renderType.includes('switch')) effectiveType = 'access';
 
-  const { size } = config[effectiveType] || config.access;
+  // 路由器也要“同层级尺寸”，避免路由器永远小一号
+  const sizeType =
+    effectiveType === 'router'
+      ? (renderType.includes('core')
+          ? 'core'
+          : (renderType.includes('aggregation') || renderType.includes('agg'))
+            ? 'aggregation'
+            : (renderType.includes('edge') || renderType.includes('firewall') || lowerName.includes('fw'))
+              ? 'edge'
+            : 'access')
+      : effectiveType;
+
+  const { size } = config[sizeType] || config.access;
 
   // 霓虹配色方案
   const neonColors = {
     core: '#00ffff',       // 青色
     aggregation: '#38bdf8', // 天蓝色
     access: '#3b82f6',     // 蓝色
+    edge: '#f97316',       // 橙色
     router: '#4ade80',     // 霓虹绿
-    firewall: '#f43f5e',   // 霓虹红/粉
     server: '#a855f7',     // 紫色
     pc: '#94a3b8',         // 板岩色
     unknown: '#64748b'
@@ -294,13 +291,12 @@ function DeviceMesh({ device, onClick }) {
       case 'core':
       case 'aggregation':
       case 'access':
+      case 'edge':
         return <RackDevice size={size} color={baseColor} ports={true} statusColor={statusColor} />;
       case 'server':
         return <RackDevice size={size} color={baseColor} isServer={true} statusColor={statusColor} />;
       case 'router':
         return <RouterDevice size={size} color={baseColor} statusColor={statusColor} />;
-      case 'firewall':
-        return <FirewallDevice size={size} color={baseColor} statusColor={statusColor} />;
       case 'pc':
         return <TerminalDevice size={size} color={baseColor} statusColor={statusColor} />;
       default:
@@ -376,16 +372,82 @@ function LinkLine({ link, devices }) {
 
   if (!from || !to || !from.position || !to.position) return null;
 
+  const getDeviceRenderSize = (device) => {
+    const device_type = device?.device_type || device?.deviceType || device?.type;
+    const role = device?.role;
+    const name = device?.name;
+
+    const renderType = (role || device_type || 'access').toLowerCase();
+    let effectiveType = renderType;
+    const lowerName = String(name || '').toLowerCase();
+    const lowerDeviceType = String(device_type || '').toLowerCase();
+
+    if (lowerDeviceType.includes('router') || renderType.includes('router')) effectiveType = 'router';
+    else if (lowerName.includes('core')) effectiveType = 'core';
+    else if (lowerName.includes('agg')) effectiveType = 'aggregation';
+    else if (renderType.includes('edge') || renderType.includes('firewall') || lowerName.includes('fw')) effectiveType = 'edge';
+    else if (lowerDeviceType.includes('server') || renderType.includes('server')) effectiveType = 'server';
+    else if (renderType.includes('pc') || renderType.includes('terminal')) effectiveType = 'pc';
+    else if (renderType.includes('switch')) effectiveType = 'access';
+
+    // 路由器的“尺寸类型”与 DeviceMesh 保持一致
+    const sizeType =
+      effectiveType === 'router'
+        ? (renderType.includes('core')
+            ? 'core'
+            : ((renderType.includes('aggregation') || renderType.includes('agg'))
+                ? 'aggregation'
+                : ((renderType.includes('edge') || renderType.includes('firewall') || lowerName.includes('fw'))
+                    ? 'edge'
+                    : 'access')))
+        : effectiveType;
+
+    const config = {
+      core: { size: [3, 0.8, 2] },
+      aggregation: { size: [2.5, 0.6, 1.8] },
+      access: { size: [2, 0.5, 1.5] },
+      edge: { size: [2.3, 0.7, 1.7] },
+      server: { size: [1.2, 2.5, 1.2] },
+      pc: { size: [0.8, 0.6, 0.1] },
+    };
+
+    return config[sizeType]?.size || config.access.size;
+  };
+
   const points = [
     [from.position.x, 0.5, from.position.z],
     [to.position.x, 0.5, to.position.z],
   ];
   
   const isDown = link.status === 'down';
-  const utilization = Number(link.utilization || 0);
+  const utilization = Number(link.utilization ?? 0);
   const isPeak = Boolean(link.is_peak) || utilization >= 0.75 || String(link.peak_level || '').toLowerCase() === 'high' || String(link.peak_level || '').toLowerCase() === 'critical';
   const isOptimized = String(link.optimization_state || '').toLowerCase() === 'optimized';
   const color = isDown ? '#334155' : (isOptimized ? '#22c55e' : (isPeak ? '#ef4444' : '#38bdf8'));
+
+  const bandwidthRaw = link.bandwidth;
+  const bandwidth = bandwidthRaw != null && bandwidthRaw !== '' ? String(bandwidthRaw) : '';
+  const utilText = `${Math.round(utilization * 100)}%`;
+  const bwText = bandwidth || 'bw';
+
+  const shouldRenderSideLabels = bandwidthRaw != null || link.utilization != null;
+
+  const fromSize = getDeviceRenderSize(from);
+  const toSize = getDeviceRenderSize(to);
+  // DeviceMesh 世界坐标：group 位置 y = size[1]/2，因此设备顶部 y = size[1]；这里在顶部再抬一点点
+  const fromTopY = fromSize[1] + 0.22;
+  const toTopY = toSize[1] + 0.22;
+  const labelY = (fromTopY + toTopY) / 2;
+
+  // 根据链路方向，在 XZ 平面取法向量，将文本放在“链路两侧”
+  const lx = to.position.x - from.position.x;
+  const lz = to.position.z - from.position.z;
+  const lLen = Math.max(0.0001, Math.hypot(lx, lz));
+  const nx = -lz / lLen;
+  const nz = lx / lLen;
+  const midX = (from.position.x + to.position.x) / 2;
+  const midZ = (from.position.z + to.position.z) / 2;
+  const sideOffset = 0.45;
 
   return (
     <group>
@@ -406,6 +468,38 @@ function LinkLine({ link, devices }) {
            opacity={isPeak ? 0.18 : 0.1}
            transparent
          />
+      )}
+
+      {/* 链路两侧标签：利用率 + 带宽 */}
+      {shouldRenderSideLabels && (
+        <>
+          <Text
+            // 利用率：一侧
+            position={[midX + nx * sideOffset, labelY, midZ + nz * sideOffset]}
+            fontSize={0.22}
+            color={color}
+            anchorX="center"
+            anchorY="middle"
+            outlineWidth={0.01}
+            outlineColor="#000000"
+            toneMapped={false}
+          >
+            {utilText}
+          </Text>
+          <Text
+            // 带宽：另一侧
+            position={[midX - nx * sideOffset, labelY, midZ - nz * sideOffset]}
+            fontSize={0.22}
+            color={color}
+            anchorX="center"
+            anchorY="middle"
+            outlineWidth={0.01}
+            outlineColor="#000000"
+            toneMapped={false}
+          >
+            {bwText}
+          </Text>
+        </>
       )}
     </group>
   );
@@ -479,9 +573,148 @@ function FlowParticles({ link, devices }) {
 function Scene({ topology, onDeviceClick }) {
   const safe = normalizeTopology(topology);
   const isLinkActive = (status) => {
+    if (status == null || status === '') return true;
     const s = String(status || '').toLowerCase();
-    return s === 'up' || s === 'active';
+    return s === 'up' || s === 'active' || s === 'online';
   };
+
+  // area 椭圆虚线：在“两个同区设备”之间画椭圆弧线
+  const DashedEllipseArc = ({ p0, p1, color }) => {
+    const geometry = useMemo(() => {
+      if (!p0 || !p1) return null;
+
+      const dx = p1.x - p0.x;
+      const dz = p1.z - p0.z;
+      const dist = Math.max(0.0001, Math.hypot(dx, dz));
+
+      // 让椭圆的主轴长度严格穿过两个端点：rx=dist/2
+      const rx = dist / 2;
+      // 次轴控制“椭圆弧度”大小；太小看不见
+      const rz = Math.max(1.6, rx * 0.55);
+
+      const cx = (p0.x + p1.x) / 2;
+      const cz = (p0.z + p1.z) / 2;
+
+      const angle = Math.atan2(dz, dx); // 主轴方向在 x-z 平面夹角
+
+      // 画完整椭圆：对称再来一个，形成椭圆边界
+      const N = 220; // 采样点
+      const dashSteps = 10; // 实段步数
+      const gapSteps = 8; // 间隔步数
+      const cycle = dashSteps + gapSteps;
+
+      const positions = [];
+      const y = 0.03;
+
+      // t 从 0 -> 2pi
+      let prev = null;
+      for (let i = 0; i <= N; i++) {
+        const t = (i / N) * Math.PI * 2;
+        const localX = rx * Math.cos(t);
+        const localZ = rz * Math.sin(t);
+
+        // rotate local->world
+        const cosA = Math.cos(angle);
+        const sinA = Math.sin(angle);
+        const x = cx + localX * cosA - localZ * sinA;
+        const z = cz + localX * sinA + localZ * cosA;
+
+        const cur = { x, z };
+
+        if (prev) {
+          const shouldDraw = (i - 1) % cycle < dashSteps;
+          if (shouldDraw) {
+            positions.push(prev.x, y, prev.z, cur.x, y, cur.z);
+          }
+        }
+
+        prev = cur;
+      }
+
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      return g;
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [p0, p1, color]);
+
+    if (!geometry) return null;
+    return (
+      <lineSegments geometry={geometry}>
+        <lineBasicMaterial
+          color={color}
+          transparent
+          opacity={0.55}
+          toneMapped={false}
+        />
+      </lineSegments>
+    );
+  };
+
+  const areaRings = useMemo(() => {
+    // 按你的描述：把椭圆画在“area0 与 areaX 的设备接口之间”
+    // 实现方式：遍历 topology.links，找到 area 不同的链路；若一端为 area0，另一端为 areaX，则在两端设备之间画椭圆。
+
+    const palette = ['#4ade80', '#38bdf8', '#a78bfa', '#f472b6', '#22d3ee', '#fbbf24', '#60a5fa'];
+
+    const devById = new Map(
+      safe.devices.map(d => [String(d.id), d])
+    );
+
+    const getAreaOfDevice = (dev) => {
+      const raw = dev?.ospf?.area ?? dev?.ospf_area ?? dev?.configuration?.ospf?.area;
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const arcsByArea = new Map(); // areaX -> array of {p0,p1}
+    const midSumByArea = new Map(); // areaX -> {x,z,count}
+
+    const addArc = (areaX, p0, p1) => {
+      if (!arcsByArea.has(areaX)) arcsByArea.set(areaX, []);
+      arcsByArea.get(areaX).push({ p0, p1 });
+    };
+
+    safe.links
+      .filter(l => isLinkActive(l.status))
+      .forEach((link) => {
+        const srcId = link.src_device || link.source || link.sourceDeviceId || link.from;
+        const dstId = link.dst_device || link.target || link.targetDeviceId || link.to;
+        if (srcId == null || dstId == null) return;
+
+        const sDev = devById.get(String(srcId));
+        const dDev = devById.get(String(dstId));
+        if (!sDev || !dDev || !sDev.position || !dDev.position) return;
+
+        const sArea = getAreaOfDevice(sDev);
+        const dArea = getAreaOfDevice(dDev);
+        if (sArea == null || dArea == null) return;
+
+        // area0 内部不画：只画 area0 与其他 area 的“外围边界”
+        if (sArea === dArea) return;
+
+        // 只处理包含 area0 的边：0 <-> X
+        if (sArea === 0 && dArea !== 0) {
+          const areaX = dArea;
+          addArc(areaX, { x: sDev.position.x, z: sDev.position.z }, { x: dDev.position.x, z: dDev.position.z });
+        } else if (dArea === 0 && sArea !== 0) {
+          const areaX = sArea;
+          addArc(areaX, { x: dDev.position.x, z: dDev.position.z }, { x: sDev.position.x, z: sDev.position.z });
+        }
+      });
+
+    return Array.from(arcsByArea.entries())
+      // 完全不绘制 Area 0
+      .filter(([areaId]) => Number(areaId) !== 0)
+      .map(([areaId, arcs]) => {
+      const color = palette[Number(areaId) % palette.length];
+      const mid = {
+        x: arcs.reduce((s, a) => s + (a.p0.x + a.p1.x) / 2, 0) / arcs.length,
+        z: arcs.reduce((s, a) => s + (a.p0.z + a.p1.z) / 2, 0) / arcs.length,
+      };
+      return { areaId, arcs, mid, color };
+    });
+  }, [safe.devices]);
+
   return (
     <>
       <Grid
@@ -494,6 +727,27 @@ function Scene({ topology, onDeviceClick }) {
         cellColor="#1e293b"
         sectionColor="#334155"
       />
+
+      {areaRings.map((r) => (
+        <group key={`area-${r.areaId}`}>
+          {r.arcs.map((a, idx) => (
+            <DashedEllipseArc key={`${r.areaId}-arc-${idx}`} p0={a.p0} p1={a.p1} color={r.color} />
+          ))}
+          <Text
+            position={[r.mid.x, 0.1, r.mid.z]}
+            fontSize={0.3}
+            color={r.color}
+            anchorX="center"
+            anchorY="middle"
+            outlineWidth={0.01}
+            outlineColor="#000000"
+            toneMapped={false}
+          >
+            {`Area ${r.areaId}`}
+          </Text>
+        </group>
+      ))}
+
       {safe.devices.map((device) => (
         <DeviceMesh key={device.id} device={device} onClick={(e) => { e.stopPropagation(); onDeviceClick && onDeviceClick(device); }} />
       ))}

@@ -50,7 +50,7 @@ devices:
     ip: 10.0.0.11
     netmask: 255.255.255.0
     status: up
-    ospf: { router_id: 11.11.11.11, area: 0 }
+    ospf: { router_id: 11.11.11.11, area: 1 }
     vlans: [{ vlan_id: 10, name: 业务网-1 }]
     interfaces:
       - { name: g0/0, ip: 10.0.1.2, netmask: 255.255.255.252, status: up }
@@ -66,7 +66,7 @@ devices:
     ip: 10.0.0.12
     netmask: 255.255.255.0
     status: up
-    ospf: { router_id: 12.12.12.12, area: 0 }
+    ospf: { router_id: 12.12.12.12, area: 1 }
     vlans: [{ vlan_id: 20, name: 业务网-2 }]
     interfaces:
       - { name: g0/0, ip: 10.0.1.6, netmask: 255.255.255.252, status: up }
@@ -82,7 +82,7 @@ devices:
     ip: 10.0.0.13
     netmask: 255.255.255.0
     status: up
-    ospf: { router_id: 13.13.13.13, area: 0 }
+    ospf: { router_id: 13.13.13.13, area: 2 }
     vlans: [{ vlan_id: 30, name: 业务网-3 }]
     interfaces:
       - { name: g0/0, ip: 10.0.1.18, netmask: 255.255.255.252, status: up }
@@ -98,7 +98,7 @@ devices:
     ip: 10.0.0.14
     netmask: 255.255.255.0
     status: up
-    ospf: { router_id: 14.14.14.14, area: 0 }
+    ospf: { router_id: 14.14.14.14, area: 2 }
     vlans: [{ vlan_id: 40, name: 业务网-4 }]
     interfaces:
       - { name: g0/0, ip: 10.0.1.14, netmask: 255.255.255.252, status: up }
@@ -109,7 +109,7 @@ devices:
 
   - id: server-1
     name: 服务器-1
-    role: server
+    role: terminal
     device_type: server
     ip: 192.168.10.10
     netmask: 255.255.255.0
@@ -128,7 +128,7 @@ devices:
   - {
       id: server-2,
       name: 服务器-2,
-      role: server,
+      role: terminal,
       device_type: server,
       ip: 192.168.10.11,
       netmask: 255.255.255.0,
@@ -149,7 +149,7 @@ devices:
   - {
       id: server-3,
       name: 服务器-3,
-      role: server,
+      role: terminal,
       device_type: server,
       ip: 192.168.10.12,
       netmask: 255.255.255.0,
@@ -171,7 +171,7 @@ devices:
   - {
       id: server-4,
       name: 服务器-4,
-      role: server,
+      role: terminal,
       device_type: server,
       ip: 192.168.20.10,
       netmask: 255.255.255.0,
@@ -192,7 +192,7 @@ devices:
   - {
       id: server-5,
       name: 服务器-5,
-      role: server,
+      role: terminal,
       device_type: server,
       ip: 192.168.20.11,
       netmask: 255.255.255.0,
@@ -213,7 +213,7 @@ devices:
   - {
       id: server-6,
       name: 服务器-6,
-      role: server,
+      role: terminal,
       device_type: server,
       ip: 192.168.20.12,
       netmask: 255.255.255.0,
@@ -235,7 +235,7 @@ devices:
   - {
       id: server-7,
       name: 服务器-7,
-      role: server,
+      role: terminal,
       device_type: server,
       ip: 192.168.30.10,
       netmask: 255.255.255.0,
@@ -256,7 +256,7 @@ devices:
   - {
       id: server-8,
       name: 服务器-8,
-      role: server,
+      role: terminal,
       device_type: server,
       ip: 192.168.30.11,
       netmask: 255.255.255.0,
@@ -277,7 +277,7 @@ devices:
   - {
       id: server-9,
       name: 服务器-9,
-      role: server,
+      role: terminal,
       device_type: server,
       ip: 192.168.30.12,
       netmask: 255.255.255.0,
@@ -299,7 +299,7 @@ devices:
   - {
       id: server-10,
       name: 服务器-10,
-      role: server,
+      role: terminal,
       device_type: server,
       ip: 192.168.40.10,
       netmask: 255.255.255.0,
@@ -320,7 +320,7 @@ devices:
   - {
       id: server-11,
       name: 服务器-11,
-      role: server,
+      role: terminal,
       device_type: server,
       ip: 192.168.40.11,
       netmask: 255.255.255.0,
@@ -341,7 +341,7 @@ devices:
   - {
       id: server-12,
       name: 服务器-12,
-      role: server,
+      role: terminal,
       device_type: server,
       ip: 192.168.40.12,
       netmask: 255.255.255.0,
@@ -438,7 +438,7 @@ links:
     }
 
   - {
-      id: l20,
+      id: l9,
       src_device: leaf-1,
       src_interface: g1/0,
       dst_device: server-1,
@@ -446,7 +446,7 @@ links:
       status: up,
     }
   - {
-      id: l21,
+      id: l10,
       src_device: leaf-1,
       src_interface: g1/1,
       dst_device: server-2,
@@ -454,7 +454,7 @@ links:
       status: up,
     }
   - {
-      id: l22,
+      id: l11,
       src_device: leaf-1,
       src_interface: g1/2,
       dst_device: server-3,
@@ -463,7 +463,7 @@ links:
     }
 
   - {
-      id: l23,
+      id: l12,
       src_device: leaf-2,
       src_interface: g1/0,
       dst_device: server-4,
@@ -471,7 +471,7 @@ links:
       status: up,
     }
   - {
-      id: l24,
+      id: l13,
       src_device: leaf-2,
       src_interface: g1/1,
       dst_device: server-5,
@@ -479,7 +479,7 @@ links:
       status: up,
     }
   - {
-      id: l25,
+      id: l14,
       src_device: leaf-2,
       src_interface: g1/2,
       dst_device: server-6,
@@ -488,7 +488,7 @@ links:
     }
 
   - {
-      id: l26,
+      id: l15,
       src_device: leaf-3,
       src_interface: g1/0,
       dst_device: server-7,
@@ -496,7 +496,7 @@ links:
       status: up,
     }
   - {
-      id: l27,
+      id: l16,
       src_device: leaf-3,
       src_interface: g1/1,
       dst_device: server-8,
@@ -504,7 +504,7 @@ links:
       status: up,
     }
   - {
-      id: l28,
+      id: l17,
       src_device: leaf-3,
       src_interface: g1/2,
       dst_device: server-9,
@@ -513,7 +513,7 @@ links:
     }
 
   - {
-      id: l29,
+      id: l18,
       src_device: leaf-4,
       src_interface: g1/0,
       dst_device: server-10,
@@ -521,7 +521,7 @@ links:
       status: up,
     }
   - {
-      id: l30,
+      id: l19,
       src_device: leaf-4,
       src_interface: g1/1,
       dst_device: server-11,
@@ -529,7 +529,7 @@ links:
       status: up,
     }
   - {
-      id: l31,
+      id: l20,
       src_device: leaf-4,
       src_interface: g1/2,
       dst_device: server-12,
@@ -537,7 +537,7 @@ links:
       status: up,
     }
   - {
-      id: l32,
+      id: l21,
       src_device: core-1,
       src_interface: g0/0,
       dst_device: spine-1,
@@ -546,7 +546,7 @@ links:
       status: up,
     }
   - {
-      id: l33,
+      id: l22,
       src_device: core-1,
       src_interface: g0/1,
       dst_device: spine-2,

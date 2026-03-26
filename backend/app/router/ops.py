@@ -2,6 +2,7 @@
 
 from flask import Blueprint, request, jsonify, abort
 from pydantic import ValidationError
+import time
 
 from app.service.database import get_db
 from app.model.api_schemas import (
@@ -21,16 +22,16 @@ from app.model.api_schemas import (
 from app.dao.snapshot_dao import create_snapshot
 from app.utils.serialization import dump_model
 from app.service.service_session import get_simulation_service
-from app.service.traffic_generator import traffic_generator
+from app.service.traffic_generator import TrafficGenerator
 
-bp = Blueprint("ops", __name__)
+app = Blueprint("ops", __name__)
+traffic_generator = TrafficGenerator()
 
+# ==================== 通用工具 ====================
 
-"""
-获取 JSON 请求体
-"""
 def get_json():
     return request.get_json() or {}
+
 
 def parse_body(model_cls):
     try:
@@ -38,20 +39,15 @@ def parse_body(model_cls):
     except ValidationError as e:
         abort(400, description=str(e))
 
-"""
-构造成功响应体
-"""
+
 def success(message=None, data=None):
     return jsonify({
         "success": True,
-        "status": "success",
         "message": message,
         "data": data
     })
 
-"""
-关于状态变更的操作
-"""
+
 def persist(db, topology, desc, op_type, target, device_id=None):
     snapshot = create_snapshot(db, topology, desc, op_type, target)
 
@@ -59,178 +55,193 @@ def persist(db, topology, desc, op_type, target, device_id=None):
         device = next((d for d in topology.devices if d.id == device_id), None)
         if device:
             return snapshot, dump_model(device, by_alias=True)
+
     return snapshot, None
 
-"""
-关于连通性测试的操作
-"""
-@bp.route("/ping", methods=["POST"])
+
+def get_ctx():
+    """统一获取 service + db"""
+    return get_simulation_service(), get_db()
+
+
+def _ensure_traffic_started(topology):
+    if not hasattr(traffic_generator, "link"):
+        return
+    cost = 10
+    if topology.links:
+        raw = getattr(topology.links[0], "ospf_cost", None)
+        try:
+            cost = max(1, int(raw)) if raw is not None else 10
+        except Exception:
+            cost = 10
+    traffic_generator.start_time = time.time()
+    traffic_generator.start(cost=cost)
+
+
+def _link_bandwidth_mbps(link):
+    raw = getattr(link, "bandwidth", None)
+    if not raw:
+        return 1000.0
+    text = str(raw).strip().lower()
+    try:
+        if text.endswith("g"):
+            return float(text[:-1]) * 1000.0
+        if text.endswith("m"):
+            return float(text[:-1])
+        return float(text)
+    except Exception:
+        return 1000.0
+
+
+def _find_link(topology, link_id):
+    for link in topology.links:
+        if link.id == link_id:
+            return link
+    return None
+
+
+# ==================== 连通性 ====================
+
+@app.route("/ping", methods=["POST"])
 def simulate_ping():
-    service = get_simulation_service()
+    service, _ = get_ctx()
     body = parse_body(PingBody)
-    
-    result = service.ping(body.source_id, body.target_id)
+    return jsonify(service.ping(body.source_id, body.target_id))
 
-    return jsonify(result)
 
-"""
-关于路由跟踪的操作
-"""
-@bp.route("/traceroute", methods=["POST"])
+@app.route("/traceroute", methods=["POST"])
 def simulate_traceroute():
-    service = get_simulation_service()
+    service, _ = get_ctx()
     body = parse_body(TracerouteBody)
-    
-    result = service.traceroute(body.source_id, body.target_id)
+    return jsonify(service.traceroute(body.source_id, body.target_id))
 
-    return jsonify(result)
 
-"""
-关于设备状态的操作
-"""
-@bp.route("/device/status", methods=["POST"])
+# ==================== 设备 ====================
+
+@app.route("/device/status", methods=["POST"])
 def update_device_status():
-    service = get_simulation_service()
-    db = get_db()
+    service, db = get_ctx()
     body = parse_body(DeviceStatusBody)
 
-    device_id = body.device_id
-    status = body.status
+    updated = service.update_device_status(body.device_id, body.status)
 
-    updated = service.update_device_status(device_id, status)
-
-    snapshot, device_data = persist(
-        db,
-        updated,
-        f"Set device {device_id} status to {status}",
+    _, device_data = persist(
+        db, updated,
+        f"Set device {body.device_id} status to {body.status}",
         "DeviceStatus",
-        device_id,
-        device_id,
+        body.device_id,
+        body.device_id,
     )
 
-    return success(f"Device {device_id} is now {status}", device_data)
+    return success(f"Device {body.device_id} is now {body.status}", device_data)
 
-"""
-关于链路状态的操作
-"""
-@bp.route("/link/status", methods=["POST"])
+
+# ==================== 链路 ====================
+
+@app.route("/link/status", methods=["POST"])
 def update_link_status():
-    service = get_simulation_service()
-    db = get_db()
+    service, db = get_ctx()
     body = parse_body(LinkStatusBody)
 
-    link_id = body.link_id
-    src_id = body.src_id
-    dst_id = body.dst_id
-    status = body.status
-
-    if link_id:
-        updated = service.update_link_status(link_id, status)
-        target = link_id
-    elif src_id and dst_id:
-        updated = service.find_and_update_link(src_id, dst_id, status)
-        target = f"{src_id}<->{dst_id}"
+    if body.link_id:
+        updated = service.update_link_status(body.link_id, body.status)
+        target = body.link_id
+    elif body.src_id and body.dst_id:
+        updated = service.find_and_update_link(body.src_id, body.dst_id, body.status)
+        target = f"{body.src_id}<->{body.dst_id}"
     else:
         abort(400, description="Provide link_id OR (src_id and dst_id)")
 
-    snapshot, _ = persist(db, updated, f"Set link {target} status to {status}", "LinkStatus", target)
+    persist(db, updated,
+            f"Set link {target} status to {body.status}",
+            "LinkStatus",
+            target)
 
-    return success(f"Link {target} is now {status}")
+    return success(f"Link {target} is now {body.status}")
 
-"""
-关于接口状态的操作
-"""
-@bp.route("/interface/status", methods=["POST"])
+
+# ==================== 接口 ====================
+
+@app.route("/interface/status", methods=["POST"])
 def update_interface_status():
-    service = get_simulation_service()
-    db = get_db()
+    service, db = get_ctx()
     body = parse_body(InterfaceStatusBody)
 
-    device_id = body.device_id
-    iface = body.iface_name
-    status = body.status
-
-    updated = service.update_interface_status(device_id, iface, status)
-
-    snapshot, device_data = persist(
-        db,
-        updated,
-        f"Set {device_id} interface {iface} to {status}",
-        "InterfaceStatus",
-        f"{device_id}:{iface}",
-        device_id,
+    updated = service.update_interface_status(
+        body.device_id, body.iface_name, body.status
     )
 
-    return success(f"Interface {iface} on {device_id} is now {status}", device_data)
+    _, device_data = persist(
+        db, updated,
+        f"Set {body.device_id} interface {body.iface_name} to {body.status}",
+        "InterfaceStatus",
+        f"{body.device_id}:{body.iface_name}",
+        body.device_id,
+    )
 
-"""
-关于VLAN的操作，包括分配、移除和配置
-"""
-@bp.route("/vlan/remove", methods=["POST"])
+    return success(
+        f"Interface {body.iface_name} on {body.device_id} is now {body.status}",
+        device_data
+    )
+
+
+# ==================== VLAN ====================
+
+@app.route("/vlan/remove", methods=["POST"])    
 def remove_vlan():
-    service = get_simulation_service()
-    db = get_db()
+    service, db = get_ctx()
     body = parse_body(VlanPortBody)
 
-    device_id = body.device_id
-    port = body.port
+    updated = service.remove_vlan(body.device_id, body.port)
 
-    updated = service.remove_vlan(device_id, port)
-
-    snapshot, device_data = persist(
-        db,
-        updated,
-        f"Removed VLAN from {device_id}:{port}",
+    _, device_data = persist(
+        db, updated,
+        f"Removed VLAN from {body.device_id}:{body.port}",
         "VLAN_Remove",
-        f"{device_id}:{port}",
-        device_id,
+        f"{body.device_id}:{body.port}",
+        body.device_id,
     )
 
     return success("VLAN removed", device_data)
 
 
-@bp.route("/vlan/configure", methods=["POST"])
+
+@app.route("/vlan/configure", methods=["POST"])
 def configure_vlan():
-    service = get_simulation_service()
-    db = get_db()
+    service, db = get_ctx()
     body = parse_body(VlanConfigureBody)
 
-    device_id = body.device_id
-    port = body.port
-
     updated = service.configure_vlan(
-        device_id,
-        port,
+        body.device_id,
+        body.port,
         body.mode,
         body.vlan_id,
         body.allowed_vlans,
     )
 
-    snapshot, device_data = persist(
-        db,
-        updated,
-        f"Configured VLAN on {device_id}:{port}",
+    _, device_data = persist(
+        db, updated,
+        f"Configured VLAN on {body.device_id}:{body.port}",
         "VLAN_Configure",
-        f"{device_id}:{port}",
-        device_id,
+        f"{body.device_id}:{body.port}",
+        body.device_id,
     )
 
     return success("VLAN configured", device_data)
 
-"""
-关于OSPF配置的操作
-"""
-@bp.route("/ospf/config", methods=["POST"])
+
+# ==================== OSPF ====================
+@app.route("/ospf/config", methods=["POST"])
 def update_ospf_config():
-    service = get_simulation_service()
-    db = get_db()
+    service, db = get_ctx()
     body = parse_body(OSPFConfigBody)
 
-    updated = service.update_ospf_config(body.device_id, body.area, body.router_id)
+    updated = service.update_ospf_config(
+        body.device_id, body.area, body.router_id
+    )
 
-    snapshot, device_data = persist(
-        db,
-        updated,
+    _, device_data = persist(
+        db, updated,
         f"Updated OSPF config for {body.device_id}",
         "OSPF_Config",
         body.device_id,
@@ -240,65 +251,89 @@ def update_ospf_config():
     return success("OSPF config updated", device_data)
 
 
-@bp.route("/ospf/neighbors", methods=["POST"])
+@app.route("/ospf/neighbors", methods=["POST"])
 def get_ospf_neighbors():
-    service = get_simulation_service()
+    service, _ = get_ctx()
     body = parse_body(OSPFNeighborsBody)
-    neighbors = service.get_ospf_neighbors(body.device_id)
-    return success(data=neighbors)
+
+    return success(data=service.get_ospf_neighbors(body.device_id))
 
 
-@bp.route("/ospf/cost/suggest", methods=["POST"])
+@app.route("/ospf/cost/suggest", methods=["POST"])
 def suggest_ospf_cost():
-    service = get_simulation_service()
+    service, _ = get_ctx()
     body = parse_body(OSPFCostSuggestBody)
-    try:
-        data = traffic_generator.suggest_cost_for_link(service.topology, body.link_id)
-    except KeyError:
+    _ensure_traffic_started(service.topology)
+    link = _find_link(service.topology, body.link_id)
+    if not link:
         abort(404, description=f"Link {body.link_id} not found in current topology")
+    util = float(traffic_generator.step())
+    current_cost = int(getattr(link, "ospf_cost", 1) or 1)
+    if util >= 0.75:
+        recommended_cost = max(current_cost + 1, int(round(current_cost * util / 0.70)))
+    elif util <= 0.35:
+        recommended_cost = max(1, current_cost - 1)
+    else:
+        recommended_cost = current_cost
+    data = {
+        "link_id": body.link_id,
+        "current_mbps": round(util * _link_bandwidth_mbps(link), 3),
+        "current_utilization": round(util, 4),
+        "current_cost": current_cost,
+        "recommended_cost": int(recommended_cost),
+    }
     return success("cost suggestion generated", data)
 
 
-@bp.route("/ospf/cost/update", methods=["POST"])
+@app.route("/ospf/cost/update", methods=["POST"])
 def update_ospf_cost():
-    service = get_simulation_service()
-    db = get_db()
+    service, db = get_ctx()
     body = parse_body(OSPFCostUpdateBody)
-
-    traffic_generator.ensure_started(service.topology)
-    runtime = traffic_generator.apply_cost(body.link_id, body.new_cost)
-    updated = service.update_ospf_link_cost(body.link_id, body.new_cost)
+    link = _find_link(service.topology, body.link_id)
+    if not link:
+        abort(404, description=f"Link {body.link_id} not found in current topology")
+    new_cost = int(max(1, body.new_cost))
+    traffic_generator.set_cost(new_cost)
+    updated = service.update_ospf_link_cost(body.link_id, new_cost)
     persist(
         db,
         updated,
-        f"Updated OSPF cost for link {body.link_id} to {runtime['new_cost']}",
+        f"Updated OSPF cost for link {body.link_id} to {new_cost}",
         "OSPF_Link_Cost",
         body.link_id,
     )
-    return success("cost updated", runtime)
+    return success("cost updated", {"link_id": body.link_id, "new_cost": new_cost})
 
 
-@bp.route("/traffic/peak/simulate", methods=["POST"])
+@app.route("/traffic/simulate", methods=["POST"])
 def simulate_peak_for_single_link():
-    service = get_simulation_service()
-    db = get_db()
+    service, db = get_ctx()
     body = parse_body(TrafficPeakLinkBody)
-    try:
-        panel = traffic_generator.simulate_peak_for_link(service.topology, body.link_id)
-    except KeyError:
+    _ensure_traffic_started(service.topology)
+    link = _find_link(service.topology, body.link_id)
+    if not link:
         abort(404, description=f"Link {body.link_id} not found in current topology")
-    current_cost = int(panel.get("current_cost", 1) or 1)
-    emergency_cost = max(current_cost + 30, current_cost * 20)
-    traffic_generator.apply_cost(body.link_id, emergency_cost)
-    updated = service.update_ospf_link_cost(body.link_id, emergency_cost)
+    current_cost = int(getattr(link, "ospf_cost", 1) or 1)
+    traffic_generator.link["base_util"] = max(0.9, 0.9 * current_cost)
+    util = float(traffic_generator.step())
+    series = [round(v * _link_bandwidth_mbps(link), 3) for v in traffic_generator.get_history(window=20)]
+    current_mbps = round(util * _link_bandwidth_mbps(link), 3)
+    updated = service.update_ospf_link_cost(body.link_id, current_cost)
     persist(
         db,
         updated,
-        f"Peak simulated on {body.link_id}, temporary cost raised to {emergency_cost}",
+        f"Peak simulated on {body.link_id}",
         "OSPF_Peak_Avoidance",
         body.link_id,
     )
-    panel["current_cost"] = emergency_cost
-    panel["recommended_cost"] = emergency_cost
-    panel["policy"] = "avoid_peak_path_first"
+    panel = {
+        "link_id": body.link_id,
+        "series_mbps": series,
+        "current_cost": current_cost,
+        "realtime_link": {
+            "current_mbps": current_mbps,
+            "utilization": round(util, 4),
+            "peak_level": "high" if util >= 0.75 else "normal",
+        },
+    }
     return success("single link peak simulated", panel)

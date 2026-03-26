@@ -9,16 +9,21 @@ const { Dragger } = Upload;
 
 const inferRole = (device) => {
   const name = String(device?.name || '').toLowerCase();
-  if (device?.role) return String(device.role).toLowerCase();
+  const rawRole = String(device?.role || '').toLowerCase();
+  if (rawRole) {
+    if (rawRole === 'firewall' || rawRole === 'dmz') return 'edge';
+    if (['core', 'aggregation', 'access', 'edge', 'terminal'].includes(rawRole)) return rawRole;
+    return 'terminal';
+  }
   if (name.includes('核心') || name.includes('core')) return 'core';
   if (name.includes('汇聚') || name.includes('agg') || name.includes('distribution')) return 'aggregation';
-  if (name.includes('接入') || name.includes('access') || name.includes('edge')) return 'access';
-  if (name.includes('防火墙') || name.includes('firewall') || name.includes('fw')) return 'firewall';
+  if (name.includes('接入') || name.includes('access')) return 'access';
+  if (name.includes('边界') || name.includes('edge') || name.includes('防火墙') || name.includes('firewall') || name.includes('fw')) return 'edge';
   const t = String(device?.deviceType || device?.device_type || device?.type || '').toLowerCase();
   if (t === 'router') return 'core';
   if (t === 'switch' || t === 'l2_switch') return 'access';
   if (t === 'l3_switch') return 'aggregation';
-  if (t === 'firewall') return 'firewall';
+  if (t === 'firewall') return 'edge';
   return 'terminal';
 };
 
@@ -26,9 +31,11 @@ const calculateLayout = (devices) => {
   const core = devices.filter((d) => inferRole(d) === 'core');
   const agg = devices.filter((d) => inferRole(d) === 'aggregation');
   const access = devices.filter((d) => inferRole(d) === 'access');
-  const others = devices.filter((d) => !['core', 'aggregation', 'access'].includes(inferRole(d)));
+  const edge = devices.filter((d) => inferRole(d) === 'edge');
+  const terminal = devices.filter((d) => inferRole(d) === 'terminal');
   const layout = {};
   const spacingX = 6;
+  const terminalSpacingX = spacingX / 2;
   core.forEach((d, i) => {
     layout[d.id] = { x: (i - (core.length - 1) / 2) * spacingX, y: 0, z: -5 };
   });
@@ -38,8 +45,11 @@ const calculateLayout = (devices) => {
   access.forEach((d, i) => {
     layout[d.id] = { x: (i - (access.length - 1) / 2) * spacingX, y: 0, z: 9 };
   });
-  others.forEach((d, i) => {
-    layout[d.id] = { x: (i - (others.length - 1) / 2) * (spacingX / 2), y: 0, z: 15 };
+  edge.forEach((d, i) => {
+    layout[d.id] = { x: (i - (edge.length - 1) / 2) * spacingX, y: 0, z: 15 };
+  });
+  terminal.forEach((d, i) => {
+    layout[d.id] = { x: (i - (terminal.length - 1) / 2) * terminalSpacingX, y: 0, z: 21 };
   });
   return layout;
 };

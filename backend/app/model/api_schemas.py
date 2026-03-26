@@ -60,7 +60,7 @@ class OSPFNeighborsBody(BaseModel):
     device_id: str
 
 
-class TrafficPeakLinkBody(BaseModel):
+class TrafficLinkBody(BaseModel):
     link_id: str
 
 
@@ -71,3 +71,9 @@ class OSPFCostSuggestBody(BaseModel):
 class OSPFCostUpdateBody(BaseModel):
     link_id: str
     new_cost: int
+
+
+class TrafficPeakLinkBody(BaseModel):
+    link_id: str
+
+

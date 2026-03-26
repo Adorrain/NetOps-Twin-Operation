@@ -7,7 +7,7 @@
 
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { ConfigProvider, theme, Layout, Typography, Empty } from 'antd';
+import { Layout, Typography, Empty } from 'antd';
 import MainLayout from './components/layout/MainLayout';
 import NetworkTopology3D from './components/3d/NetworkTopology3D';
 import DevicePanel from './components/ui/DevicePanel';
@@ -26,7 +26,6 @@ const AppContent = () => {
   const { networkTopology, setSelectedDevice, updateUI } = useAppStore();
   const location = useLocation();
   const navigate = useNavigate();
-  const { token } = theme.useToken();
 
   useEffect(() => {
     const path = location.pathname.substring(1) || 'topology';
@@ -44,8 +43,8 @@ const AppContent = () => {
     <Routes>
       <Route path="/" element={<Navigate to="/topology" replace />} />
       <Route path="/topology" element={
-        <Layout style={{ height: '100%', background: 'transparent' }}>
-          <Content style={{ position: 'relative', background: 'transparent', borderRadius: 16, overflow: 'hidden' }}>
+        <Layout className="app-route-layout">
+          <Content className="app-topology-content">
              {networkTopology ? (
                <NetworkTopology3D 
                  key={networkTopology.id || 'default-topo'}
@@ -53,12 +52,12 @@ const AppContent = () => {
                  onDeviceClick={(device) => setSelectedDevice(device?.id)}
                />
              ) : (
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div className="app-empty-wrapper">
                    <Empty
                       image={Empty.PRESENTED_IMAGE_SIMPLE}
                       description={
-                        <div style={{ color: token.colorTextSecondary }}>
-                          <Title level={3} style={{ color: 'rgba(255,255,255,0.55)', margin: 0 }}>NO TOPOLOGY</Title>
+                        <div className="app-empty-description">
+                          <Title level={3} className="app-empty-title">NO TOPOLOGY</Title>
                           <Text type="secondary">请先前往「配置上传」加载拓扑</Text>
                         </div>
                       }
@@ -68,38 +67,26 @@ const AppContent = () => {
              <DevicePanel />
           </Content>
 
-          <Sider 
-            width={400} 
-            theme="dark" 
-            style={{ 
-              borderLeft: '1px solid rgba(255,255,255,0.1)', 
-              background: 'rgba(15, 23, 42, 0.8)', 
-              backdropFilter: 'blur(10px)'
-            }}
-          >
-             <div style={{ 
-               padding: '16px 24px', 
-               borderBottom: '1px solid rgba(255,255,255,0.1)',
-               background: 'rgba(15, 23, 42, 0.95)'
-             }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 4, height: 24, background: 'linear-gradient(to bottom, #1890ff, #096dd9)', borderRadius: 2 }} />
-                  <Title level={4} style={{ margin: 0, color: '#fff', fontSize: 18 }}>NetOps Console</Title>
+          <Sider width={400} theme="dark" className="app-console-sider">
+             <div className="app-console-header">
+                <div className="app-console-header-title-wrap">
+                  <div className="app-console-header-bar" />
+                  <Title level={4} className="app-console-title">NetOps Console</Title>
                 </div>
              </div>
-             <div style={{ height: 'calc(100% - 65px)', overflowY: 'auto', padding: 16 }}>
+             <div className="app-console-body">
                <OpsConsole />
              </div>
           </Sider>
         </Layout>
       } />
       <Route path="/upload" element={
-        <div style={{ padding: 24, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="app-upload-page">
           <ConfigUploader onConfigLoaded={handleConfigLoaded} />
         </div>
       } />
       <Route path="/monitoring" element={
-        <div style={{ height: '100%', overflow: 'hidden' }}>
+        <div className="app-monitoring-page">
           <MonitoringPanel />
         </div>
       } />
@@ -112,46 +99,11 @@ const AppContent = () => {
  */
 function App() {
   return (
-    <ConfigProvider
-      theme={{
-        algorithm: theme.darkAlgorithm,
-        token: {
-          colorPrimary: '#3b82f6',
-          colorInfo: '#3b82f6',
-          colorSuccess: '#10b981',
-          borderRadius: 12,
-          fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
-          colorBgLayout: 'transparent',
-          colorBgContainer: 'rgba(2, 6, 23, 0.55)',
-          colorFillSecondary: 'rgba(255, 255, 255, 0.06)',
-          colorFillTertiary: 'rgba(255, 255, 255, 0.04)',
-          colorBorderSecondary: 'rgba(255, 255, 255, 0.10)',
-        },
-        components: {
-          Layout: {
-            headerBg: 'rgba(2, 6, 23, 0.65)',
-            siderBg: 'rgba(2, 6, 23, 0.65)',
-            bodyBg: 'transparent',
-          },
-          Menu: {
-            darkItemBg: 'transparent',
-            darkSubMenuItemBg: 'transparent',
-            darkItemHoverBg: 'rgba(255, 255, 255, 0.06)',
-            darkItemSelectedBg: 'rgba(59, 130, 246, 0.18)',
-            darkItemSelectedColor: '#e6f4ff',
-            itemBorderRadius: 12,
-            itemHeight: 44,
-            itemMarginInline: 8,
-          },
-        },
-      }}
-    >
-      <BrowserRouter>
-        <MainLayout>
-          <AppContent />
-        </MainLayout>
-      </BrowserRouter>
-    </ConfigProvider>
+    <BrowserRouter>
+      <MainLayout>
+        <AppContent />
+      </MainLayout>
+    </BrowserRouter>
   );
 }
 

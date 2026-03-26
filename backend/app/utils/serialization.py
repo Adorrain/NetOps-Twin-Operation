@@ -34,46 +34,25 @@ def dump_model(obj, *, by_alias: bool = False):
 """
   校验YAML文件合法性
 """
-def check_topology(data: Dict[str, Any]) -> None:
-    """
-    判断文件的数据格式是否为JSON格式
-    """
+def check_topology(data):
     if not isinstance(data, dict):
-        raise TopologyValidationError("数据格式错误")
-    
-    """
-    判断设备和链路字段合法性
-    """
-    devices = data.get("devices", [])
-    links = data.get("links", [])
-    if not isinstance(devices, list) or not isinstance(links, list):
-        raise TopologyValidationError("设备和链路应该为列表格式")
+        raise ValueError("拓扑数据必须是 JSON")
 
-    """
-    判断设备 ID 合法性
-    """
-    device_ids = []
-    for d in devices:
-        dev_id = d.get("id")
-        if not isinstance(dev_id, str):
-            raise TopologyValidationError("设备 ID 必须为字符串")
-        device_ids.append(dev_id)
-    if len(device_ids) != len(set(device_ids)):
-        raise TopologyValidationError("设备 ID 不能重复")
-    device_id_set = set(device_ids)
-    
-    """
-    判断链路 ID 合法性
-    """
-    link_ids = []
+    devices = data.get("devices")
+    links = data.get("links")
+    device_list = {d.get("id") for d in devices if isinstance(d, dict)}
+
+    # 校验设备
+    if not device_list:
+        raise ValueError("没有设备")
+
+    # 校验链路
     for l in links:
-        link_id = l.get("id")
-        if not isinstance(link_id, str):
-            raise TopologyValidationError("链路 ID 必须为字符串")
-        link_ids.append(link_id)
-        if l.get("src_device") not in device_id_set:
-            raise TopologyValidationError(f"未知的源设备: {l.get('src_device')}")
-        if l.get("dst_device") not in device_id_set:
-            raise TopologyValidationError(f"未知的目标设备: {l.get('dst_device')}")
-    if len(link_ids) != len(set(link_ids)):
-        raise TopologyValidationError("链路 ID 不能重复")
+        if not isinstance(l, dict):
+            raise ValueError("链路格式错误")
+
+        if l.get("src_device") not in device_list:
+            raise ValueError(f"链路源设备不存在: {l.get('src_device')}")
+
+        if l.get("dst_device") not in device_list:
+            raise ValueError(f"链路目标设备不存在: {l.get('dst_device')}")

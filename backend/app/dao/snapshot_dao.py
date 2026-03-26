@@ -66,7 +66,7 @@ def create_snapshot(
 
     log = OperationLog(
         operation_type=op_type,
-        target_id=target,
+        trigger_device=target,
         details=description,
     )
     db.add(log)

@@ -19,8 +19,8 @@ _cors_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
 CORS(app, resources={r"/api.*": {"origins": _cors_origins}})
 
 # 注册蓝图
-app.register_blueprint(topology.bp, url_prefix="/api")
-app.register_blueprint(ops.bp, url_prefix="/api/ops")
+app.register_blueprint(topology.app, url_prefix="/api")
+app.register_blueprint(ops.app, url_prefix="/api/ops")
 
 # 注册数据库会话清理（请求结束时自动关闭数据库会话）
 app.teardown_appcontext(close_db)
