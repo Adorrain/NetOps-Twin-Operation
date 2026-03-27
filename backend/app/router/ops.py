@@ -2,19 +2,15 @@
 
 from flask import Blueprint, request, jsonify, abort
 from pydantic import ValidationError
-import time
 
 from app.service.database import get_db
 from app.model.api_schemas import (
     DeviceStatusBody,
     InterfaceStatusBody,
     LinkStatusBody,
-    OSPFCostSuggestBody,
-    OSPFCostUpdateBody,
     OSPFConfigBody,
     OSPFNeighborsBody,
     PingBody,
-    TrafficPeakLinkBody,
     TracerouteBody,
     VlanConfigureBody,
     VlanPortBody,
@@ -22,10 +18,8 @@ from app.model.api_schemas import (
 from app.dao.snapshot_dao import create_snapshot
 from app.utils.serialization import dump_model
 from app.service.service_session import get_simulation_service
-from app.service.traffic_generator import TrafficGenerator
 
 app = Blueprint("ops", __name__)
-traffic_generator = TrafficGenerator()
 
 # ==================== 通用工具 ====================
 
@@ -62,42 +56,6 @@ def persist(db, topology, desc, op_type, target, device_id=None):
 def get_ctx():
     """统一获取 service + db"""
     return get_simulation_service(), get_db()
-
-
-def _ensure_traffic_started(topology):
-    if not hasattr(traffic_generator, "link"):
-        return
-    cost = 10
-    if topology.links:
-        raw = getattr(topology.links[0], "ospf_cost", None)
-        try:
-            cost = max(1, int(raw)) if raw is not None else 10
-        except Exception:
-            cost = 10
-    traffic_generator.start_time = time.time()
-    traffic_generator.start(cost=cost)
-
-
-def _link_bandwidth_mbps(link):
-    raw = getattr(link, "bandwidth", None)
-    if not raw:
-        return 1000.0
-    text = str(raw).strip().lower()
-    try:
-        if text.endswith("g"):
-            return float(text[:-1]) * 1000.0
-        if text.endswith("m"):
-            return float(text[:-1])
-        return float(text)
-    except Exception:
-        return 1000.0
-
-
-def _find_link(topology, link_id):
-    for link in topology.links:
-        if link.id == link_id:
-            return link
-    return None
 
 
 # ==================== 连通性 ====================
@@ -257,83 +215,3 @@ def get_ospf_neighbors():
     body = parse_body(OSPFNeighborsBody)
 
     return success(data=service.get_ospf_neighbors(body.device_id))
-
-
-@app.route("/ospf/cost/suggest", methods=["POST"])
-def suggest_ospf_cost():
-    service, _ = get_ctx()
-    body = parse_body(OSPFCostSuggestBody)
-    _ensure_traffic_started(service.topology)
-    link = _find_link(service.topology, body.link_id)
-    if not link:
-        abort(404, description=f"Link {body.link_id} not found in current topology")
-    util = float(traffic_generator.step())
-    current_cost = int(getattr(link, "ospf_cost", 1) or 1)
-    if util >= 0.75:
-        recommended_cost = max(current_cost + 1, int(round(current_cost * util / 0.70)))
-    elif util <= 0.35:
-        recommended_cost = max(1, current_cost - 1)
-    else:
-        recommended_cost = current_cost
-    data = {
-        "link_id": body.link_id,
-        "current_mbps": round(util * _link_bandwidth_mbps(link), 3),
-        "current_utilization": round(util, 4),
-        "current_cost": current_cost,
-        "recommended_cost": int(recommended_cost),
-    }
-    return success("cost suggestion generated", data)
-
-
-@app.route("/ospf/cost/update", methods=["POST"])
-def update_ospf_cost():
-    service, db = get_ctx()
-    body = parse_body(OSPFCostUpdateBody)
-    link = _find_link(service.topology, body.link_id)
-    if not link:
-        abort(404, description=f"Link {body.link_id} not found in current topology")
-    new_cost = int(max(1, body.new_cost))
-    traffic_generator.set_cost(new_cost)
-    updated = service.update_ospf_link_cost(body.link_id, new_cost)
-    persist(
-        db,
-        updated,
-        f"Updated OSPF cost for link {body.link_id} to {new_cost}",
-        "OSPF_Link_Cost",
-        body.link_id,
-    )
-    return success("cost updated", {"link_id": body.link_id, "new_cost": new_cost})
-
-
-@app.route("/traffic/simulate", methods=["POST"])
-def simulate_peak_for_single_link():
-    service, db = get_ctx()
-    body = parse_body(TrafficPeakLinkBody)
-    _ensure_traffic_started(service.topology)
-    link = _find_link(service.topology, body.link_id)
-    if not link:
-        abort(404, description=f"Link {body.link_id} not found in current topology")
-    current_cost = int(getattr(link, "ospf_cost", 1) or 1)
-    traffic_generator.link["base_util"] = max(0.9, 0.9 * current_cost)
-    util = float(traffic_generator.step())
-    series = [round(v * _link_bandwidth_mbps(link), 3) for v in traffic_generator.get_history(window=20)]
-    current_mbps = round(util * _link_bandwidth_mbps(link), 3)
-    updated = service.update_ospf_link_cost(body.link_id, current_cost)
-    persist(
-        db,
-        updated,
-        f"Peak simulated on {body.link_id}",
-        "OSPF_Peak_Avoidance",
-        body.link_id,
-    )
-    panel = {
-        "link_id": body.link_id,
-        "series_mbps": series,
-        "current_cost": current_cost,
-        "realtime_link": {
-            "current_mbps": current_mbps,
-            "utilization": round(util, 4),
-            "peak_level": "high" if util >= 0.75 else "normal",
-        },
-    }
-    return success("single link peak simulated", panel)

@@ -21,10 +21,7 @@ import { getDisplayVlanId } from '../../utils/net';
  * ===========================
  */
 /**
- * 标准化拓扑数据结构，兼容不同字段命名与缺省情况。
- *
- * @param {any} raw 原始拓扑对象。
- * @returns {{devices:any[], links:any[], flows:any[], alerts:any[]}} 标准化后的拓扑对象。
+ * 标准化拓扑数据结构，兼容不同字段命名与缺省情况
  */
 function normalizeTopology(raw) {
   return {
