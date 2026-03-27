@@ -7,7 +7,7 @@ RUN npm ci
 
 COPY . /app
 
-ARG VITE_API_BASE=https://api.demo.zfank.site/api
+ARG VITE_API_BASE=/api
 ENV VITE_API_BASE=${VITE_API_BASE}
 
 RUN npm run build

@@ -1,9 +1,11 @@
 demo.zfank.site {
   encode zstd gzip
-  reverse_proxy frontend:80
-}
 
-api.demo.zfank.site {
-  encode zstd gzip
-  reverse_proxy backend:8000
+  handle /api/* {
+    reverse_proxy netops-backend:8000
+  }
+
+  handle {
+    reverse_proxy netops-frontend:80
+  }
 }
