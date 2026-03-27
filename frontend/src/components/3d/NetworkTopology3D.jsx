@@ -42,22 +42,18 @@ function normalizeTopology(raw) {
 const RackDevice = ({ size, color, ports = false, isServer = false, statusColor }) => {
   return (
     <group>
-      {/* 机箱主体 - 金属质感 (降低金属度以适应本地光照) */}
       <RoundedBox args={size} radius={0.05} smoothness={4}>
         <meshStandardMaterial 
-          color="#475569" // 提亮颜色 (Slate-600)
+          color="#475569" 
           roughness={0.4}
-          metalness={0.3} // 降低金属度，避免在无 HDR 环境下变黑
+          metalness={0.3} 
         />
       </RoundedBox>
       
-      {/* 前面板发光条 (状态指示) */}
       <mesh position={[0, size[1]/2 - 0.05, size[2]/2 + 0.01]}>
         <boxGeometry args={[size[0] * 0.9, 0.05, 0.02]} />
         <meshBasicMaterial color={statusColor} toneMapped={false} />
       </mesh>
-
-      {/* 端口面板 */}
       {ports && (
         <group position={[0, 0, size[2]/2 + 0.01]}>
           {Array.from({ length: 8 }).map((_, i) => (
@@ -68,8 +64,6 @@ const RackDevice = ({ size, color, ports = false, isServer = false, statusColor 
           ))}
         </group>
       )}
-
-      {/* 服务器特有的闪烁灯 */}
       {isServer && (
         <group position={[size[0]/3, size[1]/4, size[2]/2 + 0.01]}>
            {[0, 1, 2].map(i => (
@@ -86,7 +80,6 @@ const RackDevice = ({ size, color, ports = false, isServer = false, statusColor 
 
 const RouterDevice = ({ size, color = "#38bdf8", statusColor = "#22c55e" }) => {
   const radius = Math.max(size[0], size[2]) * 0.4;
-  // 让路由器在视觉上更接近机架交换机高度比例
   const thickness = size[1] * 0.5;
 
   return (
@@ -101,21 +94,15 @@ const RouterDevice = ({ size, color = "#38bdf8", statusColor = "#22c55e" }) => {
         />
       </mesh>
 
-      {/* 顶部图标（经典路由器“交叉箭头”） */}
       <group position={[0, thickness / 2 + 0.02, 0]}>
-        {/* 横线 */}
         <mesh>
           <boxGeometry args={[radius * 1.2, 0.03, 0.06]} />
           <meshBasicMaterial color="#e2e8f0" toneMapped={false} />
         </mesh>
-
-        {/* 竖线 */}
         <mesh rotation={[0, Math.PI / 2, 0]}>
           <boxGeometry args={[radius * 1.2, 0.03, 0.06]} />
           <meshBasicMaterial color="#e2e8f0" toneMapped={false} />
         </mesh>
-
-        {/* 四个方向箭头 */}
         {[0, Math.PI / 2, Math.PI, Math.PI * 1.5].map((angle, i) => (
           <mesh
             key={i}
@@ -131,8 +118,6 @@ const RouterDevice = ({ size, color = "#38bdf8", statusColor = "#22c55e" }) => {
           </mesh>
         ))}
       </group>
-
-      {/* 状态环（简化但保留高级感） */}
       <mesh rotation={[Math.PI / 2, 0, 0]}>
         <ringGeometry args={[radius * 0.95, radius * 1.05, 48]} />
         <meshBasicMaterial
@@ -151,28 +136,21 @@ const RouterDevice = ({ size, color = "#38bdf8", statusColor = "#22c55e" }) => {
 const TerminalDevice = ({ size, color, statusColor }) => {
   return (
     <group>
-      {/* 屏幕 */}
       <RoundedBox args={[size[0], size[1]*0.8, 0.1]} radius={0.05} position={[0, size[1]/2, 0]}>
         <meshPhysicalMaterial color="#0f172a" roughness={0.2} metalness={0.8} />
       </RoundedBox>
-      {/* 屏幕内容 (发光) */}
       <mesh position={[0, size[1]/2, 0.06]}>
         <planeGeometry args={[size[0] - 0.1, size[1]*0.8 - 0.1]} />
         <meshBasicMaterial color={color} toneMapped={false} opacity={0.8} transparent />
       </mesh>
-      
-      {/* 状态灯 (状态指示器) */}
       <mesh position={[size[0]/2 - 0.05, size[1]/2 - 0.25, 0.06]}>
         <circleGeometry args={[0.02, 16]} />
         <meshBasicMaterial color={statusColor} toneMapped={false} />
       </mesh>
-
-      {/* 支架 */}
       <mesh position={[0, 0, -0.2]}>
         <cylinderGeometry args={[0.05, 0.1, 0.5]} />
         <meshStandardMaterial color="#334155" />
       </mesh>
-      {/* 底座 */}
       <mesh position={[0, -0.25, -0.2]}>
         <boxGeometry args={[0.4, 0.05, 0.4]} />
         <meshStandardMaterial color="#334155" />
@@ -189,8 +167,6 @@ const TerminalDevice = ({ size, color, statusColor }) => {
 function DeviceMesh({ device, onClick }) {
   const { position = { x: 0, y: 0, z: 0 }, role, name, status, metrics } = device;
   const device_type = device.device_type || device.deviceType || device.type;
-  
-  // 尺寸配置
   const config = {
     core: { size: [3, 0.8, 2] },
     aggregation: { size: [2.5, 0.6, 1.8] },
@@ -202,8 +178,6 @@ function DeviceMesh({ device, onClick }) {
   };
 
   const renderType = (role || device_type || 'access').toLowerCase();
-  
-  // 智能推断类型
   let effectiveType = renderType;
   const lowerName = (name || '').toLowerCase();
   const lowerDeviceType = String(device_type || '').toLowerCase();
@@ -215,7 +189,6 @@ function DeviceMesh({ device, onClick }) {
   else if (renderType.includes('pc') || renderType.includes('terminal')) effectiveType = 'pc';
   else if (renderType.includes('switch')) effectiveType = 'access';
 
-  // 路由器也要“同层级尺寸”，避免路由器永远小一号
   const sizeType =
     effectiveType === 'router'
       ? (renderType.includes('core')
@@ -243,12 +216,7 @@ function DeviceMesh({ device, onClick }) {
 
   const baseColor = neonColors[effectiveType] || neonColors.access;
 
-  // ---------------------------
-  // VLAN 颜色逻辑 (新特性)
-  // ---------------------------
   const vlanId = getDisplayVlanId(device);
-  
-  // 预定义一组高辨识度的 VLAN 霓虹色
   const vlanPalette = [
     '#f472b6', // 粉色 (VLAN N)
     '#22d3ee', // 青色
@@ -260,29 +228,25 @@ function DeviceMesh({ device, onClick }) {
     '#c084fc', // 紫罗兰色
   ];
 
-  // 如果有 VLAN ID，则计算颜色；否则回退到 baseColor
   const ringColor = vlanId 
     ? vlanPalette[parseInt(vlanId) % vlanPalette.length] 
     : baseColor;
 
-  // 状态颜色
   let statusColor = '#22c55e'; // 绿色 (正常)
   if (status === 'offline' || status === 'down') statusColor = '#64748b';
   if (status === 'warning') statusColor = '#eab308';
   if (status === 'error') statusColor = '#ef4444';
 
-  // DDoS 效果
   const isHighLoad = metrics && (metrics.cpuUsage > 90 || metrics.networkIn > 8000);
   const meshRef = useRef();
 
   useFrame(({ clock }) => {
      if (isHighLoad && meshRef.current) {
         const t = (Math.sin(clock.getElapsedTime() * 10) + 1) / 2;
-        meshRef.current.position.y = (size[1]/2) + (t * 0.1); // 紧张的抖动
+        meshRef.current.position.y = (size[1]/2) + (t * 0.1);
      }
   });
 
-  // 渲染不同模型
   const renderModel = () => {
     switch (effectiveType) {
       case 'core':
@@ -307,12 +271,10 @@ function DeviceMesh({ device, onClick }) {
       position={[position.x, size[1] / 2, position.z]} 
       onClick={(e) => { e.stopPropagation(); onClick && onClick(e); }}
     >
-      {/* 悬浮动画容器 */}
       <Float speed={2} rotationIntensity={0.2} floatIntensity={0.2}>
         {renderModel()}
       </Float>
 
-      {/* 设备名称 (公告牌效果) */}
       <Text
         position={[0, size[1] + 0.5, 0]}
         fontSize={0.4}
@@ -326,19 +288,17 @@ function DeviceMesh({ device, onClick }) {
         {isHighLoad && "\n⚠ HIGH LOAD"}
       </Text>
 
-      {/* 选中/交互光圈 (VLAN 指示器) */}
       <mesh position={[0, -size[1]/2 + 0.02, 0]} rotation={[-Math.PI/2, 0, 0]}>
         <ringGeometry args={[size[0]/2, size[0]/2 + 0.15, 32]} />
         <meshBasicMaterial 
             color={ringColor} 
-            opacity={vlanId ? 0.6 : 0.3} // 有VLAN时更亮
+            opacity={vlanId ? 0.6 : 0.3}
             transparent 
             side={THREE.DoubleSide} 
-            toneMapped={false} // 配合Bloom发光
+            toneMapped={false}
         />
       </mesh>
 
-      {/* 可选：VLAN 文字标签 (仅当有VLAN时显示在脚下) */}
       {vlanId && (
         <Text
           position={[0, -size[1]/2 + 0.02, size[0]/2 + 0.4]}
@@ -387,7 +347,6 @@ function LinkLine({ link, devices }) {
     else if (renderType.includes('pc') || renderType.includes('terminal')) effectiveType = 'pc';
     else if (renderType.includes('switch')) effectiveType = 'access';
 
-    // 路由器的“尺寸类型”与 DeviceMesh 保持一致
     const sizeType =
       effectiveType === 'router'
         ? (renderType.includes('core')
@@ -431,12 +390,10 @@ function LinkLine({ link, devices }) {
 
   const fromSize = getDeviceRenderSize(from);
   const toSize = getDeviceRenderSize(to);
-  // DeviceMesh 世界坐标：group 位置 y = size[1]/2，因此设备顶部 y = size[1]；这里在顶部再抬一点点
   const fromTopY = fromSize[1] + 0.22;
   const toTopY = toSize[1] + 0.22;
   const labelY = (fromTopY + toTopY) / 2;
 
-  // 根据链路方向，在 XZ 平面取法向量，将文本放在“链路两侧”
   const lx = to.position.x - from.position.x;
   const lz = to.position.z - from.position.z;
   const lLen = Math.max(0.0001, Math.hypot(lx, lz));
@@ -448,7 +405,6 @@ function LinkLine({ link, devices }) {
 
   return (
     <group>
-      {/* 核心光束 */}
       <Line
         points={points}
         color={color}
@@ -456,7 +412,6 @@ function LinkLine({ link, devices }) {
         opacity={isDown ? 0.2 : (isPeak ? 0.9 : 0.6)}
         transparent
       />
-      {/* 辉光层 (只在连接时显示) */}
       {!isDown && (
          <Line
            points={points}
@@ -467,11 +422,9 @@ function LinkLine({ link, devices }) {
          />
       )}
 
-      {/* 链路两侧标签：利用率 + 带宽 */}
       {shouldRenderSideLabels && (
         <>
           <Text
-            // 利用率：一侧
             position={[midX + nx * sideOffset, labelY, midZ + nz * sideOffset]}
             fontSize={0.22}
             color={color}
@@ -484,7 +437,6 @@ function LinkLine({ link, devices }) {
             {utilText}
           </Text>
           <Text
-            // 带宽：另一侧
             position={[midX - nx * sideOffset, labelY, midZ - nz * sideOffset]}
             fontSize={0.22}
             color={color}
@@ -514,13 +466,10 @@ function FlowParticles({ link, devices }) {
   const from = devices.find((d) => String(d.id) === String(srcId));
   const to = devices.find((d) => String(d.id) === String(dstId));
   
-  // 先计算派生状态 (即使 from/to 未定义也是安全的)
   const isDDoS = to?.metrics && to.metrics.cpuUsage > 90;
   
-  // Hooks 必须无条件调用
   const particlesRef = useRef();
   
-  // 减少粒子数量但增加亮度
   const particleCount = isDDoS ? 20 : 5;
   const speed = isDDoS ? 3.0 : 1.0;
   const color = isDDoS ? '#ff0000' : '#00ffff'; // 青色或红色
@@ -533,7 +482,6 @@ function FlowParticles({ link, devices }) {
   }, [particleCount]);
 
   useFrame(({ clock }) => {
-    // 在帧循环内检查是否存在
     if (!particlesRef.current || !from || !to) return;
     
     const start = new THREE.Vector3(from.position.x, 0.5, from.position.z);
@@ -550,7 +498,6 @@ function FlowParticles({ link, devices }) {
     positions.needsUpdate = true;
   });
 
-  // 仅在 hooks 之后提前返回以进行渲染
   if (!from || !to) return null;
 
   return (
@@ -561,7 +508,7 @@ function FlowParticles({ link, devices }) {
         size={0.15}
         transparent
         opacity={1}
-        toneMapped={false} // 对 Bloom 效果至关重要
+        toneMapped={false}
       />
     </points>
   );
@@ -575,7 +522,6 @@ function Scene({ topology, onDeviceClick }) {
     return s === 'up' || s === 'active' || s === 'online';
   };
 
-  // area 椭圆虚线：在“两个同区设备”之间画椭圆弧线
   const DashedEllipseArc = ({ p0, p1, color }) => {
     const geometry = useMemo(() => {
       if (!p0 || !p1) return null;
@@ -584,33 +530,28 @@ function Scene({ topology, onDeviceClick }) {
       const dz = p1.z - p0.z;
       const dist = Math.max(0.0001, Math.hypot(dx, dz));
 
-      // 让椭圆的主轴长度严格穿过两个端点：rx=dist/2
       const rx = dist / 2;
-      // 次轴控制“椭圆弧度”大小；太小看不见
       const rz = Math.max(1.6, rx * 0.55);
 
       const cx = (p0.x + p1.x) / 2;
       const cz = (p0.z + p1.z) / 2;
 
-      const angle = Math.atan2(dz, dx); // 主轴方向在 x-z 平面夹角
+      const angle = Math.atan2(dz, dx);
 
-      // 画完整椭圆：对称再来一个，形成椭圆边界
-      const N = 220; // 采样点
-      const dashSteps = 10; // 实段步数
-      const gapSteps = 8; // 间隔步数
+      const N = 220;
+      const dashSteps = 10;
+      const gapSteps = 8;
       const cycle = dashSteps + gapSteps;
 
       const positions = [];
       const y = 0.03;
 
-      // t 从 0 -> 2pi
       let prev = null;
       for (let i = 0; i <= N; i++) {
         const t = (i / N) * Math.PI * 2;
         const localX = rx * Math.cos(t);
         const localZ = rz * Math.sin(t);
 
-        // rotate local->world
         const cosA = Math.cos(angle);
         const sinA = Math.sin(angle);
         const x = cx + localX * cosA - localZ * sinA;
@@ -631,7 +572,6 @@ function Scene({ topology, onDeviceClick }) {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
       return g;
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [p0, p1, color]);
 
     if (!geometry) return null;
@@ -648,9 +588,6 @@ function Scene({ topology, onDeviceClick }) {
   };
 
   const areaRings = useMemo(() => {
-    // 按你的描述：把椭圆画在“area0 与 areaX 的设备接口之间”
-    // 实现方式：遍历 topology.links，找到 area 不同的链路；若一端为 area0，另一端为 areaX，则在两端设备之间画椭圆。
-
     const palette = ['#4ade80', '#38bdf8', '#a78bfa', '#f472b6', '#22d3ee', '#fbbf24', '#60a5fa'];
 
     const devById = new Map(
@@ -663,8 +600,8 @@ function Scene({ topology, onDeviceClick }) {
       return Number.isFinite(n) ? n : null;
     };
 
-    const arcsByArea = new Map(); // areaX -> array of {p0,p1}
-    const midSumByArea = new Map(); // areaX -> {x,z,count}
+    const arcsByArea = new Map();
+    const midSumByArea = new Map();
 
     const addArc = (areaX, p0, p1) => {
       if (!arcsByArea.has(areaX)) arcsByArea.set(areaX, []);
@@ -686,10 +623,8 @@ function Scene({ topology, onDeviceClick }) {
         const dArea = getAreaOfDevice(dDev);
         if (sArea == null || dArea == null) return;
 
-        // area0 内部不画：只画 area0 与其他 area 的“外围边界”
         if (sArea === dArea) return;
 
-        // 只处理包含 area0 的边：0 <-> X
         if (sArea === 0 && dArea !== 0) {
           const areaX = dArea;
           addArc(areaX, { x: sDev.position.x, z: sDev.position.z }, { x: dDev.position.x, z: dDev.position.z });
@@ -700,7 +635,6 @@ function Scene({ topology, onDeviceClick }) {
       });
 
     return Array.from(arcsByArea.entries())
-      // 完全不绘制 Area 0
       .filter(([areaId]) => Number(areaId) !== 0)
       .map(([areaId, arcs]) => {
       const color = palette[Number(areaId) % palette.length];
@@ -764,14 +698,12 @@ export default function NetworkTopology3D({ topology, onDeviceClick }) {
         <Canvas
           shadows
           camera={{ position: [15, 12, 15], fov: 45 }}
-          dpr={[1, 2]} // 优化高分屏
+          dpr={[1, 2]}
         >
-          {/* 环境与光照 - 均衡亮度版 */}
           <ambientLight intensity={1.5} />
           <hemisphereLight intensity={1.0} groundColor="#1e293b" skyColor="#ffffff" />
           <directionalLight position={[10, 10, 5]} intensity={2.5} castShadow />
           <pointLight position={[-10, 10, -10]} intensity={2.0} />
-          {/* <Environment preset="city" /> */} 
 
           <Suspense fallback={
             <Html center>
@@ -783,8 +715,6 @@ export default function NetworkTopology3D({ topology, onDeviceClick }) {
           }>
             <Scene topology={topology} onDeviceClick={onDeviceClick} />
           </Suspense>
-
-          {/* 后处理特效 (美化部分) */}
           <EffectComposer disableNormalPass>
             <Bloom 
                 luminanceThreshold={1.2} 

@@ -8,14 +8,21 @@
 
 from flask import Flask
 from flask_cors import CORS
+import os
 from app.router import topology, ops
 from app.service.database import close_db, init_db
 
 # 创建 Flask 实例
 app = Flask(__name__)
 
-# 配置 CORS：允许前端开发地址访问 /api 下所有接口
-_cors_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+# 配置 CORS：支持本地开发和生产域名，可由环境变量 CORS_ORIGINS 覆盖（逗号分隔）
+_default_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://demo.zfank.site",
+]
+_cors_origins_env = os.getenv("CORS_ORIGINS", "").strip()
+_cors_origins = [o.strip() for o in _cors_origins_env.split(",") if o.strip()] if _cors_origins_env else _default_origins
 CORS(app, resources={r"/api.*": {"origins": _cors_origins}})
 
 # 注册蓝图
