@@ -227,7 +227,7 @@ links:
       dst_device: core-2,
       dst_interface: g0/0,
       status: up,
-      bandwidth: 10G,
+      bandwidth: 1G,
     }
   - {
       id: l2,

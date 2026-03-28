@@ -22,6 +22,9 @@ from app.model.db_models import TopologySnapshot
 class SimulationService:
     """基于拓扑的仿真服务：运行时图、L2/L3 可达性、转发路径、状态与配置管理。"""
 
+    # OSPF 参考带宽（Mbps），与 Cisco 默认 100 Mbps 不同；此处按需求固定为 1G
+    OSPF_REFERENCE_BANDWIDTH_MBPS: float = 1000.0
+
     def __init__(
         self,
         topology_data: TopologyData,
@@ -43,6 +46,8 @@ class SimulationService:
         self.graph = self._build_physical_graph()
         self.ospf_graph = self._build_ospf_graph()
         self.routing_tables = self._build_routing_tables()
+        self._apply_interface_ospf_costs()
+        self._annotate_ospf_reference_bandwidth()
 
     def _normalize_config(self) -> None:
         for dev in self.topology.devices:
@@ -122,21 +127,43 @@ class SimulationService:
 
 
     def _get_link_cost(self, link) -> int:
+        """OSPF 接口 cost：手动 ospf_cost 优先，否则 参考带宽(Mbps) / 链路带宽(Mbps)，最小为 1。"""
         if getattr(link, "ospf_cost", None):
             return max(1, int(link.ospf_cost))
 
-        bw = str(getattr(link, "bandwidth", "1000")).lower()
-        try:
-            if bw.endswith("g"):
-                mbps = float(bw[:-1]) * 1000
-            elif bw.endswith("m"):
-                mbps = float(bw[:-1])
-            else:
-                mbps = float(bw)
-        except:
-            mbps = 1000
+        mbps = self._bandwidth_to_mbps(getattr(link, "bandwidth", None))
+        raw = float(self.OSPF_REFERENCE_BANDWIDTH_MBPS) / max(1.0, mbps)
+        return max(1, int(round(raw)))
 
-        return max(1, int(1000 / max(1, mbps)))
+    def _apply_interface_ospf_costs(self) -> None:
+        """按链路带宽计算出的 cost 写入对应接口，供设备面板展示。"""
+        for dev in self.topology.devices:
+            for iface in dev.interfaces:
+                if isinstance(iface, dict) and "ospf_cost" in iface:
+                    del iface["ospf_cost"]
+        for link in self.topology.links:
+            cost = self._get_link_cost(link)
+            for dev_id, if_name in (
+                (link.src_device, link.src_interface),
+                (link.dst_device, link.dst_interface),
+            ):
+                if not dev_id or not if_name:
+                    continue
+                dev = self.device_map.get(dev_id)
+                if not dev:
+                    continue
+                iface = self._get_interface(dev, if_name)
+                if iface is not None:
+                    iface["ospf_cost"] = cost
+
+    def _annotate_ospf_reference_bandwidth(self) -> None:
+        ref = int(self.OSPF_REFERENCE_BANDWIDTH_MBPS)
+        for dev in self.topology.devices:
+            if not self._get_ospf_config(dev):
+                continue
+            if not dev.configuration:
+                dev.configuration = {}
+            dev.configuration["ospf_reference_bandwidth_mbps"] = ref
 
     def _bandwidth_to_mbps(self, bandwidth: Optional[str]) -> float:
         raw = str(bandwidth or "1000").strip().lower()
@@ -276,8 +303,9 @@ class SimulationService:
     def _build_ospf_graph(self) -> nx.Graph:
         G = nx.Graph()
 
+        # 已配置 OSPF 即参与 LSDB（路由表生成不等待邻居 Full 的延时）
         for dev in self.topology.devices:
-            if self._is_ospf_ready(dev):
+            if self._get_ospf_config(dev):
                 G.add_node(dev.id)
 
         for u, v, data in self.graph.edges(data=True):
@@ -289,9 +317,12 @@ class SimulationService:
 
             uo = self._get_ospf_config(self.device_map[u])
             vo = self._get_ospf_config(self.device_map[v])
+            if not uo or not vo:
+                continue
+            if not self._ospf_areas_allow_adjacency(uo, vo):
+                continue
 
-            if uo and vo and uo.get("area", 0) == vo.get("area", 0):
-                G.add_edge(u, v, weight=data.get("weight", 1))
+            G.add_edge(u, v, weight=float(data.get("weight", 1)))
 
         return G
 
@@ -353,8 +384,77 @@ class SimulationService:
             for r in routes
         ]
 
+    def _normalize_prefix_key(self, prefix: str) -> str:
+        try:
+            return str(ipaddress.ip_network(prefix, strict=False))
+        except Exception:
+            return str(prefix)
 
-    # ==================== 路由表（重点修复） ====================
+    def _iface_to_network_prefix(self, iface: Dict[str, Any]) -> Optional[str]:
+        """从接口解析直连网段（支持 ip 带掩码或 ip + netmask 分字段）。"""
+        ip = iface.get("ip")
+        if not ip:
+            return None
+        raw = str(ip).strip()
+        if "/" in raw:
+            try:
+                return str(ipaddress.ip_interface(raw).network)
+            except Exception:
+                return None
+        nm = iface.get("netmask")
+        if nm:
+            try:
+                addr = ipaddress.IPv4Address(raw.split("/")[0])
+                iface_obj = ipaddress.IPv4Interface((addr, str(nm)))
+                return str(iface_obj.network)
+            except Exception:
+                pass
+        try:
+            return str(ipaddress.ip_interface(f"{raw.split('/')[0]}/32").network)
+        except Exception:
+            return None
+
+    def _ospf_areas_allow_adjacency(self, uo: Dict[str, Any], vo: Dict[str, Any]) -> bool:
+        """同区域可邻接；骨干(area0)与非骨干之间视为 ABR 邻接（教学用简化）。"""
+        au = int(uo.get("area", 0))
+        av = int(vo.get("area", 0))
+        if au == av:
+            return True
+        if au == 0 or av == 0:
+            return True
+        return False
+
+    def _should_install_ospf_route(self, existing: Optional[Dict], new_cost: int) -> bool:
+        """OSPF 不覆盖直连与静态；仅与其它 OSPF 按更小 cost 择优。"""
+        if existing is None:
+            return True
+        ep = existing.get("protocol")
+        if ep in ("CONNECTED", "STATIC"):
+            return False
+        if ep == "OSPF":
+            return new_cost < int(existing.get("cost", 999999))
+        return False
+
+    def _sort_routes_for_display(self, routes: List[Dict]) -> List[Dict]:
+        proto_rank = {"CONNECTED": 0, "STATIC": 1, "OSPF": 2}
+
+        def sort_key(r: Dict) -> tuple:
+            p = str(r.get("prefix", ""))
+            try:
+                net = ipaddress.ip_network(p, strict=False)
+                plen = int(net.prefixlen)
+            except Exception:
+                plen = 0
+            return (
+                proto_rank.get(str(r.get("protocol", "")), 9),
+                -plen,
+                int(r.get("cost", 0)),
+                p,
+            )
+
+        return sorted(routes, key=sort_key)
+
+    # ==================== 路由表 ====================
 
     def _build_routing_tables(self) -> Dict[str, List[Dict]]:
         tables = {}
@@ -363,57 +463,60 @@ class SimulationService:
             if not self._is_l3_device(src):
                 continue
 
-            route_map = {}
+            route_map: Dict[str, Dict] = {}
 
             # ===== 直连 =====
             for iface in self.device_map[src].interfaces:
-                if iface.get("ip"):
-                    net = str(ipaddress.ip_interface(iface["ip"]).network)
-                    route_map[net] = {
-                        "prefix": net,
-                        "protocol": "CONNECTED",
-                        "cost": 0,
-                        "next_hop": None,
-                        "out_interface": iface.get("name"),
-                    }
+                net = self._iface_to_network_prefix(iface)
+                if not net:
+                    continue
+                key = self._normalize_prefix_key(net)
+                route_map[key] = {
+                    "prefix": key,
+                    "protocol": "CONNECTED",
+                    "cost": 0,
+                    "next_hop": None,
+                    "out_interface": iface.get("name"),
+                }
 
             # ===== 静态 =====
             for r in self._get_static_routes(self.device_map[src]):
-                route_map[r["prefix"]] = r
+                if not r.get("prefix"):
+                    continue
+                key = self._normalize_prefix_key(r["prefix"])
+                route_map[key] = {**r, "prefix": key}
 
             # ===== OSPF =====
             if src in self.ospf_graph:
                 try:
-                    lengths, paths = nx.single_source_dijkstra(self.ospf_graph, src)
+                    lengths, paths = nx.single_source_dijkstra(self.ospf_graph, src, weight="weight")
 
                     for dst, path in paths.items():
-                        if src == dst:
+                        if src == dst or len(path) < 2:
                             continue
 
                         next_hop = path[1]
-                        cost = lengths[dst]
+                        cost = int(lengths[dst])
                         out_if = self._get_local_interface_on_link(src, next_hop)
 
                         for iface in self.device_map[dst].interfaces:
-                            if not iface.get("ip"):
+                            net = self._iface_to_network_prefix(iface)
+                            if not net:
                                 continue
-
-                            net = str(ipaddress.ip_interface(iface["ip"]).network)
-
-                            # ✅ 关键：最优路径覆盖
-                            if net not in route_map or route_map[net]["cost"] > cost:
-                                route_map[net] = {
-                                    "prefix": net,
+                            key = self._normalize_prefix_key(net)
+                            existing = route_map.get(key)
+                            if self._should_install_ospf_route(existing, cost):
+                                route_map[key] = {
+                                    "prefix": key,
                                     "protocol": "OSPF",
                                     "cost": cost,
                                     "next_hop": next_hop,
                                     "out_interface": out_if,
                                 }
-
-                except:
+                except Exception:
                     pass
 
-            routes = list(route_map.values())
+            routes = self._sort_routes_for_display(list(route_map.values()))
             tables[src] = routes
             self._save_routing_table_to_device(self.device_map[src], routes)
 

@@ -125,6 +125,7 @@ const DevicePanel = () => {
   };
 
   const ospfConfig = getOspfConfig(device);
+  const ospfRefBwMbps = device.configuration?.ospf_reference_bandwidth_mbps;
   const routingTable = getRoutingTable(device);
   const vlanList = getVlanInfo(device);
   const dType = device.role || device.device_type;
@@ -232,6 +233,16 @@ const DevicePanel = () => {
                 </span>
             );
         } 
+    },
+    {
+        title: 'OSPF Cost',
+        key: 'ospf_cost',
+        width: 96,
+        render: (_, record) => {
+          const v = record.ospf_cost;
+          if (v == null || v === '') return <span style={{ color: '#64748b' }}>-</span>;
+          return <span style={{ fontFamily: 'monospace', color: '#4ade80', fontWeight: 600 }}>{v}</span>;
+        }
     }
   ];
 
@@ -420,7 +431,7 @@ const DevicePanel = () => {
                             <div style={{ background: 'rgba(30, 41, 59, 0.8)', padding: '8px 16px', borderBottom: '1px solid rgba(51, 65, 85, 0.5)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 600, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                 <ArrowUpOutlined style={{ color: '#4ade80' }} /> OSPF 协议
                              </div>
-                             <div style={{ padding: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                             <div style={{ padding: 16, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
                                 <div style={{ background: 'rgba(15, 23, 42, 0.3)', padding: 12, borderRadius: 8, border: '1px solid rgba(51, 65, 85, 0.3)' }}>
                                     <span style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>路由器 ID</span>
                                     <span style={{ fontFamily: 'monospace', color: '#e2e8f0', fontWeight: 700 }}>{ospfConfig.router_id}</span>
@@ -428,6 +439,12 @@ const DevicePanel = () => {
                                 <div style={{ background: 'rgba(15, 23, 42, 0.3)', padding: 12, borderRadius: 8, border: '1px solid rgba(51, 65, 85, 0.3)' }}>
                                     <span style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>区域 (Area)</span>
                                     <span style={{ fontFamily: 'monospace', color: '#4ade80', fontWeight: 700, fontSize: 16 }}>{ospfConfig.area}</span>
+                                </div>
+                                <div style={{ background: 'rgba(15, 23, 42, 0.3)', padding: 12, borderRadius: 8, border: '1px solid rgba(51, 65, 85, 0.3)' }}>
+                                    <span style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>参考带宽</span>
+                                    <span style={{ fontFamily: 'monospace', color: '#93c5fd', fontWeight: 700 }}>
+                                      {ospfRefBwMbps != null ? `${ospfRefBwMbps} Mbps (1G)` : '1000 Mbps (1G)'}
+                                    </span>
                                 </div>
                              </div>
                         </div>
