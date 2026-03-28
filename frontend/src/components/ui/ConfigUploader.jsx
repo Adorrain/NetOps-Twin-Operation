@@ -101,7 +101,8 @@ const buildFrontendTopology = (cfg) => {
     status: c.status || 'up',
     from: String(c.src_device_id || c.src_device || c.source || c.sourceDeviceId),
     to: String(c.dst_device_id || c.dst_device || c.target || c.targetDeviceId),
-    bandwidth: c.bandwidth || 1000,
+    // 优先使用脚本中的带宽配置，不再强制回落固定值
+    bandwidth: c.bandwidth,
     latency: c.latency || 1,
     packetLoss: c.packet_loss || 0
   }));
@@ -110,6 +111,7 @@ const buildFrontendTopology = (cfg) => {
     name: cfg.topology?.name || cfg.name || '导入的拓扑',
     description: cfg.description,
     devices,
+    links: connections,
     connections,
     createdAt: new Date(),
     updatedAt: new Date()

@@ -27,6 +27,7 @@
 #       dst_device: core-2,       # 目的设备ID
 #       dst_interface: g0/0,      # 目的接口名称
 #       status: up,       # 链路状态，up、down、maintenance
+#       bandwidth: 1G,       # 链路带宽
 #     } # 链路信息，包括链路ID、源设备ID、源接口名称、目的设备ID、目的接口名称、链路状态
 
 
@@ -226,6 +227,7 @@ links:
       dst_device: core-2,
       dst_interface: g0/0,
       status: up,
+      bandwidth: 10G,
     }
   - {
       id: l2,
@@ -234,6 +236,7 @@ links:
       dst_device: agg-1,
       dst_interface: g1/0,
       status: up,
+      bandwidth: 1G,
     }
   - {
       id: l3,
@@ -242,6 +245,7 @@ links:
       dst_device: agg-2,
       dst_interface: g1/0,
       status: up,
+      bandwidth: 1G,
     }
   - {
       id: l4,
@@ -250,6 +254,7 @@ links:
       dst_device: agg-1,
       dst_interface: g1/1,
       status: up,
+      bandwidth: 1G,
     }
   - {
       id: l5,
@@ -258,6 +263,7 @@ links:
       dst_device: agg-2,
       dst_interface: g1/1,
       status: up,
+      bandwidth: 1G,
     }
   - {
       id: l6,
@@ -266,6 +272,7 @@ links:
       dst_device: access-1,
       dst_interface: g1/0,
       status: up,
+      bandwidth: 1G,
     }
   - {
       id: l7,
@@ -282,6 +289,7 @@ links:
       dst_device: edge-1,
       dst_interface: g0/0,
       status: up,
+      bandwidth: 1G,
     }
   - {
       id: l9,
@@ -290,6 +298,7 @@ links:
       dst_device: edge-2,
       dst_interface: g0/0,
       status: up,
+      bandwidth: 1G,
     }
   - {
       id: l10,
@@ -298,6 +307,7 @@ links:
       dst_device: pc-1,
       dst_interface: eth0,
       status: up,
+      bandwidth: 1G,
     }
   - {
       id: l11,
@@ -306,6 +316,7 @@ links:
       dst_device: pc-2,
       dst_interface: eth0,
       status: up,
+      bandwidth: 1G,
     }
   - {
       id: l12,
@@ -314,6 +325,7 @@ links:
       dst_device: pc-3,
       dst_interface: eth0,
       status: up,
+      bandwidth: 1G,
     }
   - {
       id: l13,
@@ -322,6 +334,7 @@ links:
       dst_device: pc-4,
       dst_interface: eth0,
       status: up,
+      bandwidth: 1G,
     }
   - {
       id: l14,
@@ -330,6 +343,7 @@ links:
       dst_device: pc-5,
       dst_interface: eth0,
       status: up,
+      bandwidth: 1G,
     }
   - {
       id: l15,
@@ -338,4 +352,5 @@ links:
       dst_device: pc-6,
       dst_interface: eth0,
       status: up,
+      bandwidth: 1G,
     }

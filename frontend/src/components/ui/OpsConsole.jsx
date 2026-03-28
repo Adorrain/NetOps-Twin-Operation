@@ -134,17 +134,30 @@ const OpsConsole = () => {
   const [ospfArea, setOspfArea] = useState(0);
   const [ospfNeighbors, setOspfNeighbors] = useState([]);
   const [showNeighborsModal, setShowNeighborsModal] = useState(false);
+  const [ospfLbSrcIds, setOspfLbSrcIds] = useState([]);
+  const [ospfLbDstId, setOspfLbDstId] = useState('');
+  const [ospfLbPaths, setOspfLbPaths] = useState([]);
+  const [isOspfLbRunning, setIsOspfLbRunning] = useState(false);
+  const [ospfCostLinkId, setOspfCostLinkId] = useState('');
+  const [ospfCostValue, setOspfCostValue] = useState(1);
+  const [isUpdatingCost, setIsUpdatingCost] = useState(false);
 
   // States (Logs)
   const [logsModalOpen, setLogsModalOpen] = useState(false);
 
   // Helpers
   const getDeviceName = (id) => devices.find(d => d.id === id)?.name || id;
+  const isTerminalDevice = (d) => {
+    const role = String(d?.role || '').toLowerCase();
+    const t = String(d?.deviceType || d?.device_type || '').toLowerCase();
+    return role === 'terminal' || t === 'pc' || t === 'terminal' || t === 'host';
+  };
+  const terminalDevices = useMemo(() => devices.filter(isTerminalDevice), [devices]);
   const getLinkName = (id) => {
     const conn = connections.find(c => c.id === id);
     if (!conn) return id;
-    const src = getDeviceName(conn.sourceDeviceId);
-    const dst = getDeviceName(conn.targetDeviceId);
+    const src = getDeviceName(conn.sourceDeviceId || conn.src_device || conn.source);
+    const dst = getDeviceName(conn.targetDeviceId || conn.dst_device || conn.target);
     return `${src} <-> ${dst}`;
   };
 
@@ -156,6 +169,16 @@ const OpsConsole = () => {
     if (!networkTopology) return;
     const topo = { ...networkTopology };
     topo.devices = (topo.devices || []).map(d => d.id === id ? { ...d, ...patch, position: d.position } : d);
+    topo.updatedAt = new Date();
+    setNetworkTopology(topo);
+  };
+
+  const updateTopologyLinks = (updater) => {
+    if (!networkTopology) return;
+    const topo = { ...networkTopology };
+    const patchArr = (arr) => (Array.isArray(arr) ? arr.map(updater) : arr);
+    topo.links = patchArr(topo.links);
+    topo.connections = patchArr(topo.connections);
     topo.updatedAt = new Date();
     setNetworkTopology(topo);
   };
@@ -250,15 +273,17 @@ const OpsConsole = () => {
     try {
         const res = await opsApi.updateConnection(connId, { status: connStatus });
         if (res.success) {
+            const nextStatus = res.data?.status ?? connStatus;
             const topo = { 
               ...networkTopology, 
-              connections: (networkTopology.connections || []).map(c => c.id === connId ? { ...c, status: res.data?.status ?? connStatus } : c),
+              connections: (networkTopology.connections || []).map(c => c.id === connId ? { ...c, status: nextStatus } : c),
+              links: (networkTopology.links || []).map(c => c.id === connId ? { ...c, status: nextStatus } : c),
               updatedAt: new Date()
             };
             setNetworkTopology(topo);
             const linkName = getLinkName(connId);
-            message.info(`${linkName} 更新为 ${connStatus}`);
-            addLog('info', `连接 ${linkName} 状态更新为 ${connStatus}`);
+            message.info(`${linkName} 更新为 ${nextStatus}`);
+            addLog('info', `连接 ${linkName} 状态更新为 ${nextStatus}`);
         } else {
              const msg = getErrorMessage(res);
              addLog('error', `更新链路状态失败: ${msg}`);
@@ -358,6 +383,130 @@ const OpsConsole = () => {
         }
     } catch (e) {
         message.error(e.message);
+    }
+  };
+
+  const runOspfLoadBalance = async () => {
+    if (!Array.isArray(ospfLbSrcIds) || ospfLbSrcIds.length === 0 || !ospfLbDstId) {
+      message.warning('请选择 OSPF 负载均衡的源和目标设备');
+      return;
+    }
+    setIsOspfLbRunning(true);
+    setOspfLbPaths([]);
+    try {
+      const results = await Promise.all(
+        ospfLbSrcIds.map((srcId) =>
+          opsApi.ospfLoadBalance(srcId, ospfLbDstId, { packetSizeBytes: 1500, maxPaths: 0 })
+            .then((res) => ({ srcId, res }))
+        )
+      );
+
+      const failures = results.filter((item) => !item.res?.success);
+      const successes = results.filter((item) => item.res?.success);
+      if (successes.length === 0) {
+        const errMsg = getErrorMessage(failures[0]?.res || '负载均衡失败');
+        addLog('error', `OSPF 负载均衡失败: ${errMsg}`);
+        message.error(errMsg);
+      } else {
+        const selectedIds = new Set();
+        const metricMap = new Map();
+        const mergedPaths = [];
+
+        successes.forEach(({ srcId, res }) => {
+          (res.selected_link_ids || []).forEach((id) => selectedIds.add(id));
+          (res.link_metrics || []).forEach((m) => {
+            const prev = metricMap.get(m.link_id);
+            const prevUtil = Number(prev?.utilization || 0);
+            const curUtil = Number(m?.utilization || 0);
+            metricMap.set(m.link_id, {
+              ...m,
+              // 多源聚合改为平滑叠加，避免直接线性加到 99%
+              utilization: Math.min(0.95, 1 - (1 - prevUtil) * (1 - curUtil)),
+              bandwidth: m.bandwidth || prev?.bandwidth
+            });
+          });
+          const srcName = getDeviceName(srcId);
+          (Array.isArray(res.paths) ? res.paths : []).forEach((p) => {
+            mergedPaths.push({
+              ...p,
+              source_id: srcId,
+              source_name: srcName
+            });
+          });
+        });
+
+        const grouped = new Map();
+        mergedPaths.forEach((p) => {
+          const hops = Array.isArray(p.hop_details) ? p.hop_details : [];
+          const keyTail = hops
+            .slice(1)
+            .map((h) => `${h.device_id || ''}:${Number(h.rtt_ms || 0).toFixed(2)}`)
+            .join('|');
+          const key = `${keyTail}|${p.cost}|${Number(p.latency_ms || 0).toFixed(2)}`;
+          if (!grouped.has(key)) {
+            grouped.set(key, {
+              ...p,
+              source_group_ids: [p.source_id],
+              source_group_names: [p.source_name],
+            });
+          } else {
+            const item = grouped.get(key);
+            if (!item.source_group_ids.includes(p.source_id)) item.source_group_ids.push(p.source_id);
+            if (!item.source_group_names.includes(p.source_name)) item.source_group_names.push(p.source_name);
+            item.traffic_share = Number(item.traffic_share || 0) + Number(p.traffic_share || 0);
+          }
+        });
+
+        const paths = Array.from(grouped.values()).map((p, idx) => ({
+          ...p,
+          index: idx + 1,
+          traffic_share: Math.min(0.99, Number(p.traffic_share || 0)),
+        }));
+        setOspfLbPaths(paths);
+        updateTopologyLinks((link) => {
+          const metric = metricMap.get(link.id);
+          const resolvedUtil = metric?.utilization ?? link.utilization ?? 0;
+          return {
+            ...link,
+            optimization_state: selectedIds.has(link.id) ? 'optimized' : 'normal',
+            utilization: resolvedUtil,
+            bandwidth: metric?.bandwidth || link.bandwidth
+          };
+        });
+        addLog('success', `OSPF 负载均衡完成: ${ospfLbSrcIds.length} 个源设备，${paths.length} 条路径已高亮`);
+        message.success(`已计算 ${ospfLbSrcIds.length} 个源设备，共 ${paths.length} 条路径`);
+      }
+    } catch (e) {
+      addLog('error', `OSPF 负载均衡异常: ${e.message}`);
+      message.error(e.message);
+    } finally {
+      setIsOspfLbRunning(false);
+    }
+  };
+
+  const updateOspfCostAction = async () => {
+    if (!ospfCostLinkId) {
+      message.warning('请选择需要调整 cost 的链路');
+      return;
+    }
+    const safeCost = Math.max(1, Number(ospfCostValue || 1));
+    setIsUpdatingCost(true);
+    try {
+      const res = await opsApi.updateOspfLinkCost(ospfCostLinkId, safeCost);
+      if (res.success) {
+        updateTopologyLinks((link) => link.id === ospfCostLinkId ? { ...link, ospf_cost: safeCost } : link);
+        addLog('success', `已调整链路 ${getLinkName(ospfCostLinkId)} cost=${safeCost}`);
+        message.success(`链路 cost 已更新为 ${safeCost}，可重新执行负载均衡查看新选路`);
+      } else {
+        const errMsg = getErrorMessage(res);
+        addLog('error', `更新 OSPF cost 失败: ${errMsg}`);
+        message.error(errMsg);
+      }
+    } catch (e) {
+      addLog('error', `更新 OSPF cost 异常: ${e.message}`);
+      message.error(e.message);
+    } finally {
+      setIsUpdatingCost(false);
     }
   };
 
@@ -644,6 +793,72 @@ options={devices.filter(d => (d.configuration?.ospf || d.ospf) || checkDeviceTyp
                   </>
               )}
           </Space>
+      )
+    },
+    {
+      key: 'ospf-lb',
+      label: <Space><ApartmentOutlined style={{ color: '#22c55e' }} />OSPF 负载均衡</Space>,
+      children: (
+        <Space orientation="vertical" style={{ width: '100%' }}>
+          <Select
+            style={{ width: '100%' }}
+            mode="multiple"
+            placeholder="源设备(可多选，建议终端)"
+            value={ospfLbSrcIds}
+            onChange={setOspfLbSrcIds}
+            options={terminalDevices.map(d => ({ value: d.id, label: d.name }))}
+          />
+          <Select
+            style={{ width: '100%' }}
+            placeholder="目标设备"
+            value={ospfLbDstId}
+            onChange={setOspfLbDstId}
+            options={terminalDevices.map(d => ({ value: d.id, label: d.name }))}
+          />
+          <Button type="primary" block loading={isOspfLbRunning} onClick={runOspfLoadBalance}>
+            计算并展示所有路径
+          </Button>
+          {ospfLbPaths.length > 0 && (
+            <div style={{ background: 'rgba(0,0,0,0.2)', padding: 8, borderRadius: 4, maxHeight: 180, overflowY: 'auto' }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>负载均衡路径列表（全部展示）:</Text>
+              {ospfLbPaths.map((p) => (
+                <div key={p.index} style={{ fontSize: 12, color: '#ccc', marginLeft: 8, marginTop: 8, paddingBottom: 8, borderBottom: '1px dashed rgba(255,255,255,0.12)' }}>
+                  <div style={{ color: '#e2e8f0', marginBottom: 4 }}>
+                    {`路径 ${p.index} | cost=${p.cost} | 总时延=${Number(p.latency_ms || 0).toFixed(2)}ms | 分流占比=${Math.round(Number(p.traffic_share || 0) * 100)}%`}
+                  </div>
+                  <div style={{ marginLeft: 8, color: '#94a3b8' }}>
+                    {`源: ${(Array.isArray(p.source_group_names) && p.source_group_names.length > 0) ? p.source_group_names.join('、') : (p.source_name || getDeviceName(p.source_id))} -> 目标: ${getDeviceName(ospfLbDstId)}`}
+                  </div>
+                  {(Array.isArray(p.hop_details) ? p.hop_details : []).map((h) => (
+                    <div key={`${p.index}-${h.hop}`} style={{ marginLeft: 8 }}>
+                      {h.hop === 1 && Array.isArray(p.source_group_names) && p.source_group_names.length > 1
+                        ? `${h.hop}. 源设备组(${p.source_group_names.join(',')}) - ${Number(h.rtt_ms || 0).toFixed(2)} ms`
+                        : `${h.hop}. ${h.device_name || h.device_id} (${h.ip || '-'}) - ${Number(h.rtt_ms || 0).toFixed(2)} ms`}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+          <Divider style={{ margin: '8px 0' }} />
+          <Text type="secondary">通过调整链路 cost 重新选路</Text>
+          <Select
+            style={{ width: '100%' }}
+            placeholder="选择链路"
+            value={ospfCostLinkId}
+            onChange={setOspfCostLinkId}
+            options={connections.map(c => ({ value: c.id, label: getLinkName(c.id) }))}
+          />
+          <Input
+            type="number"
+            min={1}
+            step={1}
+            value={ospfCostValue}
+            onChange={(e) => setOspfCostValue(Number(e.target.value || 1))}
+            placeholder="OSPF cost"
+          />
+          <Button block loading={isUpdatingCost} onClick={updateOspfCostAction}>更新链路 cost</Button>
+        </Space>
       )
     },
   ];

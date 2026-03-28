@@ -60,5 +60,16 @@ class OSPFNeighborsBody(BaseModel):
     device_id: str
 
 
+class OSPFLoadBalanceBody(BaseModel):
+    source_id: str
+    target_id: str
+    traffic_load: Optional[float] = 0.6
+    packet_size_bytes: Optional[int] = 1500
+    max_paths: Optional[int] = 12
+
+
+class OSPFLinkCostBody(BaseModel):
+    link_id: str
+    cost: int
 
 

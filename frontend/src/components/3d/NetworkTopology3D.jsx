@@ -381,10 +381,33 @@ function LinkLine({ link, devices }) {
   const isOptimized = String(link.optimization_state || '').toLowerCase() === 'optimized';
   const color = isDown ? '#334155' : (isOptimized ? '#22c55e' : (isPeak ? '#ef4444' : '#38bdf8'));
 
+  const formatBandwidth = (value) => {
+    if (value == null || value === '') return 'bw';
+    const raw = String(value).trim();
+    const low = raw.toLowerCase();
+    if (low.endsWith('g') || low.endsWith('m') || low.endsWith('k')) return raw.toUpperCase();
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return raw;
+    if (n >= 1000) {
+      const g = n / 1000;
+      return `${Number.isInteger(g) ? g : g.toFixed(2).replace(/\.?0+$/, '')}G`;
+    }
+    if (n >= 1) {
+      return `${Number.isInteger(n) ? n : n.toFixed(2).replace(/\.?0+$/, '')}M`;
+    }
+    const k = n * 1000;
+    return `${Number.isInteger(k) ? k : k.toFixed(1).replace(/\.?0+$/, '')}K`;
+  };
+
+  const formatUtilization = (u) => {
+    if (!Number.isFinite(u)) return '-';
+    const pct = Math.max(0, Math.min(100, u * 100));
+    return `${pct.toFixed(1).replace(/\.0$/, '')}%`;
+  };
+
   const bandwidthRaw = link.bandwidth;
-  const bandwidth = bandwidthRaw != null && bandwidthRaw !== '' ? String(bandwidthRaw) : '';
-  const utilText = `${Math.round(utilization * 100)}%`;
-  const bwText = bandwidth || 'bw';
+  const utilText = formatUtilization(utilization);
+  const bwText = formatBandwidth(bandwidthRaw);
 
   const shouldRenderSideLabels = bandwidthRaw != null || link.utilization != null;
 

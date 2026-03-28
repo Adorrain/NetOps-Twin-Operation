@@ -29,6 +29,18 @@ const configureVlan = (deviceId, data) => postJson('/ops/vlan/configure', {devic
 
 const getOspfNeighbors = (deviceId) => postJson('/ops/ospf/neighbors', { device_id: deviceId });
 
+const ospfLoadBalance = (sourceId, targetId, payload = {}) => postJson('/ops/ospf/load-balance', {
+  source_id: sourceId,
+  target_id: targetId,
+  packet_size_bytes: payload.packetSizeBytes,
+  max_paths: payload.maxPaths
+});
+
+const updateOspfLinkCost = (linkId, cost) => postJson('/ops/ospf/link-cost', {
+  link_id: linkId,
+  cost
+});
+
 export const opsApi = {
   ping,
   traceroute,
@@ -38,5 +50,7 @@ export const opsApi = {
   updateOspf,
   removeVlan,
   configureVlan,
-  getOspfNeighbors
+  getOspfNeighbors,
+  ospfLoadBalance,
+  updateOspfLinkCost
 };

@@ -10,6 +10,8 @@ from app.model.api_schemas import (
     LinkStatusBody,
     OSPFConfigBody,
     OSPFNeighborsBody,
+    OSPFLoadBalanceBody,
+    OSPFLinkCostBody,
     PingBody,
     TracerouteBody,
     VlanConfigureBody,
@@ -215,3 +217,31 @@ def get_ospf_neighbors():
     body = parse_body(OSPFNeighborsBody)
 
     return success(data=service.get_ospf_neighbors(body.device_id))
+
+
+@app.route("/ospf/load-balance", methods=["POST"])
+def ospf_load_balance():
+    service, _ = get_ctx()
+    body = parse_body(OSPFLoadBalanceBody)
+    result = service.ospf_load_balance(
+        body.source_id,
+        body.target_id,
+        body.packet_size_bytes if body.packet_size_bytes is not None else 1500,
+        body.max_paths if body.max_paths is not None else 0,
+    )
+    return jsonify(result)
+
+
+@app.route("/ospf/link-cost", methods=["POST"])
+def update_ospf_link_cost():
+    service, db = get_ctx()
+    body = parse_body(OSPFLinkCostBody)
+    updated = service.update_ospf_link_cost(body.link_id, body.cost)
+    persist(
+        db,
+        updated,
+        f"Updated OSPF link cost for {body.link_id} to {body.cost}",
+        "OSPF_LinkCost",
+        body.link_id,
+    )
+    return success(f"OSPF link cost updated for {body.link_id}")
