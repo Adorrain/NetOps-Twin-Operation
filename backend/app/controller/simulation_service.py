@@ -8,7 +8,6 @@
 
 import ipaddress
 import math
-import random
 import time
 from typing import Any, Dict, List, Optional, Set
 
@@ -853,12 +852,16 @@ class SimulationService:
 
         path = res["path"]
         hops = len(path) - 1
-        rtt = hops * 1.5 + random.uniform(0.5, 2.0)
+        traffic_load = self._estimate_heavy_traffic_load()
+        packet_size_bytes = 1500
+        one_way_ms = self._path_latency(path, traffic_load, packet_size_bytes)
+        rtt = round(2.0 * one_way_ms, 3)
 
         return {
             "success": True,
             "message": f"Reply from {target_ip}: time={rtt:.2f}ms TTL={64 - hops}",
             "rtt": rtt,
+            "one_way_ms": round(one_way_ms, 3),
             "path": path,
             "hops": hops,
         }
@@ -875,16 +878,22 @@ class SimulationService:
 
         path = res["path"]
 
+        traffic_load = self._estimate_heavy_traffic_load()
+        packet_size_bytes = 1500
+        details = self._build_hop_details(path, traffic_load, packet_size_bytes)
         hops = []
-        for i, n in enumerate(path):
-            dev = self.device_map.get(n)
-            hops.append({
-                "hop": i + 1,
-                "device_id": n,
-                "device_name": getattr(dev, "name", n),
-                "ip": self._resolve_device_ip(n),
-                "rtt": f"{(i+1)*1.2 + random.random():.2f} ms",
-            })
+        for d in details:
+            cum_one_way = float(d.get("rtt_ms") or 0.0)
+            hop_rtt = round(2.0 * cum_one_way, 3)
+            hops.append(
+                {
+                    "hop": d["hop"],
+                    "device_id": d["device_id"],
+                    "device_name": d["device_name"],
+                    "ip": d["ip"],
+                    "rtt": f"{hop_rtt:.3f} ms",
+                }
+            )
 
         return {"success": True, "path": path, "hops": hops}
 
@@ -937,6 +946,7 @@ class SimulationService:
         if resolved_src not in self.ospf_graph or resolved_dst not in self.ospf_graph:
             if l2_direct:
                 link_ids = self._path_link_ids(l2_direct)
+                l2_one = self._path_latency(l2_direct, traffic_load, packet_size_bytes)
                 return {
                     "success": True,
                     "source_id": src_id,
@@ -950,9 +960,10 @@ class SimulationService:
                             "index": 1,
                             "path": l2_direct,
                             "cost": self._path_cost(l2_direct),
-                            "latency_ms": self._path_latency(l2_direct, traffic_load, packet_size_bytes),
+                            "latency_ms": round(l2_one, 3),
+                            "latency_rtt_ms": round(2.0 * l2_one, 3),
                             "link_ids": link_ids,
-                            "hop_details": self._build_hop_details(l2_direct, traffic_load, packet_size_bytes),
+                            "hop_details": self._build_hop_details(l2_direct, traffic_load, packet_size_bytes, None),
                             "traffic_share": round(traffic_load, 4),
                         }
                     ],
@@ -1010,7 +1021,6 @@ class SimulationService:
 
         path_items: List[Dict[str, Any]] = []
         selected_link_ids: Set[str] = set()
-        link_load_count: Dict[str, int] = {}
 
         # 按 cost 反比加权分流：cost 越低，分得流量越大
         weights = [1.0 / max(1.0, float(c)) for c in core_path_costs]
@@ -1031,16 +1041,18 @@ class SimulationService:
             link_ids = self._path_link_ids(full_path)
             for lid in link_ids:
                 selected_link_ids.add(lid)
-                link_load_count[lid] = link_load_count.get(lid, 0) + 1
 
             base_share = (weights[idx - 1] / weight_sum) if (idx - 1) < len(weights) else (1.0 / max(1, len(all_core_paths)))
             path_share = min(0.99, traffic_load * base_share)
+            one_way = self._path_latency(full_path, traffic_load, packet_size_bytes)
+            # 延时与 ping/traceroute 一致：整条路径用同一套全局 traffic_load 算排队（不按 ECMP 分流稀释）
             path_items.append(
                 {
                     "index": idx,
                     "path": full_path,
                     "cost": self._path_cost(full_path),
-                    "latency_ms": self._path_latency(full_path, path_share, packet_size_bytes),
+                    "latency_ms": round(one_way, 3),
+                    "latency_rtt_ms": round(2.0 * one_way, 3),
                     "link_ids": link_ids,
                     "traffic_share": round(path_share, 4),
                 }
@@ -1057,12 +1069,8 @@ class SimulationService:
                 link_total_util[lid] = min(0.95, 1 - (1 - prev) * (1 - share))
 
         for p in path_items:
-            hop_details = self._build_hop_details(
-                p["path"],
-                p["traffic_share"],
-                packet_size_bytes,
-                link_load_count,
-            )
+            # 与 ping/traceroute 一致：不按 ECMP 重复经过链路再稀释负载
+            hop_details = self._build_hop_details(p["path"], traffic_load, packet_size_bytes, None)
             p["hop_details"] = hop_details
 
         link_metrics: List[Dict[str, Any]] = []
