@@ -7,10 +7,10 @@ from flask import g
 import os
 
 DB_HOST = os.getenv("DB_HOST", "47.95.157.92")
-DB_PORT = os.getenv("DB_PORT", "5432")
+DB_PORT = os.getenv("DB_PORT", "5439")
 DB_NAME = os.getenv("DB_NAME", "netops")
-DB_USER = os.getenv("DB_USER", "postgres")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "123456")
+DB_USER = os.getenv("DB_USER", "netops_user")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "jiangke20260328")
 
 
 

@@ -373,13 +373,18 @@ class SimulationService:
         ]
 
     def _save_routing_table_to_device(self, device: Device, routes: List[Dict]) -> None:
+        if not device.configuration:
+            device.configuration = {}
         device.configuration["routing_table"] = [
             {
-                "destination": r["prefix"],
-                "next_hop": r["next_hop"],
-                "out_interface": r["out_interface"],
-                "cost": r["cost"],
-                "protocol": r["protocol"],
+                "destination": r.get("destination"),
+                "next_hop": r.get("next_hop"),
+                "cost": r.get("cost"),
+                "protocol": r.get("protocol", "OSPF"),
+                "out_interface": r.get("out_interface"),
+                "destination_id": r.get("destination_id"),
+                "next_hop_id": r.get("next_hop_id"),
+                "prefix": r.get("prefix"),
             }
             for r in routes
         ]
@@ -390,27 +395,85 @@ class SimulationService:
         except Exception:
             return str(prefix)
 
-    def _iface_to_network_prefix(self, iface: Dict[str, Any]) -> Optional[str]:
-        """从接口解析直连网段（支持 ip 带掩码或 ip + netmask 分字段）。"""
-        ip = iface.get("ip")
-        if not ip:
+    def _iface_ip_string(self, ip: Any) -> Optional[str]:
+        """接口 IP 可能为字符串或 YAML 数字；统一为点分 IPv4 字符串。"""
+        if ip is None:
             return None
-        raw = str(ip).strip()
-        if "/" in raw:
+        if isinstance(ip, str):
+            s = ip.strip()
+            return s.split("/")[0] if s else None
+        if isinstance(ip, (int, float)):
+            return None
+        s = str(ip).strip()
+        return s.split("/")[0] if s else None
+
+    def _iface_netmask_string(self, iface: Dict[str, Any]) -> Optional[str]:
+        """兼容 netmask / net_mask / mask。"""
+        for k in ("netmask", "net_mask", "mask", "subnet_mask"):
+            v = iface.get(k)
+            if v is not None and str(v).strip():
+                return str(v).strip()
+        return None
+
+    def _infer_netmask_from_link(self, device_id: str, iface_name: str) -> Optional[str]:
+        """无掩码时根据链路对端地址推断 P2P 网段（常见 /30、/31）。"""
+        for link in self.topology.links:
+            if link.src_device == device_id and link.src_interface == iface_name:
+                peer_id, peer_if = link.dst_device, link.dst_interface
+            elif link.dst_device == device_id and link.dst_interface == iface_name:
+                peer_id, peer_if = link.src_device, link.src_interface
+            else:
+                continue
+            dev = self.device_map.get(device_id)
+            peer_dev = self.device_map.get(peer_id)
+            if not dev or not peer_dev or not peer_if:
+                continue
+            a = self._get_interface(dev, iface_name)
+            b = self._get_interface(peer_dev, peer_if)
+            if not a or not b:
+                continue
+            sa = self._iface_ip_string(a.get("ip"))
+            sb = self._iface_ip_string(b.get("ip"))
+            if not sa or not sb:
+                continue
             try:
-                return str(ipaddress.ip_interface(raw).network)
+                ip_a = ipaddress.IPv4Address(sa)
+                ip_b = ipaddress.IPv4Address(sb)
+            except Exception:
+                continue
+            for plen in (31, 30, 29):
+                try:
+                    net = ipaddress.IPv4Network(f"{ip_a}/{plen}", strict=False)
+                    if ip_b in net:
+                        return str(net.netmask)
+                except Exception:
+                    continue
+        return None
+
+    def _iface_to_network_prefix(
+        self, iface: Dict[str, Any], device_id: Optional[str] = None) -> Optional[str]:
+        """从接口解析直连网段（支持 CIDR、ip+netmask、缺掩码时从链路推断）。"""
+        ip = iface.get("ip")
+        raw_ip = self._iface_ip_string(ip)
+        if not raw_ip:
+            return None
+        if isinstance(ip, str) and "/" in ip.strip():
+            try:
+                return str(ipaddress.ip_interface(ip.strip()).network)
             except Exception:
                 return None
-        nm = iface.get("netmask")
+        nm = self._iface_netmask_string(iface)
+        if not nm and device_id and iface.get("name"):
+            nm = self._infer_netmask_from_link(device_id, iface["name"])
         if nm:
             try:
-                addr = ipaddress.IPv4Address(raw.split("/")[0])
+                addr = ipaddress.IPv4Address(raw_ip)
                 iface_obj = ipaddress.IPv4Interface((addr, str(nm)))
                 return str(iface_obj.network)
             except Exception:
                 pass
         try:
-            return str(ipaddress.ip_interface(f"{raw.split('/')[0]}/32").network)
+            return str(ipaddress.ip_interface(f"{raw_ip}/32").network)
         except Exception:
             return None
 
@@ -424,101 +487,81 @@ class SimulationService:
             return True
         return False
 
-    def _should_install_ospf_route(self, existing: Optional[Dict], new_cost: int) -> bool:
-        """OSPF 不覆盖直连与静态；仅与其它 OSPF 按更小 cost 择优。"""
-        if existing is None:
+    def _device_display_name(self, device_id: str) -> str:
+        dev = self.device_map.get(device_id)
+        if not dev:
+            return device_id
+        name = getattr(dev, "name", None) or getattr(dev, "id", None) or device_id
+        s = str(name).strip()
+        return s if s else device_id
+
+    def _include_as_route_destination(self, device_id: str) -> bool:
+        """路由表目的地：有三层能力或任一带 IP 的终端/服务器等（纯无 IP 二层设备不单独成行）。"""
+        if self._is_l3_device(device_id):
             return True
-        ep = existing.get("protocol")
-        if ep in ("CONNECTED", "STATIC"):
+        dev = self.device_map.get(device_id)
+        if not dev:
             return False
-        if ep == "OSPF":
-            return new_cost < int(existing.get("cost", 999999))
-        return False
-
-    def _sort_routes_for_display(self, routes: List[Dict]) -> List[Dict]:
-        proto_rank = {"CONNECTED": 0, "STATIC": 1, "OSPF": 2}
-
-        def sort_key(r: Dict) -> tuple:
-            p = str(r.get("prefix", ""))
-            try:
-                net = ipaddress.ip_network(p, strict=False)
-                plen = int(net.prefixlen)
-            except Exception:
-                plen = 0
-            return (
-                proto_rank.get(str(r.get("protocol", "")), 9),
-                -plen,
-                int(r.get("cost", 0)),
-                p,
-            )
-
-        return sorted(routes, key=sort_key)
+        return any(iface.get("ip") for iface in dev.interfaces)
 
     # ==================== 路由表 ====================
 
     def _build_routing_tables(self) -> Dict[str, List[Dict]]:
-        tables = {}
+        tables: Dict[str, List[Dict]] = {}
 
         for src in self.graph.nodes:
             if not self._is_l3_device(src):
                 continue
 
-            route_map: Dict[str, Dict] = {}
+            rows: List[Dict] = []
+            try:
+                _, paths = nx.single_source_dijkstra(self.graph, src, weight="weight")
+            except Exception:
+                paths = {src: [src]}
 
-            # ===== 直连 =====
-            for iface in self.device_map[src].interfaces:
-                net = self._iface_to_network_prefix(iface)
-                if not net:
+            for dst, path in paths.items():
+                if dst == src or len(path) < 2:
                     continue
-                key = self._normalize_prefix_key(net)
-                route_map[key] = {
-                    "prefix": key,
-                    "protocol": "CONNECTED",
-                    "cost": 0,
-                    "next_hop": None,
-                    "out_interface": iface.get("name"),
-                }
+                if not self._include_as_route_destination(dst):
+                    continue
+                cost = self._path_cost(path)
+                nh_id = path[1]
+                oif = self._get_local_interface_on_link(src, nh_id)
+                rows.append(
+                    {
+                        "destination": self._device_display_name(dst),
+                        "destination_id": dst,
+                        "next_hop": self._device_display_name(nh_id),
+                        "next_hop_id": nh_id,
+                        "cost": cost,
+                        "out_interface": oif,
+                        "protocol": "OSPF",
+                    }
+                )
 
-            # ===== 静态 =====
             for r in self._get_static_routes(self.device_map[src]):
-                if not r.get("prefix"):
+                pfx = r.get("prefix")
+                if not pfx:
                     continue
-                key = self._normalize_prefix_key(r["prefix"])
-                route_map[key] = {**r, "prefix": key}
+                key = self._normalize_prefix_key(pfx)
+                nh_raw = r.get("next_hop")
+                nh_id = nh_raw if nh_raw in self.device_map else None
+                nh_label = self._device_display_name(nh_raw) if nh_id else (str(nh_raw) if nh_raw else None)
+                rows.append(
+                    {
+                        "destination": key,
+                        "prefix": key,
+                        "next_hop": nh_label,
+                        "next_hop_id": nh_id,
+                        "cost": int(r.get("cost", 1)),
+                        "out_interface": r.get("out_interface"),
+                        "protocol": "STATIC",
+                    }
+                )
 
-            # ===== OSPF =====
-            if src in self.ospf_graph:
-                try:
-                    lengths, paths = nx.single_source_dijkstra(self.ospf_graph, src, weight="weight")
-
-                    for dst, path in paths.items():
-                        if src == dst or len(path) < 2:
-                            continue
-
-                        next_hop = path[1]
-                        cost = int(lengths[dst])
-                        out_if = self._get_local_interface_on_link(src, next_hop)
-
-                        for iface in self.device_map[dst].interfaces:
-                            net = self._iface_to_network_prefix(iface)
-                            if not net:
-                                continue
-                            key = self._normalize_prefix_key(net)
-                            existing = route_map.get(key)
-                            if self._should_install_ospf_route(existing, cost):
-                                route_map[key] = {
-                                    "prefix": key,
-                                    "protocol": "OSPF",
-                                    "cost": cost,
-                                    "next_hop": next_hop,
-                                    "out_interface": out_if,
-                                }
-                except Exception:
-                    pass
-
-            routes = self._sort_routes_for_display(list(route_map.values()))
-            tables[src] = routes
-            self._save_routing_table_to_device(self.device_map[src], routes)
+            rows.sort(key=lambda x: (int(x.get("cost", 0)), str(x.get("destination", ""))))
+            tables[src] = rows
+            self._save_routing_table_to_device(self.device_map[src], rows)
 
         return tables
 
@@ -613,7 +656,7 @@ class SimulationService:
                 return {"success": True, "path": path, "mode": "L3"}
 
             routes = self.routing_tables.get(current, [])
-            route = self._match_route(routes, dst_ip)
+            route = self._match_route(current, routes, dst_ip)
 
             if not route:
                 return {"success": False, "message": f"No route at {current}"}
@@ -652,31 +695,66 @@ class SimulationService:
     
    # ==================== 路由匹配 ====================
 
-    def _match_route(self, routes: List[Dict], target_ip: str) -> Optional[Dict]:
+    def _ip_on_device_connected_network(self, router_id: str, target_ip: str) -> bool:
         try:
             ip = ipaddress.ip_address(target_ip)
-        except:
+        except Exception:
+            return False
+        for iface in self.device_map[router_id].interfaces:
+            net = self._iface_to_network_prefix(iface, router_id)
+            if not net:
+                continue
+            try:
+                if ip in ipaddress.ip_network(net, strict=False):
+                    return True
+            except Exception:
+                continue
+        return False
+
+    def _match_route(self, device_id: str, routes: List[Dict], target_ip: str) -> Optional[Dict]:
+        dst_id = self.ip_map.get(target_ip)
+        if dst_id:
+            for r in routes:
+                if r.get("destination_id") == dst_id:
+                    nh = r.get("next_hop_id") or r.get("next_hop")
+                    return {
+                        "protocol": r.get("protocol", "OSPF"),
+                        "next_hop": nh,
+                        "prefix": None,
+                    }
+
+        try:
+            ip = ipaddress.ip_address(target_ip)
+        except Exception:
             return None
 
         best = None
         best_len = -1
-
         for r in routes:
+            if not r.get("prefix"):
+                continue
             try:
                 net = ipaddress.ip_network(r["prefix"], strict=False)
-            except:
+            except Exception:
                 continue
-
             if ip not in net:
                 continue
-
             if net.prefixlen > best_len or (
                 net.prefixlen == best_len and best and r["cost"] < best["cost"]
             ):
                 best = r
                 best_len = net.prefixlen
+        if best:
+            nh = best.get("next_hop_id") or best.get("next_hop")
+            return {
+                "protocol": best.get("protocol", "STATIC"),
+                "next_hop": nh,
+                "prefix": best.get("prefix"),
+            }
 
-        return best
+        if dst_id and self._ip_on_device_connected_network(device_id, target_ip):
+            return {"protocol": "CONNECTED", "next_hop": None, "prefix": None}
+        return None
 
 
     # ==================== VLAN网关 ====================

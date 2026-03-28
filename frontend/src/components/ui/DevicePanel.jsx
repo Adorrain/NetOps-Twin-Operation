@@ -140,9 +140,9 @@ const DevicePanel = () => {
     : routingTable.filter((r) => {
         const destination = String(r?.destination ?? '').toLowerCase();
         const nextHop = String(r?.next_hop ?? '').toLowerCase();
-        const outIf = String(r?.out_interface ?? '').toLowerCase();
         const cost = String(r?.cost ?? '').toLowerCase();
-        return destination.includes(q) || nextHop.includes(q) || outIf.includes(q) || cost.includes(q);
+        const proto = String(r?.protocol ?? '').toLowerCase();
+        return destination.includes(q) || nextHop.includes(q) || cost.includes(q) || proto.includes(q);
       });
 
   const routingColumns = [
@@ -150,14 +150,14 @@ const DevicePanel = () => {
       title: '目的地',
       dataIndex: 'destination',
       key: 'destination',
-      width: 140,
+      width: 160,
       render: (text) => <span style={{ fontWeight: 500, color: '#e2e8f0', fontFamily: 'monospace' }}>{text || '-'}</span>,
       sorter: (a, b) => String(a?.destination ?? '').localeCompare(String(b?.destination ?? ''))
     },
     {
       title: '下一跳',
       key: 'next_hop',
-      width: 120,
+      width: 160,
       render: (_, record) => {
         const v = record?.next_hop;
         return <span style={{ fontFamily: 'monospace', color: '#93c5fd' }}>{v || '-'}</span>;
@@ -165,20 +165,10 @@ const DevicePanel = () => {
       sorter: (a, b) => String(a?.next_hop ?? '').localeCompare(String(b?.next_hop ?? ''))
     },
     {
-      title: '出接口',
-      key: 'out_interface',
-      width: 120,
-      render: (_, record) => {
-        const v = record?.out_interface;
-        return <span style={{ fontFamily: 'monospace', color: '#94a3b8' }}>{v || '-'}</span>;
-      },
-      sorter: (a, b) => String(a?.out_interface ?? '').localeCompare(String(b?.out_interface ?? ''))
-    },
-    {
       title: 'Cost',
       dataIndex: 'cost',
       key: 'cost',
-      width: 80,
+      width: 90,
       render: (v) => <span style={{ fontFamily: 'monospace', color: '#4ade80', fontWeight: 700 }}>{v ?? '-'}</span>,
       sorter: (a, b) => Number(a?.cost ?? 0) - Number(b?.cost ?? 0)
     }
