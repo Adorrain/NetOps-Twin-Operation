@@ -29,12 +29,6 @@ const configureVlan = (deviceId, data) => postJson('/ops/vlan/configure', {devic
 
 const getOspfNeighbors = (deviceId) => postJson('/ops/ospf/neighbors', { device_id: deviceId });
 
-const suggestOspfCost = (linkId) => postJson('/ops/ospf/cost/suggest', { link_id: linkId });
-
-const updateOspfCost = (linkId, newCost) => postJson('/ops/ospf/cost/update', { link_id: linkId, new_cost: newCost });
-
-const simulateSingleLinkPeak = (linkId) => postJson('/ops/traffic/simulate', { link_id: linkId });
-
 export const opsApi = {
   ping,
   traceroute,
@@ -45,7 +39,4 @@ export const opsApi = {
   removeVlan,
   configureVlan,
   getOspfNeighbors,
-  suggestOspfCost,
-  updateOspfCost,
-  simulateSingleLinkPeak
 };

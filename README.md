@@ -5,7 +5,7 @@
 
   <p>
     <a href="https://github.com/Adorrain/NetOps-Twin-Operation"><img src="https://img.shields.io/badge/GitHub-Repo-blue?style=for-the-badge&logo=github" alt="GitHub Repo" /></a>
-    <a href="https://github.com/Adorrain/NetOps-Twin-Operation/tags"><img src="https://img.shields.io/badge/version-v1.2.0-2ea44f?style=for-the-badge" alt="version" /></a>
+    <a href="https://github.com/Adorrain/NetOps-Twin-Operation/tags"><img src="https://img.shields.io/badge/version-v1.5.0-2ea44f?style=for-the-badge" alt="version" /></a>
     <a href="./backend"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+" /></a>
     <a href="./frontend"><img src="https://img.shields.io/badge/React-18%2B-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React" /></a>
     <a href="./frontend"><img src="https://img.shields.io/badge/Three.js-3D-000000?style=for-the-badge&logo=threedotjs&logoColor=white" alt="Three.js" /></a>
@@ -21,12 +21,6 @@
 
 - 技术文档（产品定位/设计/技术栈/前后端/数据库/接口与响应格式）：[docs/techdocs.md](docs/techdocs.md)
 
-## 核心功能
-
-- 🌐 **网络拓扑可视化**: 基于 YAML 配置的 3D 网络拓扑展示
-- 🔧 **设备参数管理**: 支持 PC、路由器、交换机等设备的参数配置
-- 🎮 **交互式运维**: 3D 场景中的设备交互和运维操作
-- 📱 **现代化界面**: 响应式设计，支持多设备访问
 
 ## 快速开始
 
@@ -51,36 +45,12 @@ pip install -r requirements.txt
 ### 开发环境启动
 
 ```bash
-# 启动前端开发服务器
+# 启动前端服务
 cd frontend
 npm run dev
 
-# 启动后端API服务器
+# 启动后端服务
 cd backend
 python main.py
 ```
 
-## 使用说明
-
-1. **准备网络拓扑配置**: 参考 `docs/techdocs.md` 的 YAML 示例编写配置
-2. **上传配置文件**: 通过前端界面上传或编辑 YAML 配置
-3. **3D 可视化**: 系统自动解析 YAML 并生成 3D 网络拓扑图
-4. **网络运维**: 在 3D 场景中进行设备交互和运维操作
-
-## 配置文件格式
-
-系统使用 YAML 格式定义网络拓扑结构，核心字段为 `topology / devices / links`：
-
-- `topology`: 拓扑信息（name、type）
-- `devices`: 设备列表（id、name、role、deviceType/device_type、ip、interfaces、configuration 等）
-- `links`: 链路列表（id、src_device、dst_device、src_interface、dst_interface、status 等）
-
-拓扑变化 / ping失败
-↓
-构建运行态快照
-↓
-规则引擎分析
-↓
-生成事实层结构
-↓
-生成结构化诊断结果

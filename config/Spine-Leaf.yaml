@@ -444,6 +444,7 @@ links:
       dst_device: server-1,
       dst_interface: eth0,
       status: up,
+      bandwidth: 1G,
     }
   - {
       id: l10,
@@ -452,6 +453,7 @@ links:
       dst_device: server-2,
       dst_interface: eth0,
       status: up,
+      bandwidth: 1G,
     }
   - {
       id: l11,
@@ -460,6 +462,7 @@ links:
       dst_device: server-3,
       dst_interface: eth0,
       status: up,
+      bandwidth: 1G,
     }
 
   - {
@@ -469,6 +472,7 @@ links:
       dst_device: server-4,
       dst_interface: eth0,
       status: up,
+      bandwidth: 1G,
     }
   - {
       id: l13,
@@ -477,6 +481,7 @@ links:
       dst_device: server-5,
       dst_interface: eth0,
       status: up,
+      bandwidth: 1G,
     }
   - {
       id: l14,
@@ -485,6 +490,7 @@ links:
       dst_device: server-6,
       dst_interface: eth0,
       status: up,
+      bandwidth: 1G,
     }
 
   - {
@@ -494,6 +500,7 @@ links:
       dst_device: server-7,
       dst_interface: eth0,
       status: up,
+      bandwidth: 1G,
     }
   - {
       id: l16,
@@ -502,6 +509,7 @@ links:
       dst_device: server-8,
       dst_interface: eth0,
       status: up,
+      bandwidth: 1G,
     }
   - {
       id: l17,
@@ -510,6 +518,7 @@ links:
       dst_device: server-9,
       dst_interface: eth0,
       status: up,
+      bandwidth: 1G,
     }
 
   - {
@@ -519,6 +528,7 @@ links:
       dst_device: server-10,
       dst_interface: eth0,
       status: up,
+      bandwidth: 1G,
     }
   - {
       id: l19,
@@ -527,6 +537,7 @@ links:
       dst_device: server-11,
       dst_interface: eth0,
       status: up,
+      bandwidth: 1G,
     }
   - {
       id: l20,
@@ -534,6 +545,7 @@ links:
       src_interface: g1/2,
       dst_device: server-12,
       dst_interface: eth0,
+      bandwidth: 1G,
       status: up,
     }
   - {

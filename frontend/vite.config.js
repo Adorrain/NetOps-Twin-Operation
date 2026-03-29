@@ -5,21 +5,31 @@
  * 创建时间: 2026-01-30
  */
 
-import { defineConfig } from 'vite'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    proxy: {
-      // 开发时把 /api 请求转发到后端，避免跨域与 localhost 连接问题
-      '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true },
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const projectRoot = path.resolve(__dirname, '..')
+
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, projectRoot, '')
+  const backendUrl =
+    env.BACKEND_URL?.trim() || 'http://127.0.0.1:8000'
+
+  return {
+    plugins: [react()],
+    server: {
+      proxy: {
+        '/api': { target: backendUrl, changeOrigin: true },
+      },
     },
-  },
-  test: {
-    globals: true,
-    environment: 'jsdom',
-    setupFiles: '../test/setup.js',
-    include: ['../test/**/*.test.js'],
-  },
+    test: {
+      globals: true,
+      environment: 'jsdom',
+      setupFiles: '../test/setup.js',
+      include: ['../test/**/*.test.js'],
+    },
+  }
 })

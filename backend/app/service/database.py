@@ -1,5 +1,12 @@
 """数据库连接与会话管理（PostgreSQL）"""
 
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# 仓库根目录 .env（先于 os.getenv 加载）
+load_dotenv(Path(__file__).resolve().parent.parent.parent.parent / ".env")
+
 from app.model import db_models
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker

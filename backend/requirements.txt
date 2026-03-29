@@ -1,6 +1,15 @@
+# Web
 flask
 flask-cors
-sqlalchemy
-pydantic
-pydantic-settings
+
+# DB
 psycopg2-binary
+sqlalchemy
+
+# Config 
+pydantic
+python-dotenv
+PyYAML
+
+# Simulation
+networkx

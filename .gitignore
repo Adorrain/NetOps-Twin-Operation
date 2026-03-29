@@ -1,3 +1,7 @@
+# Project root env (see .env.example)
+.env
+.env.local
+
 # Frontend
 logs
 *.log
