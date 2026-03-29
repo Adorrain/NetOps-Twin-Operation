@@ -13,7 +13,7 @@ import { OrbitControls, Grid, Text, Cone, RoundedBox, Line, Html, Environment, F
 import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 import { Spin } from 'antd';
 import * as THREE from 'three';
-import { getDisplayVlanId } from '../../utils/net';
+import { getDisplayVlanId, isLinkActive } from '../../utils/net';
 
 /**
  * ===========================
@@ -375,11 +375,31 @@ function LinkLine({ link, devices }) {
     [to.position.x, 0.5, to.position.z],
   ];
   
-  const isDown = link.status === 'down';
+  const roleOf = (d) => String(d?.role || '').toLowerCase();
+  const isCoreAggLink =
+    (roleOf(from) === 'core' && roleOf(to) === 'aggregation') ||
+    (roleOf(from) === 'aggregation' && roleOf(to) === 'core');
+  const isCoreCoreLink = roleOf(from) === 'core' && roleOf(to) === 'core';
+  /** 核心↔核心、核心↔汇聚：显示利用率/带宽，高利用率标红 */
+  const isBackboneMetricsLink = isCoreAggLink || isCoreCoreLink;
+
+  const isUp = isLinkActive(link.status);
   const utilization = Number(link.utilization ?? 0);
-  const isPeak = Boolean(link.is_peak) || utilization >= 0.75 || String(link.peak_level || '').toLowerCase() === 'high' || String(link.peak_level || '').toLowerCase() === 'critical';
+  const isPeakBackbone =
+    isBackboneMetricsLink &&
+    (Boolean(link.is_peak) ||
+      utilization >= 0.75 ||
+      String(link.peak_level || '').toLowerCase() === 'high' ||
+      String(link.peak_level || '').toLowerCase() === 'critical');
   const isOptimized = String(link.optimization_state || '').toLowerCase() === 'optimized';
-  const color = isDown ? '#334155' : (isOptimized ? '#22c55e' : (isPeak ? '#ef4444' : '#38bdf8'));
+  // 骨干链路高利用率优先标红，覆盖 OSPF 选路「已优化」的绿色
+  const color = !isUp
+    ? '#9ca3af'
+    : isPeakBackbone
+      ? '#ef4444'
+      : isOptimized
+        ? '#22c55e'
+        : '#38bdf8';
 
   const formatBandwidth = (value) => {
     if (value == null || value === '') return 'bw';
@@ -409,7 +429,8 @@ function LinkLine({ link, devices }) {
   const utilText = formatUtilization(utilization);
   const bwText = formatBandwidth(bandwidthRaw);
 
-  const shouldRenderSideLabels = bandwidthRaw != null || link.utilization != null;
+  const shouldRenderSideLabels =
+    isBackboneMetricsLink && isUp && (bandwidthRaw != null || link.utilization != null);
 
   const fromSize = getDeviceRenderSize(from);
   const toSize = getDeviceRenderSize(to);
@@ -432,15 +453,15 @@ function LinkLine({ link, devices }) {
         points={points}
         color={color}
         lineWidth={2}
-        opacity={isDown ? 0.2 : (isPeak ? 0.9 : 0.6)}
+        opacity={!isUp ? 0.75 : isPeakBackbone ? 0.9 : 0.6}
         transparent
       />
-      {!isDown && (
+      {isUp && (
          <Line
            points={points}
            color={color}
            lineWidth={5}
-           opacity={isPeak ? 0.18 : 0.1}
+           opacity={isPeakBackbone ? 0.18 : 0.1}
            transparent
          />
       )}
@@ -539,11 +560,6 @@ function FlowParticles({ link, devices }) {
 
 function Scene({ topology, onDeviceClick }) {
   const safe = normalizeTopology(topology);
-  const isLinkActive = (status) => {
-    if (status == null || status === '') return true;
-    const s = String(status || '').toLowerCase();
-    return s === 'up' || s === 'active' || s === 'online';
-  };
 
   const DashedEllipseArc = ({ p0, p1, color }) => {
     const geometry = useMemo(() => {
@@ -705,10 +721,12 @@ function Scene({ topology, onDeviceClick }) {
       {safe.devices.map((device) => (
         <DeviceMesh key={device.id} device={device} onClick={(e) => { e.stopPropagation(); onDeviceClick && onDeviceClick(device); }} />
       ))}
-      {safe.links.filter(l => isLinkActive(l.status)).map((link) => (
+      {safe.links.map((link) => (
         <React.Fragment key={link.id}>
             <LinkLine link={link} devices={safe.devices} />
-            <FlowParticles link={link} devices={safe.devices} />
+            {isLinkActive(link.status) ? (
+              <FlowParticles link={link} devices={safe.devices} />
+            ) : null}
         </React.Fragment>
       ))}
     </>

@@ -25,7 +25,11 @@ def upload_topology():
     original_name = os.path.basename(file.filename)
     check_topology(data)
 
-    topology_data = TopologyData(devices=data.get("devices", []), links=data.get("links", []))
+    topology_data = TopologyData(
+        devices=data.get("devices", []),
+        links=data.get("links", []),
+        ospf_reference_bandwidth=data.get("ospf_reference_bandwidth") or "1G",
+    )
     service = SimulationService(topology_data)
     db = get_db()
     create_snapshot( db, topology_data, f"上传拓扑配置: {original_name}", "TopologyUpload",)

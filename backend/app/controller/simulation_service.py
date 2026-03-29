@@ -21,9 +21,6 @@ from app.model.db_models import TopologySnapshot
 class SimulationService:
     """基于拓扑的仿真服务：运行时图、L2/L3 可达性、转发路径、状态与配置管理。"""
 
-    # OSPF 参考带宽（Mbps），与 Cisco 默认 100 Mbps 不同；此处按需求固定为 1G
-    OSPF_REFERENCE_BANDWIDTH_MBPS: float = 1000.0
-
     def __init__(
         self,
         topology_data: TopologyData,
@@ -125,13 +122,17 @@ class SimulationService:
         return not iface or iface.get("status", "up") == "up"
 
 
+    def _ospf_reference_mbps(self) -> float:
+        """参考带宽（Mbps）来自拓扑配置 TopologyData.ospf_reference_bandwidth。"""
+        return self._bandwidth_to_mbps(self.topology.ospf_reference_bandwidth)
+
     def _get_link_cost(self, link) -> int:
         """OSPF 接口 cost：手动 ospf_cost 优先，否则 参考带宽(Mbps) / 链路带宽(Mbps)，最小为 1。"""
         if getattr(link, "ospf_cost", None):
             return max(1, int(link.ospf_cost))
 
         mbps = self._bandwidth_to_mbps(getattr(link, "bandwidth", None))
-        raw = float(self.OSPF_REFERENCE_BANDWIDTH_MBPS) / max(1.0, mbps)
+        raw = self._ospf_reference_mbps() / max(1.0, mbps)
         return max(1, int(round(raw)))
 
     def _apply_interface_ospf_costs(self) -> None:
@@ -156,7 +157,7 @@ class SimulationService:
                     iface["ospf_cost"] = cost
 
     def _annotate_ospf_reference_bandwidth(self) -> None:
-        ref = int(self.OSPF_REFERENCE_BANDWIDTH_MBPS)
+        ref = int(self._ospf_reference_mbps())
         for dev in self.topology.devices:
             if not self._get_ospf_config(dev):
                 continue

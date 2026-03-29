@@ -824,7 +824,7 @@ options={devices.filter(d => (d.configuration?.ospf || d.ospf) || checkDeviceTyp
               {ospfLbPaths.map((p) => (
                 <div key={p.index} style={{ fontSize: 12, color: '#ccc', marginLeft: 8, marginTop: 8, paddingBottom: 8, borderBottom: '1px dashed rgba(255,255,255,0.12)' }}>
                   <div style={{ color: '#e2e8f0', marginBottom: 4 }}>
-                    {`路径 ${p.index} | cost=${p.cost} | 总时延=${Number(p.latency_ms || 0).toFixed(2)}ms | 分流占比=${Math.round(Number(p.traffic_share || 0) * 100)}%`}
+                    {`路径 ${p.index} | cost=${p.cost} | 总时延=${Number(p.latency_ms || 0).toFixed(2)}ms`}
                   </div>
                   <div style={{ marginLeft: 8, color: '#94a3b8' }}>
                     {`源: ${(Array.isArray(p.source_group_names) && p.source_group_names.length > 0) ? p.source_group_names.join('、') : (p.source_name || getDeviceName(p.source_id))} -> 目标: ${getDeviceName(ospfLbDstId)}`}

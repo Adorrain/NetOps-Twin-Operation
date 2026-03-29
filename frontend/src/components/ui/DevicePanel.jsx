@@ -20,6 +20,34 @@ import { getAllVlans } from '../../utils/net';
 
 const { Text, Title } = Typography;
 
+/** 将脚本中的带宽字符串（如 10G）转为 Mbps，供参考带宽展示兜底 */
+const parseBandwidthStringToMbps = (value) => {
+  if (value == null || value === '') return null;
+  const raw = String(value).trim().toLowerCase();
+  try {
+    if (raw.endsWith('g')) return Math.round(parseFloat(raw.slice(0, -1)) * 1000);
+    if (raw.endsWith('m')) return Math.round(parseFloat(raw.slice(0, -1)));
+    const n = Number(raw);
+    return Number.isFinite(n) ? Math.round(n) : null;
+  } catch {
+    return null;
+  }
+};
+
+const formatOspfRefBandwidth = (mbps) => {
+  if (mbps == null || !Number.isFinite(mbps)) return '—';
+  if (mbps >= 1000 && mbps % 1000 === 0) {
+    const g = mbps / 1000;
+    return `${mbps} Mbps (${g}G)`;
+  }
+  if (mbps >= 1000) {
+    const g = mbps / 1000;
+    const gStr = Number.isInteger(g) ? String(g) : g.toFixed(2).replace(/\.?0+$/, '');
+    return `${Math.round(mbps)} Mbps (${gStr}G)`;
+  }
+  return `${Math.round(mbps)} Mbps`;
+};
+
 const DevicePanel = () => {
   const { selectedDeviceId, setSelectedDevice, networkTopology, deviceStatuses } = useAppStore();
   const [routingModalOpen, setRoutingModalOpen] = useState(false);
@@ -125,7 +153,9 @@ const DevicePanel = () => {
   };
 
   const ospfConfig = getOspfConfig(device);
-  const ospfRefBwMbps = device.configuration?.ospf_reference_bandwidth_mbps;
+  const ospfRefBwMbps =
+    device.configuration?.ospf_reference_bandwidth_mbps ??
+    parseBandwidthStringToMbps(networkTopology?.ospf_reference_bandwidth);
   const routingTable = getRoutingTable(device);
   const vlanList = getVlanInfo(device);
   const dType = device.role || device.device_type;
@@ -433,7 +463,7 @@ const DevicePanel = () => {
                                 <div style={{ background: 'rgba(15, 23, 42, 0.3)', padding: 12, borderRadius: 8, border: '1px solid rgba(51, 65, 85, 0.3)' }}>
                                     <span style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>参考带宽</span>
                                     <span style={{ fontFamily: 'monospace', color: '#93c5fd', fontWeight: 700 }}>
-                                      {ospfRefBwMbps != null ? `${ospfRefBwMbps} Mbps (1G)` : '1000 Mbps (1G)'}
+                                      {formatOspfRefBandwidth(ospfRefBwMbps)}
                                     </span>
                                 </div>
                              </div>

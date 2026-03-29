@@ -46,3 +46,4 @@ class Link(BaseModel):
 class TopologyData(BaseModel):
     devices: List[Device] = Field(default_factory=list)
     links: List[Link] = Field(default_factory=list)
+    ospf_reference_bandwidth: str = Field(default="1G")

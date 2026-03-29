@@ -2,6 +2,8 @@
 # OSPF操作实验
 # =========================
 
+# OSPF 参考带宽；接口 cost = 参考带宽(Mbps) / 链路带宽(Mbps)
+ospf_reference_bandwidth: 10G
 
 # 脚本信息主要包含两部分，一是设备信息，二是链路信息
 # devices:
@@ -227,7 +229,7 @@ links:
       dst_device: core-2,
       dst_interface: g0/0,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 100G,
     }
   - {
       id: l2,
@@ -236,7 +238,7 @@ links:
       dst_device: agg-1,
       dst_interface: g1/0,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }
   - {
       id: l3,
@@ -245,7 +247,7 @@ links:
       dst_device: agg-2,
       dst_interface: g1/0,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }
   - {
       id: l4,
@@ -254,7 +256,7 @@ links:
       dst_device: agg-1,
       dst_interface: g1/1,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }
   - {
       id: l5,
@@ -263,7 +265,7 @@ links:
       dst_device: agg-2,
       dst_interface: g1/1,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }
   - {
       id: l6,
@@ -272,7 +274,7 @@ links:
       dst_device: access-1,
       dst_interface: g1/0,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }
   - {
       id: l7,
@@ -281,6 +283,7 @@ links:
       dst_device: access-2,
       dst_interface: g1/0,
       status: up,
+      bandwidth: 10G,
     }
   - {
       id: l8,
@@ -289,7 +292,7 @@ links:
       dst_device: edge-1,
       dst_interface: g0/0,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }
   - {
       id: l9,
@@ -298,7 +301,7 @@ links:
       dst_device: edge-2,
       dst_interface: g0/0,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }
   - {
       id: l10,
@@ -307,7 +310,7 @@ links:
       dst_device: pc-1,
       dst_interface: eth0,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }
   - {
       id: l11,
@@ -316,7 +319,7 @@ links:
       dst_device: pc-2,
       dst_interface: eth0,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }
   - {
       id: l12,
@@ -325,7 +328,7 @@ links:
       dst_device: pc-3,
       dst_interface: eth0,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }
   - {
       id: l13,
@@ -334,7 +337,7 @@ links:
       dst_device: pc-4,
       dst_interface: eth0,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }
   - {
       id: l14,
@@ -343,7 +346,7 @@ links:
       dst_device: pc-5,
       dst_interface: eth0,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }
   - {
       id: l15,
@@ -352,5 +355,5 @@ links:
       dst_device: pc-6,
       dst_interface: eth0,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }

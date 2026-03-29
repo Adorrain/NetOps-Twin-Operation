@@ -15,8 +15,9 @@ export const normalizeDeviceType = (device) =>
  * 判断链路状态是否为“可用/连通”
  */
 export const isLinkActive = (status) => {
+  if (status == null || status === '') return true;
   const s = String(status || '').toLowerCase();
-  return s === 'up' || s === 'active';
+  return s === 'up' || s === 'active' || s === 'online';
 };
 
 /**

@@ -110,6 +110,7 @@ const buildFrontendTopology = (cfg) => {
     id: 'imported-topology',
     name: cfg.topology?.name || cfg.name || '导入的拓扑',
     description: cfg.description,
+    ospf_reference_bandwidth: cfg.ospf_reference_bandwidth,
     devices,
     links: connections,
     connections,
