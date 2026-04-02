@@ -1,33 +1,7 @@
-# =========================
+
 # OSPF操作实验
-# =========================
 
-
-# 脚本信息主要包含两部分，一是设备信息，二是链路信息
-# devices:
-#   - id: core-1      # 设备ID，唯一标识
-#     name: 路由器1    # 设备名称
-#     role: core      # 设备角色，core、aggregation、access、terminal
-#     device_type: router       # 设备类型，router、switch、pc
-#     ip: 202.16.1.1      # 设备IP地址
-#     netmask: 255.255.255.255       # 设备子网掩码
-#     status: up      # 设备状态，up、down、maintenance
-#     ospf: { area: 0 }       # OSPF区域，0、1、2
-#     interfaces:
-#       - { name: g0/0, ip: 10.0.0.1, netmask: 255.255.255.252, status: up } # 接口信息，包括接口名称、IP地址、子网掩码、状态
-#       - { name: g0/1, ip: 10.0.0.5, netmask: 255.255.255.252, status: up }
-#       - { name: g0/2, ip: 10.0.0.9, netmask: 255.255.255.252, status: up }
-
-
-# links:
-#   - {
-#       id: l1,       # 链路ID，唯一标识
-#       src_device: core-1,       # 源设备ID
-#       src_interface: g0/0,      # 源接口名称
-#       dst_device: core-2,       # 目的设备ID
-#       dst_interface: g0/0,      # 目的接口名称
-#       status: up,       # 链路状态，up、down、maintenance
-#     } # 链路信息，包括链路ID、源设备ID、源接口名称、目的设备ID、目的接口名称、链路状态
+ospf_reference_bandwidth: 10G
 
 
 devices:
@@ -38,7 +12,7 @@ devices:
     ip: 202.16.1.1
     netmask: 255.255.255.255
     status: up
-    ospf: { router_id: 10.0.0.1, area: 0 }
+    ospf: { area: 0 }
     interfaces:
       - { name: g0/0, ip: 10.0.0.1, netmask: 255.255.255.252, status: up }
       - { name: g0/1, ip: 10.0.0.5, netmask: 255.255.255.252, status: up }
@@ -51,7 +25,7 @@ devices:
     ip: 202.16.1.2
     netmask: 255.255.255.255
     status: up
-    ospf: { router_id: 10.0.0.2, area: 0 }
+    ospf: { area: 0 }
     interfaces:
       - { name: g0/0, ip: 10.0.0.2, netmask: 255.255.255.252, status: up }
       - { name: g0/1, ip: 10.0.0.13, netmask: 255.255.255.252, status: up }
@@ -64,7 +38,7 @@ devices:
     ip: 202.16.1.3
     netmask: 255.255.255.255
     status: up
-    ospf: { router_id: 10.0.0.3, area: 0 }
+    ospf: { area: 0 }
     interfaces:
       - { name: g1/0, ip: 10.0.0.6, netmask: 255.255.255.252, status: up }
       - { name: g1/1, ip: 10.0.0.14, netmask: 255.255.255.252, status: up }
@@ -77,7 +51,7 @@ devices:
     ip: 202.16.1.4
     netmask: 255.255.255.255
     status: up
-    ospf: { router_id: 10.0.0.4, area: 0 }
+    ospf: { area: 0 }
     interfaces:
       - { name: g1/0, ip: 10.0.0.10, netmask: 255.255.255.252, status: up }
       - { name: g1/1, ip: 10.0.0.18, netmask: 255.255.255.252, status: up }
@@ -90,7 +64,7 @@ devices:
     ip: 202.16.1.5
     netmask: 255.255.255.255
     status: up
-    ospf: { router_id: 10.0.0.5, area: 1 }
+    ospf: { area: 1 }
     interfaces:
       - { name: g1/0, ip: 10.0.1.2, netmask: 255.255.255.252, status: up }
       - { name: g1/1, ip: 10.0.3.1, netmask: 255.255.255.252, status: up }
@@ -103,7 +77,7 @@ devices:
     ip: 202.16.1.6
     netmask: 255.255.255.255
     status: up
-    ospf: { router_id: 10.0.0.6, area: 2 }
+    ospf: { area: 2 }
     interfaces:
       - { name: g1/0, ip: 10.0.2.2, netmask: 255.255.255.252, status: up }
       - { name: g1/1, ip: 10.0.4.1, netmask: 255.255.255.252, status: up }
@@ -141,13 +115,7 @@ devices:
     device_type: pc
     status: up
     interfaces:
-      - {
-          name: eth0,
-          ip: 192.168.1.2,
-          netmask: 255.255.255.0,
-          gateway: 192.168.1.1,
-          status: up,
-        }
+      - { name: eth0, ip: 192.168.1.2, netmask: 255.255.255.0, gateway: 192.168.1.1, status: up }
 
   - id: pc-2
     name: PC2
@@ -155,13 +123,7 @@ devices:
     device_type: pc
     status: up
     interfaces:
-      - {
-          name: eth0,
-          ip: 192.168.1.3,
-          netmask: 255.255.255.0,
-          gateway: 192.168.1.1,
-          status: up,
-        }
+      - { name: eth0, ip: 192.168.1.3, netmask: 255.255.255.0, gateway: 192.168.1.1, status: up }
 
   - id: pc-3
     name: PC3
@@ -169,13 +131,7 @@ devices:
     device_type: pc
     status: up
     interfaces:
-      - {
-          name: eth0,
-          ip: 192.168.2.2,
-          netmask: 255.255.255.0,
-          gateway: 192.168.2.1,
-          status: up,
-        }
+      - { name: eth0, ip: 192.168.2.2, netmask: 255.255.255.0, gateway: 192.168.2.1, status: up }
 
   - id: pc-4
     name: PC4
@@ -183,13 +139,7 @@ devices:
     device_type: pc
     status: up
     interfaces:
-      - {
-          name: eth0,
-          ip: 192.168.2.3,
-          netmask: 255.255.255.0,
-          gateway: 192.168.2.1,
-          status: up,
-        }
+      - { name: eth0, ip: 192.168.2.3, netmask: 255.255.255.0, gateway: 192.168.2.1, status: up }
   
   - id: pc-5
     name: PC5
@@ -197,26 +147,14 @@ devices:
     device_type: pc
     status: up
     interfaces:
-      - {
-          name: eth0,
-          ip: 192.168.3.2,
-          netmask: 255.255.255.0,
-          gateway: 192.168.3.1,
-          status: up,
-        }
+      - { name: eth0, ip: 192.168.3.2, netmask: 255.255.255.0, gateway: 192.168.3.1, status: up }
   - id: pc-6
     name: PC6
     role: terminal
     device_type: pc
     status: up
     interfaces:
-      - {
-          name: eth0,
-          ip: 192.168.3.3,
-          netmask: 255.255.255.0,
-          gateway: 192.168.3.1,
-          status: up,
-        }
+      - { name: eth0, ip: 192.168.3.3, netmask: 255.255.255.0, gateway: 192.168.3.1, status: up }
 
 links:
   - {
@@ -226,7 +164,7 @@ links:
       dst_device: core-2,
       dst_interface: g0/0,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 100G,
     }
   - {
       id: l2,
@@ -235,7 +173,7 @@ links:
       dst_device: agg-1,
       dst_interface: g1/0,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }
   - {
       id: l3,
@@ -244,7 +182,7 @@ links:
       dst_device: agg-2,
       dst_interface: g1/0,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }
   - {
       id: l4,
@@ -253,7 +191,7 @@ links:
       dst_device: agg-1,
       dst_interface: g1/1,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }
   - {
       id: l5,
@@ -262,7 +200,7 @@ links:
       dst_device: agg-2,
       dst_interface: g1/1,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }
   - {
       id: l6,
@@ -271,6 +209,7 @@ links:
       dst_device: access-1,
       dst_interface: g1/0,
       status: up,
+      bandwidth: 10G,
     }
   - {
       id: l7,
@@ -279,7 +218,7 @@ links:
       dst_device: access-2,
       dst_interface: g1/0,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }
   - {
       id: l8,
@@ -288,7 +227,7 @@ links:
       dst_device: edge-1,
       dst_interface: g0/0,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }
   - {
       id: l9,
@@ -297,7 +236,7 @@ links:
       dst_device: edge-2,
       dst_interface: g0/0,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }
   - {
       id: l10,
@@ -306,7 +245,7 @@ links:
       dst_device: pc-1,
       dst_interface: eth0,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }
   - {
       id: l11,
@@ -315,7 +254,7 @@ links:
       dst_device: pc-2,
       dst_interface: eth0,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }
   - {
       id: l12,
@@ -324,7 +263,7 @@ links:
       dst_device: pc-3,
       dst_interface: eth0,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }
   - {
       id: l13,
@@ -333,7 +272,7 @@ links:
       dst_device: pc-4,
       dst_interface: eth0,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }
   - {
       id: l14,
@@ -342,7 +281,7 @@ links:
       dst_device: pc-5,
       dst_interface: eth0,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }
   - {
       id: l15,
@@ -351,5 +290,5 @@ links:
       dst_device: pc-6,
       dst_interface: eth0,
       status: up,
-      bandwidth: 1G,
+      bandwidth: 10G,
     }

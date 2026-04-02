@@ -1,31 +1,39 @@
-import React, { useMemo } from 'react';
-import { Card, Row, Col, Statistic, Progress, Empty, Tag } from 'antd';
-import { 
-  DashboardOutlined, 
-  CloudServerOutlined, 
-  WarningOutlined, 
-  ThunderboltOutlined,
-  CheckCircleOutlined
-} from '@ant-design/icons';
-import { useAppStore } from '../../stores';
-import { DeviceStatus } from '../../types';
-import SparkLine from './charts/SparkLine';
-import { isLinkActive, getAllVlans } from '../../utils/net';
+import React, { useCallback, useMemo, useState } from 'react'
+import { Button, ConfigProvider, Input, List, Select, Space, Table, Tag } from 'antd'
+import {
+  AimOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+  WarningOutlined,
+  ExclamationCircleOutlined,
+  CloseCircleOutlined,
+  CheckCircleOutlined,
+} from '@ant-design/icons'
+import { useNavigate } from 'react-router-dom'
+import { useAppStore } from '../../utils/appStore';
+import { ConnectionStatus, DeviceStatus } from '../../types'
+import { isLinkActive } from '../../utils/net'
 
 const MonitoringPanel = () => {
-  const { networkTopology, deviceStatuses } = useAppStore();
+  const { networkTopology, deviceStatuses, setSelectedDevice } = useAppStore()
+  const navigate = useNavigate()
 
-  const devices = useMemo(() => networkTopology?.devices || [], [networkTopology]);
-  const connections = useMemo(() => networkTopology?.links || networkTopology?.connections || [], [networkTopology]);
+  const devices = useMemo(() => networkTopology?.devices || [], [networkTopology])
+  const connections = useMemo(
+    () => networkTopology?.links || networkTopology?.connections || [],
+    [networkTopology]
+  )
 
-  const normalizeStatus = (status) => {
+  // Data normalization
+  const normalizeDeviceStatus = useCallback((status) => {
     const s = String(status || '').toLowerCase();
     if (s === 'up' || s === 'active' || s === 'online') return DeviceStatus.ONLINE;
     if (s === 'down' || s === 'offline') return DeviceStatus.OFFLINE;
     if (s === 'warning') return DeviceStatus.WARNING;
     if (s === 'error') return DeviceStatus.ERROR;
-    return DeviceStatus.ONLINE;
-  };
+    if (s === 'maintenance') return DeviceStatus.MAINTENANCE
+    return DeviceStatus.ONLINE
+  }, [])
 
   const statusCounts = useMemo(() => {
     const counts = {
@@ -33,171 +41,400 @@ const MonitoringPanel = () => {
       [DeviceStatus.OFFLINE]: 0,
       [DeviceStatus.WARNING]: 0,
       [DeviceStatus.ERROR]: 0,
+      [DeviceStatus.MAINTENANCE]: 0,
     };
     
     devices.forEach(device => {
-      const status = normalizeStatus(deviceStatuses.get(device.id) || device.status || DeviceStatus.OFFLINE);
+      const status = normalizeDeviceStatus(deviceStatuses.get(device.id) || device.status || DeviceStatus.OFFLINE)
       if (counts[status] !== undefined) counts[status]++;
-    });
-    return counts;
-  }, [devices, deviceStatuses]);
+    })
+    return counts
+  }, [devices, deviceStatuses, normalizeDeviceStatus])
 
-  const systemHealth = useMemo(() => {
-    if (devices.length === 0) return 100;
-    const totalScore = devices.reduce((acc, device) => {
-        const status = normalizeStatus(deviceStatuses.get(device.id) || device.status || DeviceStatus.ONLINE);
-        if (status === DeviceStatus.ONLINE) return acc + 100;
-        if (status === DeviceStatus.WARNING) return acc + 70;
-        if (status === DeviceStatus.ERROR) return acc + 40;
-        return acc + 0;
-    }, 0);
-    return Math.round(totalScore / devices.length);
-  }, [devices, deviceStatuses]);
+  const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
 
-  const getOspfArea = (device) => {
-    const ospf = device.ospf || device.configuration?.ospf;
-    return ospf?.area;
-  };
+  const deviceRows = useMemo(() => {
+    const q = String(query || '').trim().toLowerCase()
+    const filtered = statusFilter === 'all'
+      ? devices
+      : devices.filter((d) => normalizeDeviceStatus(deviceStatuses.get(d.id) || d.status || DeviceStatus.OFFLINE) === statusFilter)
 
-  const getRandomData = () => Array.from({ length: 10 }, () => Math.floor(Math.random() * 40) + 60);
+    if (!q) return filtered
+
+    return filtered.filter((d) => {
+      const name = String(d.name || '').toLowerCase()
+      const id = String(d.id || '').toLowerCase()
+      const ip = String(d.ip ?? d.ipAddress ?? '').toLowerCase()
+      const role = String(d.role ?? d.deviceType ?? d.device_type ?? '').toLowerCase()
+      return name.includes(q) || id.includes(q) || ip.includes(q) || role.includes(q)
+    })
+  }, [query, statusFilter, devices, deviceStatuses, normalizeDeviceStatus])
+
+  const ospfAreaOf = useCallback((device) => {
+    const ospf = device.ospf || device.configuration?.ospf
+    return ospf?.area
+  }, [])
+
+  const getStatusTagColor = useCallback((status) => {
+    switch (status) {
+      case DeviceStatus.ONLINE:
+        return 'green'
+      case DeviceStatus.WARNING:
+        return 'gold'
+      case DeviceStatus.ERROR:
+        return 'red'
+      case DeviceStatus.MAINTENANCE:
+        return 'orange'
+      case DeviceStatus.OFFLINE:
+      default:
+        return 'gray'
+    }
+  }, [])
+
+  const getStatusText = useCallback((status) => {
+    switch (status) {
+      case DeviceStatus.ONLINE:
+        return '在线'
+      case DeviceStatus.WARNING:
+        return '告警'
+      case DeviceStatus.ERROR:
+        return '故障'
+      case DeviceStatus.MAINTENANCE:
+        return '维护中'
+      case DeviceStatus.OFFLINE:
+      default:
+        return '离线'
+    }
+  }, [])
+
+  const deviceAlarmItems = useMemo(() => {
+    const items = []
+    for (const d of devices) {
+      const status = normalizeDeviceStatus(deviceStatuses.get(d.id) || d.status || DeviceStatus.OFFLINE)
+      if (status !== DeviceStatus.WARNING && status !== DeviceStatus.ERROR) continue
+
+      const area = ospfAreaOf(d)
+      const alarmLabel = status === DeviceStatus.WARNING ? '状态告警' : '状态故障'
+      const messageParts = [
+        `${d.name || d.id} (${status})`,
+        area !== undefined && area !== null ? `OSPF Area ${area}` : null,
+      ].filter(Boolean)
+
+      items.push({
+        key: `dev-${d.id}`,
+        kind: 'device',
+        deviceId: d.id,
+        severity: status,
+        title: alarmLabel,
+        message: messageParts.join(' / '),
+      })
+    }
+    return items
+  }, [devices, deviceStatuses, normalizeDeviceStatus, ospfAreaOf])
+
+  const connectionAlarmItems = useMemo(() => {
+    const items = []
+    for (const c of connections) {
+      const status = String(c.status || '').toLowerCase()
+      const isBad =
+        status === ConnectionStatus.FAILED ||
+        status === ConnectionStatus.DEGRADED ||
+        status === 'failed' ||
+        status === 'degraded'
+
+      if (!isBad) continue
+
+      const srcId = c.sourceDeviceId || c.source_device_id || c.source || ''
+      items.push({
+        key: `link-${c.id || `${srcId}-${c.targetDeviceId || ''}`}`,
+        kind: 'link',
+        deviceId: srcId,
+        severity: ConnectionStatus.FAILED,
+        title: '链路告警',
+        message: `${srcId || '-'} -> ${c.targetDeviceId || c.target_device_id || '-'} / 状态: ${c.status}`,
+      })
+    }
+    return items
+  }, [connections])
+
+  const alarmItems = useMemo(() => {
+    // Data first: merge & keep device alarms above link alarms
+    return [...deviceAlarmItems, ...connectionAlarmItems]
+  }, [deviceAlarmItems, connectionAlarmItems])
+
+  const activeLinkCount = useMemo(() => connections.filter((c) => isLinkActive(c.status)).length, [connections])
+  const totalLinkCount = connections.length
+
+  const handleOpenDevice = useCallback(
+    (deviceId) => {
+      if (!deviceId) return
+      setSelectedDevice(deviceId)
+      navigate('/topology')
+    },
+    [setSelectedDevice, navigate]
+  )
+
+  const handleResetFilters = useCallback(() => {
+    setQuery('')
+    setStatusFilter('all')
+  }, [])
+
+  const openFirstAlarm = useCallback(() => {
+    if (!alarmItems.length) return
+    handleOpenDevice(alarmItems[0].deviceId)
+  }, [alarmItems, handleOpenDevice])
+
+  const deviceColumns = useMemo(() => {
+    return [
+      {
+        title: '设备',
+        dataIndex: 'name',
+        key: 'name',
+        width: 220,
+        render: (_, record) => (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span style={{ color: '#e5e7eb', fontWeight: 600 }}>{record.name || '-'}</span>
+            <span style={{ color: 'rgba(229,231,235,0.65)', fontFamily: 'monospace', fontSize: 12 }}>
+              id: {record.id}
+            </span>
+          </div>
+        ),
+      },
+      {
+        title: 'IP',
+        dataIndex: 'ip',
+        key: 'ip',
+        width: 160,
+        render: (text) => <span style={{ fontFamily: 'monospace', color: '#94a3b8' }}>{text || '-'}</span>,
+      },
+      {
+        title: '角色',
+        dataIndex: 'roleLabel',
+        key: 'roleLabel',
+        width: 140,
+        render: (text) => <span style={{ color: '#cbd5e1' }}>{text || '-'}</span>,
+      },
+      {
+        title: '状态',
+        dataIndex: 'status',
+        key: 'status',
+        width: 120,
+        render: (status) => (
+          <Space size={0}>
+            <Tag color={getStatusTagColor(status)} style={{ minWidth: 60, textAlign: 'center' }}>
+              {getStatusText(status)}
+            </Tag>
+          </Space>
+        ),
+        filters: [
+          { text: '在线', value: DeviceStatus.ONLINE },
+          { text: '告警', value: DeviceStatus.WARNING },
+          { text: '故障', value: DeviceStatus.ERROR },
+          { text: '维护中', value: DeviceStatus.MAINTENANCE },
+          { text: '离线', value: DeviceStatus.OFFLINE },
+        ],
+        onFilter: (value, record) => record.status === value,
+      },
+      {
+        title: 'OSPF',
+        dataIndex: 'ospfArea',
+        key: 'ospfArea',
+        width: 140,
+        render: (area) => (area === undefined || area === null ? <span style={{ color: '#94a3b8' }}>-</span> : `Area ${area}`),
+      },
+      {
+        title: '动作',
+        key: 'actions',
+        width: 180,
+        render: (_, record) => (
+          <Space>
+            <Button size="small" onClick={() => handleOpenDevice(record.id)}>
+              定位设备
+            </Button>
+          </Space>
+        ),
+      },
+    ]
+  }, [handleOpenDevice, getStatusTagColor, getStatusText])
+
+  const tableData = useMemo(() => {
+    return deviceRows.map((d) => {
+      const status = normalizeDeviceStatus(deviceStatuses.get(d.id) || d.status || DeviceStatus.OFFLINE)
+      const ospfArea = ospfAreaOf(d)
+      const roleLabel = d.role || d.deviceType || d.device_type || 'unknown'
+      const rawIp = d.ip ?? d.ipAddress ?? d.interfaces?.find((it) => it?.ip)?.ip
+      const primaryIp = rawIp != null && rawIp !== '' ? String(rawIp).split('/')[0] : ''
+
+      return {
+        key: d.id,
+        id: d.id,
+        name: d.name,
+        ip: primaryIp,
+        roleLabel,
+        status,
+        ospfArea,
+      }
+    })
+  }, [deviceRows, deviceStatuses, normalizeDeviceStatus, ospfAreaOf])
+
+  const alarmSeveritySummary = useMemo(() => {
+    const warn = alarmItems.filter((i) => i.kind === 'device' && i.severity === DeviceStatus.WARNING).length
+    const err = alarmItems.filter((i) => i.kind === 'device' && i.severity === DeviceStatus.ERROR).length
+    const link = alarmItems.filter((i) => i.kind === 'link').length
+    return { warn, err, link }
+  }, [alarmItems])
+
   return (
-    <div style={{ padding: 24, height: '100%', overflowY: 'auto' }}>
-      <h2 style={{ color: '#fff', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
-        <DashboardOutlined style={{ color: '#1890ff' }} /> 系统监控
-      </h2>
-
-      <Row gutter={[24, 24]}>
-        <Col xs={24} sm={12} xl={6}>
-          <Card bordered={false} hoverable style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(8px)', borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-            <Statistic 
-              title={<span style={{ color: '#94a3b8' }}>系统健康度</span>}
-              value={systemHealth} 
-              suffix="%" 
-              valueStyle={{ color: systemHealth > 80 ? '#52c41a' : systemHealth > 50 ? '#faad14' : '#f5222d', fontWeight: 'bold' }}
-              prefix={<DashboardOutlined style={{ marginRight: 8 }} />}
-            />
-            <div style={{ height: 40, marginTop: 16 }}>
-               <SparkLine data={[65, 70, 68, 72, 75, 80, 85, 82, 88, systemHealth]} width={200} height={40} color="#1890ff" fill />
+    <ConfigProvider
+      theme={{
+        token: {
+          colorBgContainer: '#0b1220',
+          colorBgElevated: '#0f172a',
+          colorText: '#e5e7eb',
+          colorTextSecondary: 'rgba(229,231,235,0.7)',
+          colorBorderSecondary: '#1f2937',
+        },
+        components: {
+          Table: {
+            headerBg: '#0f172a',
+            headerColor: '#e5e7eb',
+            headerSplitColor: 'transparent',
+            rowHoverBg: 'rgba(255,255,255,0.04)',
+            borderColor: '#1f2937',
+          },
+        },
+      }}
+    >
+      <div
+        style={{
+          padding: 16,
+          height: '100%',
+          overflowY: 'auto',
+          background: '#0b1220',
+          color: '#e5e7eb',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
+          <div>
+            <Space wrap>
+              <Tag color="green">在线 {statusCounts[DeviceStatus.ONLINE]}</Tag>
+              <Tag color="gold">告警 {statusCounts[DeviceStatus.WARNING]}</Tag>
+              <Tag color="red">故障 {statusCounts[DeviceStatus.ERROR]}</Tag>
+              <Tag color="gray">离线 {statusCounts[DeviceStatus.OFFLINE]}</Tag>
+              <Tag color="orange">维护 {statusCounts[DeviceStatus.MAINTENANCE]}</Tag>
+              <Tag>
+                活跃链路 {activeLinkCount}/{totalLinkCount}
+              </Tag>
+            </Space>
+            <div style={{ marginTop: 8, color: 'rgba(229,231,235,0.7)', fontSize: 12 }}>
+              告警项 {alarmItems.length} 条 — 动作：点击右侧打开对应设备面板
             </div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} xl={6}>
-          <Card bordered={false} hoverable style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(8px)', borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-            <Statistic 
-              title={<span style={{ color: '#94a3b8' }}>在线设备</span>}
-              value={statusCounts[DeviceStatus.ONLINE]} 
-              suffix={`/ ${devices.length}`}
-              valueStyle={{ color: '#52c41a', fontWeight: 'bold' }}
-              prefix={<CloudServerOutlined style={{ marginRight: 8 }} />}
-            />
-            <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 8, color: '#52c41a', background: 'rgba(82,196,26,0.1)', padding: '4px 8px', borderRadius: 4, width: 'fit-content' }}>
-              <CheckCircleOutlined /> 系统运行正常
+          </div>
+          <Space>
+            <Button icon={<ReloadOutlined />} onClick={handleResetFilters}>
+              重置过滤
+            </Button>
+            <Button type="primary" icon={<AimOutlined />} onClick={openFirstAlarm} disabled={!alarmItems.length}>
+              打开首条告警
+            </Button>
+          </Space>
+        </div>
+
+        <div style={{ display: 'flex', gap: 12, minHeight: 0 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+              <Space wrap>
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="搜索：设备名 / id / IP"
+                  prefix={<SearchOutlined />}
+                  style={{ width: 320 }}
+                  allowClear
+                />
+                <Select
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                  style={{ width: 180 }}
+                  options={[
+                    { value: 'all', label: '状态：全部' },
+                    { value: DeviceStatus.ONLINE, label: '状态：在线' },
+                    { value: DeviceStatus.WARNING, label: '状态：告警' },
+                    { value: DeviceStatus.ERROR, label: '状态：故障' },
+                    { value: DeviceStatus.MAINTENANCE, label: '状态：维护中' },
+                    { value: DeviceStatus.OFFLINE, label: '状态：离线' },
+                  ]}
+                />
+              </Space>
+              <Tag>
+                过滤结果 {tableData.length} 条 — 动作：使用“定位设备”
+              </Tag>
             </div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} xl={6}>
-          <Card bordered={false} hoverable style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(8px)', borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-            <Statistic 
-              title={<span style={{ color: '#94a3b8' }}>活跃告警</span>}
-              value={statusCounts[DeviceStatus.WARNING] + statusCounts[DeviceStatus.ERROR]} 
-              valueStyle={{ color: '#faad14', fontWeight: 'bold' }}
-              prefix={<WarningOutlined style={{ marginRight: 8 }} />}
+
+            <Table
+              size="small"
+              rowKey="id"
+              dataSource={tableData}
+              columns={deviceColumns}
+              pagination={{ pageSize: 10, showSizeChanger: false }}
+              scroll={{ x: 980 }}
+              style={{ background: '#0b1220' }}
             />
-            <div style={{ height: 40, marginTop: 16 }}>
-              <SparkLine data={getRandomData()} width={200} height={40} color="#faad14" fill />
+          </div>
+
+          <div style={{ width: 380, minWidth: 380 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <Space size={6}>
+                <WarningOutlined />
+                <span style={{ color: '#e5e7eb', fontWeight: 600 }}>
+                  告警列表 {alarmItems.length} 条 — 动作：打开对应设备面板
+                </span>
+              </Space>
             </div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} xl={6}>
-          <Card bordered={false} hoverable style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(8px)', borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-            <Statistic 
-              title={<span style={{ color: '#94a3b8' }}>活跃链路</span>}
-              value={connections.filter(c => isLinkActive(c.status)).length} 
-              suffix={`/ ${connections.length}`}
-              valueStyle={{ color: '#722ed1', fontWeight: 'bold' }}
-              prefix={<ThunderboltOutlined style={{ marginRight: 8 }} />}
-            />
-            <Progress percent={100} showInfo={false} strokeColor={{ from: '#722ed1', to: '#c084fc' }} trailColor="rgba(255,255,255,0.05)" style={{ marginTop: 24 }} />
-          </Card>
-        </Col>
-      </Row>
 
-      <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
-        <Col xs={24} lg={8}>
-          <Card title={<span style={{ color: '#e2e8f0' }}>设备分布</span>} bordered={false} hoverable style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(8px)', borderRadius: 12, height: '100%', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} headStyle={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-             {Object.entries(devices.reduce((acc, curr) => {
-               const type = (curr.role || curr.deviceType || curr.device_type || 'unknown').toLowerCase();
-               acc[type] = (acc[type] || 0) + 1;
-               return acc;
-             }, {})).map(([type, count]) => {
-                const percentage = (count / devices.length) * 100;
-                return (
-                  <div key={type} style={{ marginBottom: 16 }}>
-                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <span style={{ textTransform: 'capitalize', color: '#cbd5e1' }}>{type}</span>
-                        <span style={{ color: '#94a3b8' }}>{count}</span>
-                     </div>
-                     <Progress percent={percentage} showInfo={false} strokeColor={{ from: '#108ee9', to: '#87d068' }} trailColor="rgba(255,255,255,0.05)" />
-                  </div>
-                );
-             })}
-          </Card>
-        </Col>
-        <Col xs={24} lg={8}>
-          <Card title={<span style={{ color: '#e2e8f0' }}>VLAN 配置</span>} bordered={false} hoverable style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(8px)', borderRadius: 12, height: '100%', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} headStyle={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-             {(() => {
-                const allVlans = new Set();
-                devices.forEach(d => getAllVlans(d).forEach(v => allVlans.add(v)));
-                const sortedVlans = Array.from(allVlans).sort((a,b) => a-b).slice(0, 10);
-                
-                if (sortedVlans.length === 0) return <Empty description={<span style={{ color: '#64748b' }}>未发现 VLAN 配置</span>} image={Empty.PRESENTED_IMAGE_SIMPLE} />;
+            <Space wrap style={{ marginBottom: 10 }}>
+              <Tag icon={<ExclamationCircleOutlined />} color="gold">设备告警 {alarmSeveritySummary.warn}</Tag>
+              <Tag icon={<CloseCircleOutlined />} color="red">设备故障 {alarmSeveritySummary.err}</Tag>
+              <Tag icon={<CheckCircleOutlined />} color="gray">链路告警 {alarmSeveritySummary.link}</Tag>
+            </Space>
 
-                return sortedVlans.map(vlanId => {
-                   const count = devices.filter(d => getAllVlans(d).includes(vlanId)).length;
-                   return (
-                       <div key={vlanId} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                         <span><Tag color="purple" style={{ borderRadius: 4, border: 'none', background: 'rgba(114, 46, 209, 0.2)' }}>VLAN {vlanId}</Tag></span>
-                         <span style={{ color: '#94a3b8' }}>{count} 设备</span>
-                       </div>
-                   );
-                });
-             })()}
-          </Card>
-        </Col>
-        <Col xs={24} lg={8}>
-          <Card title={<span style={{ color: '#e2e8f0' }}>OSPF 区域</span>} bordered={false} hoverable style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(8px)', borderRadius: 12, height: '100%', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} headStyle={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-             {(() => {
-                const areas = new Set();
-                devices.forEach(d => {
-                    const area = getOspfArea(d);
-                    if (area !== undefined) areas.add(area);
-                });
-                const sortedAreas = Array.from(areas).sort();
-
-                if (sortedAreas.length === 0) return <Empty description={<span style={{ color: '#64748b' }}>未发现 OSPF 配置</span>} image={Empty.PRESENTED_IMAGE_SIMPLE} />;
-
-                return sortedAreas.map(areaId => (
-                    <Card key={areaId} size="small" bordered={false} style={{ marginBottom: 12, background: 'linear-gradient(135deg, rgba(82, 196, 26, 0.1) 0%, rgba(82, 196, 26, 0.05) 100%)', borderRadius: 8 }}>
-                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div>
-                             <div style={{ fontSize: 12, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Area ID</div>
-                             <div style={{ fontSize: 20, fontWeight: 'bold', color: '#e2e8f0' }}>{areaId}</div>
-                          </div>
-                          <div style={{ textAlign: 'right' }}>
-                             <div style={{ fontSize: 24, fontWeight: 'bold', color: '#52c41a' }}>
-                               {devices.filter(d => getOspfArea(d) === areaId).length}
-                             </div>
-                             <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase' }}>路由器</div>
-                          </div>
-                       </div>
-                    </Card>
-                 ));
-             })()}
-          </Card>
-        </Col>
-      </Row>
-    </div>
-  );
-};
+            <div style={{ border: '1px solid #1f2937', borderRadius: 8, padding: 8, background: '#0b1220' }}>
+              <List
+                size="small"
+                dataSource={alarmItems}
+                locale={{ emptyText: '暂无告警项' }}
+                renderItem={(item) => (
+                  <List.Item style={{ padding: '8px 0', borderBottom: '1px solid rgba(31,41,55,0.8)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                        <Space size={8}>
+                          {item.kind === 'device' ? (
+                            <Tag color={getStatusTagColor(item.severity)}>{getStatusText(item.severity)}</Tag>
+                          ) : (
+                            <Tag color="red">链路</Tag>
+                          )}
+                          <span style={{ color: '#e5e7eb', fontWeight: 600 }}>{item.title}</span>
+                        </Space>
+                      </div>
+                      <div style={{ color: 'rgba(229,231,235,0.7)', fontSize: 12, lineHeight: 1.4 }}>
+                        {item.message}
+                      </div>
+                      <div>
+                        <Button size="small" onClick={() => handleOpenDevice(item.deviceId)} disabled={!item.deviceId}>
+                          动作：打开面板
+                        </Button>
+                      </div>
+                    </div>
+                  </List.Item>
+                )}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </ConfigProvider>
+  )
+}
 
 export default MonitoringPanel;

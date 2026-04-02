@@ -6,6 +6,14 @@
 创建时间: 2026-01-30
 """
 
+import os
+from dotenv import load_dotenv
+
+# IMPORTANT:
+# `app.service.database` instantiates the SQLAlchemy engine at import time.
+# Make sure `.env` is loaded before importing routers / database service.
+load_dotenv()
+
 from flask import Flask
 from flask_cors import CORS
 from app.router import topology, ops
@@ -15,7 +23,7 @@ from app.service.database import close_db, init_db
 app = Flask(__name__)
 
 # 配置 CORS：允许前端开发地址访问 /api 下所有接口
-_cors_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+_cors_origins = os.getenv("cors_origins")
 CORS(app, resources={r"/api.*": {"origins": _cors_origins}})
 
 # 注册蓝图

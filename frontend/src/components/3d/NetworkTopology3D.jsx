@@ -9,8 +9,7 @@
 
 import React, { Suspense, useMemo, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Grid, Text, Cone, RoundedBox, Line, Html, Environment, Float } from '@react-three/drei';
-import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
+import { OrbitControls, Grid, Text, RoundedBox, Line, Html, Float } from '@react-three/drei';
 import { Spin } from 'antd';
 import * as THREE from 'three';
 import { getDisplayVlanId } from '../../utils/net';
@@ -37,6 +36,127 @@ function normalizeTopology(raw) {
 
 /**
  * ===========================
+ * 标准化：渲染常量与派生函数
+ * ===========================
+ * 先定义“数据/规则”，组件只负责渲染，避免阅读时在 JSX 前后跳来跳去。
+ */
+const DEVICE_SIZE_CONFIG = {
+  core: { size: [3, 0.8, 2] },
+  aggregation: { size: [2.5, 0.6, 1.8] },
+  access: { size: [2, 0.5, 1.5] },
+  edge: { size: [2.3, 0.7, 1.7] },
+  server: { size: [1.2, 2.5, 1.2] },
+  router: { size: [2, 0.5, 1.5] },
+  pc: { size: [0.8, 0.6, 0.1] },
+};
+
+const BASE_COLOR_BY_TYPE = {
+  core: '#00ffff',
+  aggregation: '#38bdf8',
+  access: '#3b82f6',
+  edge: '#f97316',
+  router: '#4ade80',
+  server: '#a855f7',
+  pc: '#94a3b8',
+  unknown: '#64748b',
+};
+
+// VLAN 颜色（用于 VLAN 指示环与文字）
+const VLAN_PALETTE = [
+  '#f472b6',
+  '#22d3ee',
+  '#a78bfa',
+  '#34d399',
+  '#fbbf24',
+  '#f87171',
+  '#60a5fa',
+  '#c084fc',
+];
+
+const getStatusColor = (status) => {
+  let statusColor = '#22c55e';
+  const s = String(status || '').toLowerCase();
+  if (s === 'offline' || s === 'down') statusColor = '#64748b';
+  if (s === 'warning') statusColor = '#eab308';
+  if (s === 'error') statusColor = '#ef4444';
+  if (s === 'offline' || s === 'down') statusColor = '#64748b';
+  return statusColor;
+};
+
+const isHighLoad = (metrics) => {
+  return Boolean(metrics && (metrics.cpuUsage > 90 || metrics.networkIn > 8000));
+};
+
+const getDeviceTypeStrings = (device) => {
+  const name = device?.name || '';
+  const role = device?.role || '';
+  const device_type = device?.device_type || device?.deviceType || device?.type || '';
+  return {
+    name: String(name),
+    role: String(role),
+    device_type: String(device_type),
+  };
+};
+
+const getDeviceRenderType = (device) => {
+  const { role, device_type } = getDeviceTypeStrings(device);
+  return String(role || device_type || 'access').toLowerCase();
+};
+
+const inferEffectiveDeviceType = (device) => {
+  const { name, device_type } = getDeviceTypeStrings(device);
+  const renderType = getDeviceRenderType(device);
+
+  const lowerName = String(name || '').toLowerCase();
+  const lowerDeviceType = String(device_type || '').toLowerCase();
+
+  if (lowerDeviceType.includes('router') || renderType.includes('router')) return 'router';
+  if (lowerName.includes('core')) return 'core';
+  if (lowerName.includes('agg')) return 'aggregation';
+  if (renderType.includes('edge') || renderType.includes('firewall') || lowerName.includes('fw')) return 'edge';
+  if (lowerDeviceType.includes('server') || renderType.includes('server')) return 'server';
+  if (renderType.includes('pc') || renderType.includes('terminal')) return 'pc';
+  if (renderType.includes('switch')) return 'access';
+  return renderType;
+};
+
+const resolveSizeType = (device) => {
+  const { name } = getDeviceTypeStrings(device);
+  const renderType = getDeviceRenderType(device);
+  const effectiveType = inferEffectiveDeviceType(device);
+
+  if (effectiveType !== 'router') return effectiveType;
+
+  const lowerName = String(name || '').toLowerCase();
+  if (renderType.includes('core')) return 'core';
+  if (renderType.includes('aggregation') || renderType.includes('agg')) return 'aggregation';
+  if (renderType.includes('edge') || renderType.includes('firewall') || lowerName.includes('fw')) return 'edge';
+  return 'access';
+};
+
+const getDeviceSize = (device) => {
+  const sizeType = resolveSizeType(device);
+  return DEVICE_SIZE_CONFIG[sizeType]?.size || DEVICE_SIZE_CONFIG.access.size;
+};
+
+const getDeviceBaseColor = (device) => {
+  const effectiveType = inferEffectiveDeviceType(device);
+  return BASE_COLOR_BY_TYPE[effectiveType] || BASE_COLOR_BY_TYPE.access;
+};
+
+const getRingColor = (device, baseColor) => {
+  const vlanId = getDisplayVlanId(device);
+  return vlanId ? VLAN_PALETTE[parseInt(vlanId, 10) % VLAN_PALETTE.length] : baseColor;
+};
+
+const isLinkActiveLoose = (status) => {
+  if (status == null || status === '') return true;
+  const s = String(status || '').toLowerCase();
+  return s === 'up' || s === 'active' || s === 'online';
+};
+
+/**
+ * ===========================
  * 3D 几何组件库 (更好的模型)
  * ===========================
  */
@@ -54,10 +174,10 @@ const RackDevice = ({ size, color, ports = false, isServer = false, statusColor 
         />
       </RoundedBox>
       
-      {/* 前面板发光条 (状态指示) */}
+      {/* 前面板状态条 */}
       <mesh position={[0, size[1]/2 - 0.05, size[2]/2 + 0.01]}>
         <boxGeometry args={[size[0] * 0.9, 0.05, 0.02]} />
-        <meshBasicMaterial color={statusColor} toneMapped={false} />
+        <meshStandardMaterial color={statusColor} roughness={0.6} metalness={0.1} />
       </mesh>
 
       {/* 端口面板 */}
@@ -66,7 +186,7 @@ const RackDevice = ({ size, color, ports = false, isServer = false, statusColor 
           {Array.from({ length: 8 }).map((_, i) => (
              <mesh key={i} position={[(i - 3.5) * (size[0]/10), 0, 0]}>
                <boxGeometry args={[size[0]/14, size[1]/3, 0.02]} />
-               <meshStandardMaterial color="#0f172a" emissive="#38bdf8" emissiveIntensity={0.5} />
+               <meshStandardMaterial color="#0f172a" roughness={0.7} metalness={0.05} />
              </mesh>
           ))}
         </group>
@@ -78,7 +198,7 @@ const RackDevice = ({ size, color, ports = false, isServer = false, statusColor 
            {[0, 1, 2].map(i => (
              <mesh key={i} position={[0, -i * 0.15, 0]}>
                <circleGeometry args={[0.04, 16]} />
-               <meshBasicMaterial color={color} toneMapped={false} />
+               <meshStandardMaterial color={color} roughness={0.4} metalness={0.2} />
              </mesh>
            ))}
         </group>
@@ -158,16 +278,16 @@ const TerminalDevice = ({ size, color, statusColor }) => {
       <RoundedBox args={[size[0], size[1]*0.8, 0.1]} radius={0.05} position={[0, size[1]/2, 0]}>
         <meshPhysicalMaterial color="#0f172a" roughness={0.2} metalness={0.8} />
       </RoundedBox>
-      {/* 屏幕内容 (发光) */}
+      {/* 屏幕内容 */}
       <mesh position={[0, size[1]/2, 0.06]}>
         <planeGeometry args={[size[0] - 0.1, size[1]*0.8 - 0.1]} />
-        <meshBasicMaterial color={color} toneMapped={false} opacity={0.8} transparent />
+        <meshStandardMaterial color={color} roughness={0.35} metalness={0.05} opacity={0.8} transparent />
       </mesh>
       
       {/* 状态灯 (状态指示器) */}
       <mesh position={[size[0]/2 - 0.05, size[1]/2 - 0.25, 0.06]}>
         <circleGeometry args={[0.02, 16]} />
-        <meshBasicMaterial color={statusColor} toneMapped={false} />
+        <meshStandardMaterial color={statusColor} roughness={0.4} metalness={0.05} />
       </mesh>
 
       {/* 支架 */}
@@ -190,96 +310,18 @@ const TerminalDevice = ({ size, color, statusColor }) => {
  * ===========================
  */
 function DeviceMesh({ device, onClick }) {
-  const { position = { x: 0, y: 0, z: 0 }, role, name, status, metrics } = device;
-  const device_type = device.device_type || device.deviceType || device.type;
-  
-  // 尺寸配置
-  const config = {
-    core: { size: [3, 0.8, 2] },
-    aggregation: { size: [2.5, 0.6, 1.8] },
-    access: { size: [2, 0.5, 1.5] },
-    edge: { size: [2.3, 0.7, 1.7] },
-    server: { size: [1.2, 2.5, 1.2] },
-    router: { size: [2, 0.5, 1.5] },
-    pc: { size: [0.8, 0.6, 0.1] },
-  };
-
-  const renderType = (role || device_type || 'access').toLowerCase();
-  
-  // 智能推断类型
-  let effectiveType = renderType;
-  const lowerName = (name || '').toLowerCase();
-  const lowerDeviceType = String(device_type || '').toLowerCase();
-  if (lowerDeviceType.includes('router') || renderType.includes('router')) effectiveType = 'router';
-  else if (lowerName.includes('core')) effectiveType = 'core';
-  else if (lowerName.includes('agg')) effectiveType = 'aggregation';
-  else if (renderType.includes('edge') || renderType.includes('firewall') || lowerName.includes('fw')) effectiveType = 'edge';
-  else if (lowerDeviceType.includes('server') || renderType.includes('server')) effectiveType = 'server';
-  else if (renderType.includes('pc') || renderType.includes('terminal')) effectiveType = 'pc';
-  else if (renderType.includes('switch')) effectiveType = 'access';
-
-  // 路由器也要“同层级尺寸”，避免路由器永远小一号
-  const sizeType =
-    effectiveType === 'router'
-      ? (renderType.includes('core')
-          ? 'core'
-          : (renderType.includes('aggregation') || renderType.includes('agg'))
-            ? 'aggregation'
-            : (renderType.includes('edge') || renderType.includes('firewall') || lowerName.includes('fw'))
-              ? 'edge'
-            : 'access')
-      : effectiveType;
-
-  const { size } = config[sizeType] || config.access;
-
-  // 霓虹配色方案
-  const neonColors = {
-    core: '#00ffff',       // 青色
-    aggregation: '#38bdf8', // 天蓝色
-    access: '#3b82f6',     // 蓝色
-    edge: '#f97316',       // 橙色
-    router: '#4ade80',     // 霓虹绿
-    server: '#a855f7',     // 紫色
-    pc: '#94a3b8',         // 板岩色
-    unknown: '#64748b'
-  };
-
-  const baseColor = neonColors[effectiveType] || neonColors.access;
-
-  // ---------------------------
-  // VLAN 颜色逻辑 (新特性)
-  // ---------------------------
+  const { position = { x: 0, y: 0, z: 0 }, name, status, metrics } = device;
+  const effectiveType = inferEffectiveDeviceType(device);
+  const size = getDeviceSize(device);
+  const baseColor = getDeviceBaseColor(device);
   const vlanId = getDisplayVlanId(device);
-  
-  // 预定义一组高辨识度的 VLAN 霓虹色
-  const vlanPalette = [
-    '#f472b6', // 粉色 (VLAN N)
-    '#22d3ee', // 青色
-    '#a78bfa', // 紫色
-    '#34d399', // 绿色
-    '#fbbf24', // 琥珀色
-    '#f87171', // 红色
-    '#60a5fa', // 蓝色
-    '#c084fc', // 紫罗兰色
-  ];
-
-  // 如果有 VLAN ID，则计算颜色；否则回退到 baseColor
-  const ringColor = vlanId 
-    ? vlanPalette[parseInt(vlanId) % vlanPalette.length] 
-    : baseColor;
-
-  // 状态颜色
-  let statusColor = '#22c55e'; // 绿色 (正常)
-  if (status === 'offline' || status === 'down') statusColor = '#64748b';
-  if (status === 'warning') statusColor = '#eab308';
-  if (status === 'error') statusColor = '#ef4444';
-
-  // DDoS 效果
-  const isHighLoad = metrics && (metrics.cpuUsage > 90 || metrics.networkIn > 8000);
+  const ringColor = getRingColor(device, baseColor);
+  const statusColor = getStatusColor(status);
+  const highLoad = isHighLoad(metrics);
   const meshRef = useRef();
 
   useFrame(({ clock }) => {
-     if (isHighLoad && meshRef.current) {
+     if (highLoad && meshRef.current) {
         const t = (Math.sin(clock.getElapsedTime() * 10) + 1) / 2;
         meshRef.current.position.y = (size[1]/2) + (t * 0.1); // 紧张的抖动
      }
@@ -319,14 +361,14 @@ function DeviceMesh({ device, onClick }) {
       <Text
         position={[0, size[1] + 0.5, 0]}
         fontSize={0.4}
-        color={isHighLoad ? "#ef4444" : "white"}
+        color={highLoad ? "#ef4444" : "white"}
         anchorX="center"
         anchorY="middle"
         outlineWidth={0.02}
         outlineColor="#000000"
       >
         {name}
-        {isHighLoad && "\n⚠ HIGH LOAD"}
+        {highLoad && "\n⚠ HIGH LOAD"}
       </Text>
 
       {/* 选中/交互光圈 (VLAN 指示器) */}
@@ -372,48 +414,6 @@ function LinkLine({ link, devices }) {
 
   if (!from || !to || !from.position || !to.position) return null;
 
-  const getDeviceRenderSize = (device) => {
-    const device_type = device?.device_type || device?.deviceType || device?.type;
-    const role = device?.role;
-    const name = device?.name;
-
-    const renderType = (role || device_type || 'access').toLowerCase();
-    let effectiveType = renderType;
-    const lowerName = String(name || '').toLowerCase();
-    const lowerDeviceType = String(device_type || '').toLowerCase();
-
-    if (lowerDeviceType.includes('router') || renderType.includes('router')) effectiveType = 'router';
-    else if (lowerName.includes('core')) effectiveType = 'core';
-    else if (lowerName.includes('agg')) effectiveType = 'aggregation';
-    else if (renderType.includes('edge') || renderType.includes('firewall') || lowerName.includes('fw')) effectiveType = 'edge';
-    else if (lowerDeviceType.includes('server') || renderType.includes('server')) effectiveType = 'server';
-    else if (renderType.includes('pc') || renderType.includes('terminal')) effectiveType = 'pc';
-    else if (renderType.includes('switch')) effectiveType = 'access';
-
-    // 路由器的“尺寸类型”与 DeviceMesh 保持一致
-    const sizeType =
-      effectiveType === 'router'
-        ? (renderType.includes('core')
-            ? 'core'
-            : ((renderType.includes('aggregation') || renderType.includes('agg'))
-                ? 'aggregation'
-                : ((renderType.includes('edge') || renderType.includes('firewall') || lowerName.includes('fw'))
-                    ? 'edge'
-                    : 'access')))
-        : effectiveType;
-
-    const config = {
-      core: { size: [3, 0.8, 2] },
-      aggregation: { size: [2.5, 0.6, 1.8] },
-      access: { size: [2, 0.5, 1.5] },
-      edge: { size: [2.3, 0.7, 1.7] },
-      server: { size: [1.2, 2.5, 1.2] },
-      pc: { size: [0.8, 0.6, 0.1] },
-    };
-
-    return config[sizeType]?.size || config.access.size;
-  };
-
   const points = [
     [from.position.x, 0.5, from.position.z],
     [to.position.x, 0.5, to.position.z],
@@ -424,9 +424,6 @@ function LinkLine({ link, devices }) {
   const isPeak = Boolean(link.is_peak) || utilization >= 0.75 || String(link.peak_level || '').toLowerCase() === 'high' || String(link.peak_level || '').toLowerCase() === 'critical';
   const isOptimized = String(link.optimization_state || '').toLowerCase() === 'optimized';
   const color = isDown ? '#334155' : (isOptimized ? '#22c55e' : (isPeak ? '#ef4444' : '#38bdf8'));
-
-  const fromSize = getDeviceRenderSize(from);
-  const toSize = getDeviceRenderSize(to);
 
   return (
     <group>
@@ -474,7 +471,7 @@ function FlowParticles({ link, devices }) {
   // 减少粒子数量但增加亮度
   const particleCount = isDDoS ? 20 : 5;
   const speed = isDDoS ? 3.0 : 1.0;
-  const color = isDDoS ? '#ff0000' : '#00ffff'; // 青色或红色
+  const color = isDDoS ? '#ef4444' : '#38bdf8'; // 红色告警 / 蓝色流量
 
   const particlesGeometry = useMemo(() => {
     const geometry = new THREE.BufferGeometry();
@@ -520,11 +517,6 @@ function FlowParticles({ link, devices }) {
 
 function Scene({ topology, onDeviceClick }) {
   const safe = normalizeTopology(topology);
-  const isLinkActive = (status) => {
-    if (status == null || status === '') return true;
-    const s = String(status || '').toLowerCase();
-    return s === 'up' || s === 'active' || s === 'online';
-  };
 
   return (
     <>
@@ -542,7 +534,7 @@ function Scene({ topology, onDeviceClick }) {
       {safe.devices.map((device) => (
         <DeviceMesh key={device.id} device={device} onClick={(e) => { e.stopPropagation(); onDeviceClick && onDeviceClick(device); }} />
       ))}
-      {safe.links.filter(l => isLinkActive(l.status)).map((link) => (
+      {safe.links.filter(l => isLinkActiveLoose(l.status)).map((link) => (
         <React.Fragment key={link.id}>
             <LinkLine link={link} devices={safe.devices} />
             <FlowParticles link={link} devices={safe.devices} />
@@ -554,7 +546,7 @@ function Scene({ topology, onDeviceClick }) {
 
 export default function NetworkTopology3D({ topology, onDeviceClick }) {
   return (
-    <div style={{ width: '100%', height: '100%', background: '#020617' }}>
+    <div style={{ width: '100%', height: '100%', background: '#0b1220' }}>
         <Canvas
           shadows
           camera={{ position: [15, 12, 15], fov: 45 }}
@@ -577,17 +569,6 @@ export default function NetworkTopology3D({ topology, onDeviceClick }) {
           }>
             <Scene topology={topology} onDeviceClick={onDeviceClick} />
           </Suspense>
-
-          {/* 后处理特效 (美化部分) */}
-          <EffectComposer disableNormalPass>
-            <Bloom 
-                luminanceThreshold={1.2} 
-                mipmapBlur 
-                intensity={1.0} 
-                radius={0.6}
-            />
-            <Vignette eskil={false} offset={0.1} darkness={0.6} />
-          </EffectComposer>
 
           <OrbitControls 
             minDistance={5} 

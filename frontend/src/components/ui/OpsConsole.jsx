@@ -13,7 +13,7 @@ import {
   PlayCircleOutlined,
   DeleteOutlined
 } from '@ant-design/icons';
-import { useAppStore } from '../../stores';
+import { useAppStore } from '../../utils/appStore';
 import { DeviceStatus, ConnectionStatus, DeviceType } from '../../types';
 import { isVlanCapableDevice } from '../../utils/net';
 import { opsApi } from '../../api/ops/opsApi';

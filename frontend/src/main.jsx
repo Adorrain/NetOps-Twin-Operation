@@ -13,15 +13,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <ConfigProvider
       theme={{
         algorithm: theme.darkAlgorithm,
-        token: {
-          colorPrimary: '#3b82f6',
-          borderRadius: 8,
-        },
+        token: { borderRadius: 8 },
         components: {
-          Layout: {
-            headerBg: '#212c46ff',
-            siderBg: '#212c46ff',
-          },
           Menu: {
             itemBorderRadius: 8,
           },

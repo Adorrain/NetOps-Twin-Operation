@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Layout, Menu, theme } from 'antd';
+import React from 'react';
+import { Layout, Menu } from 'antd';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   CloudServerOutlined, 
@@ -9,17 +9,15 @@ import {
   LeftOutlined,
   RightOutlined
 } from '@ant-design/icons';
-import { useAppStore } from '../../stores';
+import { useAppStore } from '../../utils/appStore';
 
 const { Sider } = Layout;
 
 const Sidebar = () => {
-  const { token } = theme.useToken();
   const { ui, updateUI } = useAppStore();
   const navigate = useNavigate();
   const location = useLocation();
   const collapsed = ui.sidebarCollapsed;
-  const [triggerHover, setTriggerHover] = useState(false);
 
   const menuItems = [
     { key: 'topology', label: '网络拓扑', icon: <CloudServerOutlined /> },
@@ -50,68 +48,63 @@ const Sidebar = () => {
             left: 0,
             top: 0,
             bottom: 0,
-            background: 'transparent',
-            padding: 12
+          background: '#0b1220',
+          padding: 12,
+          borderRight: '1px solid #1f2937',
         }}
     >
-      <div
-        style={{
-          height: '100%',
-          borderRadius: 18,
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          background: 'rgba(15, 23, 42, 0.65)',
-          border: `1px solid ${token.colorBorderSecondary}`,
-          backdropFilter: 'blur(12px)',
-          boxShadow: '0 10px 40px rgba(0, 0, 0, 0.35)'
-        }}
-      >
-        <div style={{ 
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div
+          style={{
             height: 64,
-            margin: 12,
-            borderRadius: 14,
+            padding: '0 12px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'hidden',
-            whiteSpace: 'nowrap',
-            flexShrink: 0,
-            background: token.colorFillTertiary,
-            border: `1px solid ${token.colorBorderSecondary}`
-        }}>
-          <HomeOutlined style={{ fontSize: 24, color: token.colorPrimary }} />
-          {!collapsed && <span style={{ marginLeft: 10, color: token.colorText, fontWeight: 650, fontSize: 16, letterSpacing: 0.4 }}>NetOps Twin</span>}
+            gap: 10,
+            background: '#0f172a',
+          }}
+        >
+          <HomeOutlined style={{ fontSize: 22, color: '#3b82f6' }} />
+          {!collapsed && (
+            <span style={{ color: '#e5e7eb', fontWeight: 650, fontSize: 16, letterSpacing: 0.2 }}>
+              网络数字孪生实验平台
+            </span>
+          )}
         </div>
-        
-        <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
+
+        <div style={{ flex: 1, overflowY: 'auto', paddingTop: 8 }}>
           <Menu
-              theme="dark"
-              mode="inline"
-              selectedKeys={[selectedKey]}
-              onClick={handleMenuClick}
-              items={menuItems}
-              inlineIndent={18}
-              style={{ borderRight: 0, background: 'transparent' }}
+            theme="dark"
+            mode="inline"
+            selectedKeys={[selectedKey]}
+            onClick={handleMenuClick}
+            items={menuItems}
+            inlineIndent={18}
+            style={{
+              borderRight: 0,
+              background: 'transparent',
+              color: '#e5e7eb',
+            }}
           />
         </div>
 
         <div
-          style={{ 
+          style={{
             height: 44,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            borderTop: `1px solid ${token.colorBorderSecondary}`,
+            borderTop: '1px solid #1f2937',
             cursor: 'pointer',
-            transition: 'background-color 160ms ease',
-            backgroundColor: triggerHover ? 'rgba(255, 255, 255, 0.06)' : 'transparent'
-          }} 
-          onMouseEnter={() => setTriggerHover(true)}
-          onMouseLeave={() => setTriggerHover(false)}
+            background: 'transparent',
+          }}
           onClick={() => updateUI({ sidebarCollapsed: !collapsed })}
         >
-          {collapsed ? <RightOutlined style={{ color: token.colorText, fontSize: 16 }} /> : <LeftOutlined style={{ color: token.colorText, fontSize: 16 }} />}
+          {collapsed ? (
+            <RightOutlined style={{ color: '#e5e7eb', fontSize: 16 }} />
+          ) : (
+            <LeftOutlined style={{ color: '#e5e7eb', fontSize: 16 }} />
+          )}
         </div>
       </div>
     </Sider>

@@ -2,7 +2,7 @@ import React, { useEffect } from 'react'
 import { Layout, notification, Spin } from 'antd'
 import Header from './Header'
 import Sidebar from './Sidebar'
-import { useAppStore } from '../../stores'
+import { useAppStore } from '../../utils/appStore'
 
 const { Content } = Layout
 
@@ -37,10 +37,10 @@ const MainLayout = ({ children }) => {
             minHeight: 0,
             position: 'relative',
             overflow: 'hidden',
-            background: '#111827',
+            background: '#0b1220',
             borderRadius: 12,
             border: '1px solid #1f2937',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+            boxShadow: 'none',
           }}
         >
           {children}

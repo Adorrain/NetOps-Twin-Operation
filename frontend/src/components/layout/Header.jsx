@@ -9,8 +9,8 @@ const Header = () => {
     <AntHeader
       style={{
         height: 64,
-        padding: '8px 16px',
-        background: 'transparent',
+        padding: '0 16px',
+        background: '#0b1220',
       }}
     >
       <div
@@ -19,14 +19,11 @@ const Header = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'rgba(15, 23, 42, 0.85)',
-          borderRadius: 12,
-          border: '1px solid rgba(255,255,255,0.08)',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+          width: '100%',
         }}
       >
-        <Text strong style={{ color: '#fff', fontSize: 22 }}>
-          NetOps 数字孪生平台
+        <Text strong style={{ color: '#e5e7eb', fontSize: 18, textAlign: 'center' }}>
+          网络数字孪生实验平台
         </Text>
       </div>
     </AntHeader>

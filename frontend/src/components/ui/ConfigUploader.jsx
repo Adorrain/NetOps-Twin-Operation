@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Upload, message, Card, Spin } from 'antd';
 import { InboxOutlined, FileTextOutlined } from '@ant-design/icons';
-import { useAppStore } from '../../stores';
+import { useAppStore } from '../../utils/appStore';
 import { uploadTopologyFile } from '../../api/topology/topologyApi';
 import { getEndpointAccessVlan } from '../../utils/net';
 

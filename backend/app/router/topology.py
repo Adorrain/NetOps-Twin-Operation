@@ -18,7 +18,7 @@ from app.model.topology import TopologyData
 app= Blueprint('topology', __name__)
 
 
-@app.route("/network/topology/upload", methods=['POST'])
+@app.route("/topology/upload", methods=['POST'])
 def upload_topology():
     file = request.files.get('file')
     data = yaml.safe_load(request.files['file'].read())

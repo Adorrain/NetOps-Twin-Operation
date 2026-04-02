@@ -13,7 +13,7 @@ import {
   ArrowUpOutlined,
   ApiOutlined
 } from '@ant-design/icons';
-import { useAppStore } from '../../stores';
+import { useAppStore } from '../../utils/appStore';
 import { DeviceStatus } from '../../types';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { getAllVlans } from '../../utils/net';

@@ -11,7 +11,7 @@ Flask 依赖注入定义
 from flask import abort
 from app.service.database import get_db
 from app.controller.simulation_service import SimulationService
-from app.dao.snapshot_dao import SnapshotParseError, SnapshotNotFoundError, get_latest_topology_data
+from app.dao.snapshot_dao import get_latest_topology_data
 
 """
     函数应该考虑多种情况，比如没有配置文件应该抛出异常404等其他的原因
@@ -25,8 +25,5 @@ def get_simulation_service() -> SimulationService:
         topology_data, snapshot = get_latest_topology_data(db)
         return SimulationService(topology_data, db=db, snapshot=snapshot)
 
-    except SnapshotNotFoundError as e:
-        abort(404, description=str(e))
-
-    except SnapshotParseError as e:
+    except Exception as e:
         abort(500, description=str(e))

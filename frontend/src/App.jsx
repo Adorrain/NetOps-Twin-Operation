@@ -14,7 +14,7 @@ import DevicePanel from './components/ui/DevicePanel';
 import ConfigUploader from './components/ui/ConfigUploader';
 import OpsConsole from './components/ui/OpsConsole';
 import MonitoringPanel from './components/ui/MonitoringPanel';
-import { useAppStore } from './stores';
+import { AppStoreProvider, useAppStore } from './utils/appStore';
 
 const { Content, Sider } = Layout;
 const { Title, Text } = Typography;
@@ -27,14 +27,18 @@ const AppContent = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const handleDeviceClick = (device) => {
+    setSelectedDevice(device?.id);
+  };
+
   useEffect(() => {
     const path = location.pathname.substring(1) || 'topology';
     updateUI({ activePanel: path });
   }, [location, updateUI]);
 
-  /**
-   * 脚本配置成功上传后跳转拓扑页
-   */
+/**
+  * 脚本配置成功上传后跳转拓扑页
+  */
   const handleConfigLoaded = () => {
     navigate('/topology');
   };
@@ -45,25 +49,25 @@ const AppContent = () => {
       <Route path="/topology" element={
         <Layout className="app-route-layout">
           <Content className="app-topology-content">
-             {networkTopology ? (
-               <NetworkTopology3D 
-                 key={networkTopology.id || 'default-topo'}
-                 topology={networkTopology} 
-                 onDeviceClick={(device) => setSelectedDevice(device?.id)}
-               />
-             ) : (
-                <div className="app-empty-wrapper">
-                   <Empty
-                      image={Empty.PRESENTED_IMAGE_SIMPLE}
-                      description={
-                        <div className="app-empty-description">
-                          <Title level={3} className="app-empty-title">NO TOPOLOGY</Title>
-                          <Text type="secondary">请先前往「配置上传」加载拓扑</Text>
-                        </div>
-                      }
-                   />
-                </div>
-             )}
+            {networkTopology ? (
+              <NetworkTopology3D
+                key={networkTopology.id ?? 'default-topo'}
+                topology={networkTopology}
+                onDeviceClick={handleDeviceClick}
+              />
+            ) : (
+              <div className="app-empty-wrapper">
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description={
+                    <div className="app-empty-description">
+                      <Title level={3} className="app-empty-title">NO TOPOLOGY</Title>
+                      <Text type="secondary">请先前往「配置上传」加载拓扑</Text>
+                    </div>
+                  }
+                />
+              </div>
+            )}
              <DevicePanel />
           </Content>
 
@@ -71,7 +75,7 @@ const AppContent = () => {
              <div className="app-console-header">
                 <div className="app-console-header-title-wrap">
                   <div className="app-console-header-bar" />
-                  <Title level={4} className="app-console-title">NetOps Console</Title>
+                  <Title level={4} className="app-console-title">运维控制台</Title>
                 </div>
              </div>
              <div className="app-console-body">
@@ -100,9 +104,11 @@ const AppContent = () => {
 function App() {
   return (
     <BrowserRouter>
-      <MainLayout>
-        <AppContent />
-      </MainLayout>
+      <AppStoreProvider>
+        <MainLayout>
+          <AppContent />
+        </MainLayout>
+      </AppStoreProvider>
     </BrowserRouter>
   );
 }
