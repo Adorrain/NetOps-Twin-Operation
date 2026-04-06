@@ -19,10 +19,7 @@ const MonitoringPanel = () => {
   const navigate = useNavigate()
 
   const devices = useMemo(() => networkTopology?.devices || [], [networkTopology])
-  const connections = useMemo(
-    () => networkTopology?.links || networkTopology?.connections || [],
-    [networkTopology]
-  )
+  const links = useMemo(() => networkTopology?.links || [], [networkTopology])
 
   // Data normalization
   const normalizeDeviceStatus = useCallback((status) => {
@@ -66,7 +63,7 @@ const MonitoringPanel = () => {
       const name = String(d.name || '').toLowerCase()
       const id = String(d.id || '').toLowerCase()
       const ip = String(d.ip ?? d.ipAddress ?? '').toLowerCase()
-      const role = String(d.role ?? d.deviceType ?? d.device_type ?? '').toLowerCase()
+      const role = String(d.role ?? d.deviceType ?? '').toLowerCase()
       return name.includes(q) || id.includes(q) || ip.includes(q) || role.includes(q)
     })
   }, [query, statusFilter, devices, deviceStatuses, normalizeDeviceStatus])
@@ -112,10 +109,19 @@ const MonitoringPanel = () => {
     const items = []
     for (const d of devices) {
       const status = normalizeDeviceStatus(deviceStatuses.get(d.id) || d.status || DeviceStatus.OFFLINE)
-      if (status !== DeviceStatus.WARNING && status !== DeviceStatus.ERROR) continue
+      if (
+        status !== DeviceStatus.WARNING &&
+        status !== DeviceStatus.ERROR &&
+        status !== DeviceStatus.OFFLINE
+      ) continue
 
       const area = ospfAreaOf(d)
-      const alarmLabel = status === DeviceStatus.WARNING ? '状态告警' : '状态故障'
+      const alarmLabel =
+        status === DeviceStatus.WARNING
+          ? '状态告警'
+          : status === DeviceStatus.ERROR
+            ? '状态故障'
+            : '设备离线'
       const messageParts = [
         `${d.name || d.id} (${status})`,
         area !== undefined && area !== null ? `OSPF Area ${area}` : null,
@@ -135,36 +141,37 @@ const MonitoringPanel = () => {
 
   const connectionAlarmItems = useMemo(() => {
     const items = []
-    for (const c of connections) {
-      const status = String(c.status || '').toLowerCase()
+    for (const link of links) {
+      const status = String(link.status || '').toLowerCase()
       const isBad =
         status === ConnectionStatus.FAILED ||
         status === ConnectionStatus.DEGRADED ||
+        status === 'down' ||
         status === 'failed' ||
         status === 'degraded'
 
       if (!isBad) continue
 
-      const srcId = c.sourceDeviceId || c.source_device_id || c.source || ''
+      const srcId = link.srcDevice || ''
       items.push({
-        key: `link-${c.id || `${srcId}-${c.targetDeviceId || ''}`}`,
+        key: `link-${link.id || `${srcId}-${link.dstDevice || ''}`}`,
         kind: 'link',
         deviceId: srcId,
         severity: ConnectionStatus.FAILED,
         title: '链路告警',
-        message: `${srcId || '-'} -> ${c.targetDeviceId || c.target_device_id || '-'} / 状态: ${c.status}`,
+        message: `${srcId || '-'} -> ${link.dstDevice || '-'} / 状态: ${link.status}`,
       })
     }
     return items
-  }, [connections])
+  }, [links])
 
   const alarmItems = useMemo(() => {
     // Data first: merge & keep device alarms above link alarms
     return [...deviceAlarmItems, ...connectionAlarmItems]
   }, [deviceAlarmItems, connectionAlarmItems])
 
-  const activeLinkCount = useMemo(() => connections.filter((c) => isLinkActive(c.status)).length, [connections])
-  const totalLinkCount = connections.length
+  const activeLinkCount = useMemo(() => links.filter((link) => isLinkActive(link.status)).length, [links])
+  const totalLinkCount = links.length
 
   const handleOpenDevice = useCallback(
     (deviceId) => {
@@ -262,7 +269,7 @@ const MonitoringPanel = () => {
     return deviceRows.map((d) => {
       const status = normalizeDeviceStatus(deviceStatuses.get(d.id) || d.status || DeviceStatus.OFFLINE)
       const ospfArea = ospfAreaOf(d)
-      const roleLabel = d.role || d.deviceType || d.device_type || 'unknown'
+      const roleLabel = d.role || d.deviceType || 'unknown'
       const rawIp = d.ip ?? d.ipAddress ?? d.interfaces?.find((it) => it?.ip)?.ip
       const primaryIp = rawIp != null && rawIp !== '' ? String(rawIp).split('/')[0] : ''
 

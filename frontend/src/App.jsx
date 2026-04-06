@@ -73,9 +73,15 @@ const AppContent = () => {
 
           <Sider width={400} theme="dark" className="app-console-sider">
              <div className="app-console-header">
-                <div className="app-console-header-title-wrap">
+                <div className="app-console-header-row">
+                  <div className="app-console-header-title-wrap">
                   <div className="app-console-header-bar" />
                   <Title level={4} className="app-console-title">运维控制台</Title>
+                  </div>
+                  <div className="app-console-refbw">
+                    <Text className="app-console-refbw-label">参考带宽</Text>
+                    <Text className="app-console-refbw-value">{networkTopology?.ospfReferenceBandwidth || '-'}</Text>
+                  </div>
                 </div>
              </div>
              <div className="app-console-body">

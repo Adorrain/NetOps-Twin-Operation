@@ -116,7 +116,7 @@ const DevicePanel = () => {
   };
 
   const getRoutingTable = (device) => {
-    const rt = device.routing_table || device.configuration?.routing_table;
+    const rt = device.routingTable || device.configuration?.routingTable;
     return Array.isArray(rt) ? rt : [];
   };
 
@@ -127,7 +127,7 @@ const DevicePanel = () => {
   const ospfConfig = getOspfConfig(device);
   const routingTable = getRoutingTable(device);
   const vlanList = getVlanInfo(device);
-  const dType = device.role || device.device_type;
+  const dType = device.role || device.deviceType;
   const statusColor = getStatusColor(effectiveStatus);
   const rawIp = device.ip ?? device.ipAddress ?? device.interfaces?.find(i => i?.ip)?.ip;
   const primaryIp = rawIp != null && rawIp !== '' ? (typeof rawIp === 'string' && rawIp.includes('/') ? rawIp.split('/')[0] : rawIp) : '-';
@@ -423,7 +423,7 @@ const DevicePanel = () => {
                              <div style={{ padding: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                                 <div style={{ background: 'rgba(15, 23, 42, 0.3)', padding: 12, borderRadius: 8, border: '1px solid rgba(51, 65, 85, 0.3)' }}>
                                     <span style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>路由器 ID</span>
-                                    <span style={{ fontFamily: 'monospace', color: '#e2e8f0', fontWeight: 700 }}>{ospfConfig.router_id}</span>
+                                    <span style={{ fontFamily: 'monospace', color: '#e2e8f0', fontWeight: 700 }}>{ospfConfig.routerId}</span>
                                 </div>
                                 <div style={{ background: 'rgba(15, 23, 42, 0.3)', padding: 12, borderRadius: 8, border: '1px solid rgba(51, 65, 85, 0.3)' }}>
                                     <span style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>区域 (Area)</span>

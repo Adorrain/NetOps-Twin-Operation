@@ -1,8 +1,6 @@
 /**
  * 运维相关 API 调用封装。
  *
- * 将前端操作映射到后端 /api/ops 下的接口。
- *
  * Author: Adorrain
  * Date: 2026-01-30
  */
@@ -10,24 +8,23 @@
 import { postJson } from '../../utils/http';
 
 
-const ping = (sourceId, targetId) => postJson('/ops/ping', { source_id: sourceId, target_id: targetId });
+const ping = (sourceId, targetId) => postJson('/ops/ping', { sourceId, targetId });
 
-const traceroute = (sourceId, targetId) => postJson('/ops/traceroute', { source_id: sourceId, target_id: targetId });
+const traceroute = (sourceId, targetId) => postJson('/ops/traceroute', { sourceId, targetId });
 
-const updateDevice = (id, data) => postJson('/ops/device/status', { device_id: id, status: data.status });
+const updateDevice = (id, data) => postJson('/ops/device/status', { deviceId: id, status: data.status });
 
-const updateConnection = (id, data) => postJson('/ops/link/status', { link_id: id, status: data.status });
+const updateConnection = (id, data) => postJson('/ops/link/status', { linkId: id, status: data.status });
 
-const updateInterfaceStatus = (deviceId, ifaceName, status) => postJson('/ops/interface/status', { device_id: deviceId, iface_name: ifaceName, status });
+const updateInterfaceStatus = (deviceId, ifaceName, status) => postJson('/ops/interface/status', { deviceId, ifaceName, status });
 
-const updateOspf = (deviceId, data) => postJson('/ops/ospf/config', { device_id: deviceId, area: data.area, router_id: data.routerId });
+const updateOspf = (deviceId, data) => postJson('/ops/ospf/config', { deviceId, area: data.area, routerId: data.routerId });
 
-const removeVlan = (deviceId, data) => postJson('/ops/vlan/remove', { device_id: deviceId, port: data.port });
+const recoverVlan = (deviceId, data) => postJson('/ops/vlan/recover', { deviceId, port: data.port });
 
+const configureVlan = (deviceId, data) => postJson('/ops/vlan/configure', { deviceId, port: data.port, mode: data.mode, vlanId: data.vlanId, allowedVlans: data.allowedVlans });
 
-const configureVlan = (deviceId, data) => postJson('/ops/vlan/configure', {device_id: deviceId, port: data.port, mode: data.mode, vlan_id: data.vlanId, allowed_vlans: data.allowedVlans});
-
-const getOspfNeighbors = (deviceId) => postJson('/ops/ospf/neighbors', { device_id: deviceId });
+const getOspfNeighbors = (deviceId) => postJson('/ops/ospf/neighbors', { deviceId });
 
 export const opsApi = {
   ping,
@@ -36,7 +33,7 @@ export const opsApi = {
   updateConnection,
   updateInterfaceStatus,
   updateOspf,
-  removeVlan,
+  recoverVlan,
   configureVlan,
   getOspfNeighbors,
 };

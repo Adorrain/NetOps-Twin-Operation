@@ -9,7 +9,7 @@
  * 规范化设备类型字符串
  */
 export const normalizeDeviceType = (device) =>
-  String(device?.device_type || device?.role || '').toLowerCase();
+  String(device?.deviceType || device?.role || '').toLowerCase();
 
 /**
  * 判断链路状态是否为“可用/连通”
@@ -43,7 +43,7 @@ export const isVlanCapableDevice = (device) => {
   if (!device) return false;
   if (device.vlan != null) return true;
   const ifaces = Array.isArray(device.interfaces) ? device.interfaces : [];
-  return ifaces.some(it => it?.vlan != null || it?.mode || it?.allowed_vlans);
+  return ifaces.some(it => it?.vlan != null || it?.mode || it?.allowedVlans);
 };
 
 /**

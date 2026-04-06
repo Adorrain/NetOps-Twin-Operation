@@ -1,6 +1,4 @@
-"""
-数据库 ORM 模型定义。
-
+"""数据库 ORM 模型定义
 包含：
 - 拓扑运行态快照（TopologySnapshot）
 - 运维操作日志（OperationLog）

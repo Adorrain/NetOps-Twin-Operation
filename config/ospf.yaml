@@ -1,14 +1,14 @@
 
 # OSPF操作实验
 
-ospf_reference_bandwidth: 10G
+ospfReferenceBandwidth: 10G
 
 
 devices:
   - id: core-1
     name: 核心路由器1
     role: core
-    device_type: router
+    deviceType: router
     ip: 202.16.1.1
     netmask: 255.255.255.255
     status: up
@@ -21,7 +21,7 @@ devices:
   - id: core-2
     name: 核心路由器2
     role: core
-    device_type: router
+    deviceType: router
     ip: 202.16.1.2
     netmask: 255.255.255.255
     status: up
@@ -34,7 +34,7 @@ devices:
   - id: agg-1
     name: 汇聚路由器1
     role: aggregation
-    device_type: router
+    deviceType: router
     ip: 202.16.1.3
     netmask: 255.255.255.255
     status: up
@@ -47,7 +47,7 @@ devices:
   - id: agg-2
     name: 汇聚路由器2
     role: aggregation
-    device_type: router
+    deviceType: router
     ip: 202.16.1.4
     netmask: 255.255.255.255
     status: up
@@ -60,7 +60,7 @@ devices:
   - id: access-1
     name: 接入路由器1
     role: access
-    device_type: router
+    deviceType: router
     ip: 202.16.1.5
     netmask: 255.255.255.255
     status: up
@@ -73,7 +73,7 @@ devices:
   - id: access-2
     name: 接入路由器2
     role: access
-    device_type: router
+    deviceType: router
     ip: 202.16.1.6
     netmask: 255.255.255.255
     status: up
@@ -86,7 +86,7 @@ devices:
   - id: edge-1
     name: 交换机1
     role: edge
-    device_type: switch
+    deviceType: switch
     ip: 202.16.1.7
     netmask: 255.255.255.255
     status: up
@@ -99,7 +99,7 @@ devices:
   - id: edge-2
     name: 交换机2
     role: edge
-    device_type: switch
+    deviceType: switch
     ip: 202.16.1.8
     netmask: 255.255.255.255
     status: up
@@ -112,7 +112,9 @@ devices:
   - id: pc-1
     name: PC1
     role: terminal
-    device_type: pc
+    deviceType: pc
+    ip: 192.168.1.2
+    netmask: 255.255.255.0
     status: up
     interfaces:
       - { name: eth0, ip: 192.168.1.2, netmask: 255.255.255.0, gateway: 192.168.1.1, status: up }
@@ -120,7 +122,9 @@ devices:
   - id: pc-2
     name: PC2
     role: terminal
-    device_type: pc
+    deviceType: pc
+    ip: 192.168.1.3
+    netmask: 255.255.255.0
     status: up
     interfaces:
       - { name: eth0, ip: 192.168.1.3, netmask: 255.255.255.0, gateway: 192.168.1.1, status: up }
@@ -128,7 +132,9 @@ devices:
   - id: pc-3
     name: PC3
     role: terminal
-    device_type: pc
+    deviceType: pc
+    ip: 192.168.2.2
+    netmask: 255.255.255.0
     status: up
     interfaces:
       - { name: eth0, ip: 192.168.2.2, netmask: 255.255.255.0, gateway: 192.168.2.1, status: up }
@@ -136,7 +142,9 @@ devices:
   - id: pc-4
     name: PC4
     role: terminal
-    device_type: pc
+    deviceType: pc
+    ip: 192.168.2.3
+    netmask: 255.255.255.0
     status: up
     interfaces:
       - { name: eth0, ip: 192.168.2.3, netmask: 255.255.255.0, gateway: 192.168.2.1, status: up }
@@ -144,14 +152,18 @@ devices:
   - id: pc-5
     name: PC5
     role: terminal
-    device_type: pc
+    deviceType: pc
+    ip: 192.168.3.2
+    netmask: 255.255.255.0
     status: up
     interfaces:
       - { name: eth0, ip: 192.168.3.2, netmask: 255.255.255.0, gateway: 192.168.3.1, status: up }
   - id: pc-6
     name: PC6
     role: terminal
-    device_type: pc
+    deviceType: pc
+    ip: 192.168.3.3
+    netmask: 255.255.255.0
     status: up
     interfaces:
       - { name: eth0, ip: 192.168.3.3, netmask: 255.255.255.0, gateway: 192.168.3.1, status: up }
@@ -159,136 +171,136 @@ devices:
 links:
   - {
       id: l1,
-      src_device: core-1,
-      src_interface: g0/0,
-      dst_device: core-2,
-      dst_interface: g0/0,
+      srcDevice: core-1,
+      srcInterface: g0/0,
+      dstDevice: core-2,
+      dstInterface: g0/0,
       status: up,
       bandwidth: 100G,
     }
   - {
       id: l2,
-      src_device: core-1,
-      src_interface: g0/1,
-      dst_device: agg-1,
-      dst_interface: g1/0,
+      srcDevice: core-1,
+      srcInterface: g0/1,
+      dstDevice: agg-1,
+      dstInterface: g1/0,
       status: up,
       bandwidth: 10G,
     }
   - {
       id: l3,
-      src_device: core-1,
-      src_interface: g0/2,
-      dst_device: agg-2,
-      dst_interface: g1/0,
+      srcDevice: core-1,
+      srcInterface: g0/2,
+      dstDevice: agg-2,
+      dstInterface: g1/0,
       status: up,
       bandwidth: 10G,
     }
   - {
       id: l4,
-      src_device: core-2,
-      src_interface: g0/1,
-      dst_device: agg-1,
-      dst_interface: g1/1,
+      srcDevice: core-2,
+      srcInterface: g0/1,
+      dstDevice: agg-1,
+      dstInterface: g1/1,
       status: up,
       bandwidth: 10G,
     }
   - {
       id: l5,
-      src_device: core-2,
-      src_interface: g0/2,
-      dst_device: agg-2,
-      dst_interface: g1/1,
+      srcDevice: core-2,
+      srcInterface: g0/2,
+      dstDevice: agg-2,
+      dstInterface: g1/1,
       status: up,
       bandwidth: 10G,
     }
   - {
       id: l6,
-      src_device: agg-1,
-      src_interface: g1/2,
-      dst_device: access-1,
-      dst_interface: g1/0,
+      srcDevice: agg-1,
+      srcInterface: g1/2,
+      dstDevice: access-1,
+      dstInterface: g1/0,
       status: up,
       bandwidth: 10G,
     }
   - {
       id: l7,
-      src_device: agg-2,
-      src_interface: g1/2,
-      dst_device: access-2,
-      dst_interface: g1/0,
+      srcDevice: agg-2,
+      srcInterface: g1/2,
+      dstDevice: access-2,
+      dstInterface: g1/0,
       status: up,
       bandwidth: 10G,
     }
   - {
       id: l8,
-      src_device: access-1,
-      src_interface: g1/1,
-      dst_device: edge-1,
-      dst_interface: g0/0,
+      srcDevice: access-1,
+      srcInterface: g1/1,
+      dstDevice: edge-1,
+      dstInterface: g0/0,
       status: up,
       bandwidth: 10G,
     }
   - {
       id: l9,
-      src_device: access-2,
-      src_interface: g1/1,
-      dst_device: edge-2,
-      dst_interface: g0/0,
+      srcDevice: access-2,
+      srcInterface: g1/1,
+      dstDevice: edge-2,
+      dstInterface: g0/0,
       status: up,
       bandwidth: 10G,
     }
   - {
       id: l10,
-      src_device: edge-1,
-      src_interface: g0/1,
-      dst_device: pc-1,
-      dst_interface: eth0,
+      srcDevice: edge-1,
+      srcInterface: g0/1,
+      dstDevice: pc-1,
+      dstInterface: eth0,
       status: up,
       bandwidth: 10G,
     }
   - {
       id: l11,
-      src_device: edge-1,
-      src_interface: g0/2,
-      dst_device: pc-2,
-      dst_interface: eth0,
+      srcDevice: edge-1,
+      srcInterface: g0/2,
+      dstDevice: pc-2,
+      dstInterface: eth0,
       status: up,
       bandwidth: 10G,
     }
   - {
       id: l12,
-      src_device: edge-1,
-      src_interface: g0/3,
-      dst_device: pc-3,
-      dst_interface: eth0,
+      srcDevice: edge-1,
+      srcInterface: g0/3,
+      dstDevice: pc-3,
+      dstInterface: eth0,
       status: up,
       bandwidth: 10G,
     }
   - {
       id: l13,
-      src_device: edge-2,
-      src_interface: g0/1,
-      dst_device: pc-4,
-      dst_interface: eth0,
+      srcDevice: edge-2,
+      srcInterface: g0/1,
+      dstDevice: pc-4,
+      dstInterface: eth0,
       status: up,
       bandwidth: 10G,
     }
   - {
       id: l14,
-      src_device: edge-2,
-      src_interface: g0/2,
-      dst_device: pc-5,
-      dst_interface: eth0,
+      srcDevice: edge-2,
+      srcInterface: g0/2,
+      dstDevice: pc-5,
+      dstInterface: eth0,
       status: up,
       bandwidth: 10G,
     }
   - {
       id: l15,
-      src_device: edge-2,
-      src_interface: g0/3,
-      dst_device: pc-6,
-      dst_interface: eth0,
+      srcDevice: edge-2,
+      srcInterface: g0/3,
+      dstDevice: pc-6,
+      dstInterface: eth0,
       status: up,
       bandwidth: 10G,
     }

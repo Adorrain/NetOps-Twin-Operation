@@ -1,34 +1,49 @@
 """Topology API 路由
 
-提供网络拓扑的上传和解析功能
-
 作者: Adorrain
 修改时间: 2026-03-01
 """
+
 import os
+
 import yaml
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, jsonify, request
+from pydantic import ValidationError
 
-from app.utils.serialization import dump_model, check_topology
 from app.controller.simulation_service import SimulationService
-from app.service.database import get_db
-from app.dao.snapshot_dao import create_snapshot
+from app.dao.snapshot_dao import createSnapshot
 from app.model.topology import TopologyData
+from app.service.database import databaseService
+from app.utils.serialization import checkTopology, dumpModel
 
-app= Blueprint('topology', __name__)
-
-
-@app.route("/topology/upload", methods=['POST'])
-def upload_topology():
-    file = request.files.get('file')
-    data = yaml.safe_load(request.files['file'].read())
-    original_name = os.path.basename(file.filename)
-    check_topology(data)
-
-    topology_data = TopologyData(devices=data.get("devices", []), links=data.get("links", []))
-    service = SimulationService(topology_data)
-    db = get_db()
-    create_snapshot( db, topology_data, f"上传拓扑配置: {original_name}", "TopologyUpload",)
-    return jsonify(dump_model(service.topology))
+app = Blueprint("topology", __name__)
 
 
+@app.route("/topology/upload", methods=["POST"])
+def uploadTopology():
+    f = request.files.get("file")
+    try:
+        data = yaml.safe_load(f.read())
+        checkTopology(data)
+        topologyData = TopologyData.model_validate(data)
+        service = SimulationService(topologyData)
+    except yaml.YAMLError as e:
+        return jsonify(detail=f"YAML 解析失败：{e}"), 400
+    except ValidationError as e:
+        return jsonify(detail=f"拓扑字段校验失败：{e.errors()}"), 400
+    except Exception as e:
+        return jsonify(detail=f"后端处理失败：{e}"), 400
+
+    session = databaseService.getDb()
+    try:
+        createSnapshot(
+            session,
+            topologyData,
+            f"上传拓扑配置: {os.path.basename(f.filename or '')}",
+            "TopologyUpload",
+            "",
+        )
+    except Exception:
+        pass
+
+    return jsonify(dumpModel(service.topologyData))

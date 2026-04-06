@@ -1,21 +1,20 @@
-"""
-拓扑业务模型
+"""拓扑业务模型
 
 作者: Adorrain
 创建时间: 2026-01-30
 """
 
-from pydantic import BaseModel,Field
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
-"""
-设备业务模型
-"""
+from pydantic import BaseModel, Field
+
+
 class Device(BaseModel):
+    """设备业务模型"""
     id: str
     name: str
     role: str
-    device_type: str
+    deviceType: str
     ip: Optional[str] = None
     netmask: Optional[str] = None
     status: str = "up"
@@ -24,25 +23,21 @@ class Device(BaseModel):
     interfaces: List[Dict[str, Any]] = Field(default_factory=list)
     vlan: Optional[int] = None
 
-"""
-链路业务模型
-"""
+
 class Link(BaseModel):
+    """链路业务模型"""
     id: str
-    src_device: str
-    dst_device: str
-
-    src_interface: Optional[str] = None
-    dst_interface: Optional[str] = None
-
+    srcDevice: str
+    dstDevice: str
+    srcInterface: Optional[str] = None
+    dstInterface: Optional[str] = None
     status: str = "up"
     bandwidth: Optional[str] = None
+    ospfCost: Optional[int] = None
 
-    ospf_cost: Optional[int] = None
 
-"""
-拓扑数据业务模型
-"""
 class TopologyData(BaseModel):
+    """拓扑数据业务模型"""
+    ospfReferenceBandwidth: Optional[str] = None
     devices: List[Device] = Field(default_factory=list)
     links: List[Link] = Field(default_factory=list)

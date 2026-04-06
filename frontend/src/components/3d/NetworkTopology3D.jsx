@@ -28,7 +28,7 @@ import { getDisplayVlanId } from '../../utils/net';
 function normalizeTopology(raw) {
   return {
     devices: Array.isArray(raw?.devices) ? raw.devices : [],
-    links: Array.isArray(raw?.links) ? raw.links : (Array.isArray(raw?.connections) ? raw.connections : []),
+    links: Array.isArray(raw?.links) ? raw.links : [],
     flows: Array.isArray(raw?.flows) ? raw.flows : [],
     alerts: Array.isArray(raw?.alerts) ? raw.alerts : [],
   };
@@ -61,7 +61,6 @@ const BASE_COLOR_BY_TYPE = {
   unknown: '#64748b',
 };
 
-// VLAN 颜色（用于 VLAN 指示环与文字）
 const VLAN_PALETTE = [
   '#f472b6',
   '#22d3ee',
@@ -90,25 +89,25 @@ const isHighLoad = (metrics) => {
 const getDeviceTypeStrings = (device) => {
   const name = device?.name || '';
   const role = device?.role || '';
-  const device_type = device?.device_type || device?.deviceType || device?.type || '';
+  const deviceType = device?.deviceType || '';
   return {
     name: String(name),
     role: String(role),
-    device_type: String(device_type),
+    deviceType: String(deviceType),
   };
 };
 
 const getDeviceRenderType = (device) => {
-  const { role, device_type } = getDeviceTypeStrings(device);
-  return String(role || device_type || 'access').toLowerCase();
+  const { role, deviceType } = getDeviceTypeStrings(device);
+  return String(role || deviceType || 'access').toLowerCase();
 };
 
 const inferEffectiveDeviceType = (device) => {
-  const { name, device_type } = getDeviceTypeStrings(device);
+  const { name, deviceType } = getDeviceTypeStrings(device);
   const renderType = getDeviceRenderType(device);
 
   const lowerName = String(name || '').toLowerCase();
-  const lowerDeviceType = String(device_type || '').toLowerCase();
+  const lowerDeviceType = String(deviceType || '').toLowerCase();
 
   if (lowerDeviceType.includes('router') || renderType.includes('router')) return 'router';
   if (lowerName.includes('core')) return 'core';
@@ -406,8 +405,8 @@ function DeviceMesh({ device, onClick }) {
  * ===========================
  */
 function LinkLine({ link, devices }) {
-  const srcId = link.src_device || link.source || link.sourceDeviceId || link.from;
-  const dstId = link.dst_device || link.target || link.targetDeviceId || link.to;
+  const srcId = link.srcDevice;
+  const dstId = link.dstDevice;
 
   const from = devices.find((d) => String(d.id) === String(srcId));
   const to = devices.find((d) => String(d.id) === String(dstId));
@@ -418,12 +417,14 @@ function LinkLine({ link, devices }) {
     [from.position.x, 0.5, from.position.z],
     [to.position.x, 0.5, to.position.z],
   ];
-  
-  const isDown = link.status === 'down';
+
+  const status = String(link.status || '');
+  const isDown = status.toLowerCase() === 'down';
+  const isActive = isLinkActiveLoose(status);
   const utilization = Number(link.utilization ?? 0);
   const isPeak = Boolean(link.is_peak) || utilization >= 0.75 || String(link.peak_level || '').toLowerCase() === 'high' || String(link.peak_level || '').toLowerCase() === 'critical';
   const isOptimized = String(link.optimization_state || '').toLowerCase() === 'optimized';
-  const color = isDown ? '#334155' : (isOptimized ? '#22c55e' : (isPeak ? '#ef4444' : '#38bdf8'));
+  const color = isActive ? '#3b82f6' : '#334155'; // 非 active 链路统一灰色
 
   return (
     <group>
@@ -432,11 +433,11 @@ function LinkLine({ link, devices }) {
         points={points}
         color={color}
         lineWidth={2}
-        opacity={isDown ? 0.2 : (isPeak ? 0.9 : 0.6)}
+        opacity={isPeak ? 0.9 : 0.6}
         transparent
       />
       {/* 辉光层 (只在连接时显示) */}
-      {!isDown && (
+      {isActive && !isDown && (
          <Line
            points={points}
            color={color}
@@ -456,22 +457,21 @@ function LinkLine({ link, devices }) {
  * ===========================
  */
 function FlowParticles({ link, devices }) {
-  const srcId = link.src_device || link.source || link.sourceDeviceId || link.from;
-  const dstId = link.dst_device || link.target || link.targetDeviceId || link.to;
+  const srcId = link.srcDevice;
+  const dstId = link.dstDevice;
 
   const from = devices.find((d) => String(d.id) === String(srcId));
   const to = devices.find((d) => String(d.id) === String(dstId));
-  
-  // 先计算派生状态 (即使 from/to 未定义也是安全的)
-  const isDDoS = to?.metrics && to.metrics.cpuUsage > 90;
-  
+
   // Hooks 必须无条件调用
   const particlesRef = useRef();
-  
-  // 减少粒子数量但增加亮度
-  const particleCount = isDDoS ? 20 : 5;
-  const speed = isDDoS ? 3.0 : 1.0;
-  const color = isDDoS ? '#ef4444' : '#38bdf8'; // 红色告警 / 蓝色流量
+
+  // 粒子流：统一蓝色（移除 DDoS 特殊效果）
+  const status = String(link.status || '');
+  const isActive = isLinkActiveLoose(status);
+  const particleCount = 5;
+  const speed = 1.0;
+  const color = '#38bdf8';
 
   const particlesGeometry = useMemo(() => {
     const geometry = new THREE.BufferGeometry();
@@ -500,6 +500,7 @@ function FlowParticles({ link, devices }) {
 
   // 仅在 hooks 之后提前返回以进行渲染
   if (!from || !to) return null;
+  if (!isActive) return null;
 
   return (
     <points ref={particlesRef}>
@@ -534,7 +535,7 @@ function Scene({ topology, onDeviceClick }) {
       {safe.devices.map((device) => (
         <DeviceMesh key={device.id} device={device} onClick={(e) => { e.stopPropagation(); onDeviceClick && onDeviceClick(device); }} />
       ))}
-      {safe.links.filter(l => isLinkActiveLoose(l.status)).map((link) => (
+      {safe.links.map((link) => (
         <React.Fragment key={link.id}>
             <LinkLine link={link} devices={safe.devices} />
             <FlowParticles link={link} devices={safe.devices} />

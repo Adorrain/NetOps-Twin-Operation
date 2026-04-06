@@ -18,7 +18,7 @@ import { DeviceStatus, ConnectionStatus, DeviceType } from '../../types';
 import { isVlanCapableDevice } from '../../utils/net';
 import { opsApi } from '../../api/ops/opsApi';
 const checkDeviceType = (device, type) => {
-  const dType = device?.deviceType || device?.device_type || '';
+  const dType = device?.deviceType || '';
   if (dType === type) return true;
   if (type === DeviceType.SWITCH) {
     const role = String(device?.role || '').toLowerCase();
@@ -31,7 +31,9 @@ const formatVlanHint = (cfg) => {
   if (!cfg) return '-';
   const mode = String(cfg.mode || 'access').toLowerCase();
   if (mode === 'trunk') {
-    const allowed = Array.isArray(cfg.allowed_vlans) ? cfg.allowed_vlans : [];
+    const allowed = Array.isArray(cfg.allowedVlans)
+      ? cfg.allowedVlans
+      : [];
     return allowed.length ? `trunk · allowed ${allowed.join(',')}` : 'trunk';
   }
   const vlan = cfg.vlan ?? 1;
@@ -96,7 +98,7 @@ const OpsConsole = () => {
   } = useAppStore();
 
   const devices = useMemo(() => networkTopology?.devices || [], [networkTopology]);
-  const connections = useMemo(() => networkTopology?.links || networkTopology?.connections || [], [networkTopology]);
+  const links = useMemo(() => networkTopology?.links || [], [networkTopology]);
 
   // States (Ping/Trace)
   const [srcId, setSrcId] = useState('');
@@ -141,10 +143,10 @@ const OpsConsole = () => {
   // Helpers
   const getDeviceName = (id) => devices.find(d => d.id === id)?.name || id;
   const getLinkName = (id) => {
-    const conn = connections.find(c => c.id === id);
+    const conn = links.find(c => c.id === id);
     if (!conn) return id;
-    const src = getDeviceName(conn.sourceDeviceId);
-    const dst = getDeviceName(conn.targetDeviceId);
+    const src = getDeviceName(conn.srcDevice);
+    const dst = getDeviceName(conn.dstDevice);
     return `${src} <-> ${dst}`;
   };
 
@@ -171,7 +173,7 @@ const OpsConsole = () => {
         vlanBaselineRef.current.set(`${d.id}:${it.name}`, {
           mode: it.mode || 'access',
           vlan: it.vlan,
-          allowed_vlans: Array.isArray(it.allowed_vlans) ? it.allowed_vlans : (Array.isArray(it.allowedVlans) ? it.allowedVlans : undefined)
+          allowedVlans: Array.isArray(it.allowedVlans) ? it.allowedVlans : undefined
         });
       });
     });
@@ -196,7 +198,9 @@ const OpsConsole = () => {
     try {
         const data = await opsApi.ping(srcId, dstId);
         if (data.success) {
-            const ms = data.rtt ? data.rtt.toFixed(2) : 0;
+            const pingData = data.data ?? {};
+            const rttVal = pingData.rtt ?? data.rtt;
+            const ms = rttVal != null ? Number(rttVal).toFixed(2) : '0';
             setPingResult(`延迟: ${ms} ms`);
             message.success(`${srcName} 到 ${dstName} 延迟 ${ms} ms`);
             addLog('success', `Ping 成功: ${srcName} 到 ${dstName} 延迟 ${ms}ms`);
@@ -229,7 +233,8 @@ const OpsConsole = () => {
     try {
         const data = await opsApi.traceroute(srcId, dstId);
         if (data.success) {
-            const formattedHops = data.hops.map(h => `${h.hop}. ${h.device_name} (${h.ip}) - ${h.rtt}`);
+            const hops = data.data?.hops ?? data.hops ?? [];
+            const formattedHops = hops.map(h => `${h.hop}. ${h.deviceName ?? h.device_name} (${h.ip}) - ${h.rtt}`);
             setTraceResult(formattedHops);
             addLog('success', `路由追踪完成`);
         } else {
@@ -252,7 +257,7 @@ const OpsConsole = () => {
         if (res.success) {
             const topo = { 
               ...networkTopology, 
-              connections: (networkTopology.connections || []).map(c => c.id === connId ? { ...c, status: res.data?.status ?? connStatus } : c),
+              links: (networkTopology.links || []).map(c => c.id === connId ? { ...c, status: res.data?.status ?? connStatus } : c),
               updatedAt: new Date()
             };
             setNetworkTopology(topo);
@@ -317,7 +322,7 @@ const OpsConsole = () => {
     const dev = devices.find(d => d.id === devId);
     const ospf = dev && (dev.configuration?.ospf || dev.ospf);
     if (ospf) {
-      setOspfRouterId(ospf.router_id || '');
+      setOspfRouterId(ospf.routerId || '');
       setOspfArea(ospf.area ?? 0);
     } else {
       setOspfRouterId('');
@@ -381,7 +386,7 @@ const OpsConsole = () => {
              const detail = vlanMode === 'access' ? `access vlan ${vlanId}` : `trunk${payload.allowedVlans?.length ? ` allowed ${payload.allowedVlans.join(',')}` : ''}`;
              message.success(`${swName} 端口 ${vlanPort} 已配置为 ${detail}`);
              addLog('success', `VLAN 配置: ${swName} 端口 ${vlanPort} -> ${detail}`);
-             setVlanCurrentHint(formatVlanHint({ mode: vlanMode, vlan: vlanMode === 'access' ? vlanId : undefined, allowed_vlans: payload.allowedVlans }));
+             setVlanCurrentHint(formatVlanHint({ mode: vlanMode, vlan: vlanMode === 'access' ? vlanId : undefined, allowedVlans: payload.allowedVlans }));
         } else {
              const msg = res.message;
              addLog('error', `VLAN 配置失败: ${msg}`);
@@ -396,7 +401,7 @@ const OpsConsole = () => {
   const restoreVlanConfigAction = async () => {
     if (!vlanSwitchId || !vlanPort || !networkTopology) return;
     try {
-        const res = await opsApi.removeVlan(vlanSwitchId, { port: vlanPort });
+        const res = await opsApi.recoverVlan(vlanSwitchId, { port: vlanPort });
         if (res.success) {
              updateTopologyDevice(vlanSwitchId, res.data || {});
              const swName = getDeviceName(vlanSwitchId);
@@ -405,11 +410,11 @@ const OpsConsole = () => {
              const iface = (res.data?.interfaces || []).find((it) => it?.name === vlanPort);
              const restoredMode = iface?.mode || 'access';
              const restoredVlan = Number(iface?.vlan || 1);
-             const restoredAllowed = Array.isArray(iface?.allowed_vlans) ? iface.allowed_vlans : [];
+             const restoredAllowed = Array.isArray(iface?.allowedVlans) ? iface.allowedVlans : [];
              setVlanMode(restoredMode);
              setVlanId(restoredVlan);
              setVlanAllowedVlans(restoredAllowed.join(','));
-             setVlanCurrentHint(formatVlanHint({ mode: restoredMode, vlan: restoredMode === 'access' ? restoredVlan : undefined, allowed_vlans: restoredAllowed }));
+             setVlanCurrentHint(formatVlanHint({ mode: restoredMode, vlan: restoredMode === 'access' ? restoredVlan : undefined, allowedVlans: restoredAllowed }));
              setVlanOriginalHint(formatVlanHint(vlanBaselineRef.current.get(`${vlanSwitchId}:${vlanPort}`)));
         } else {
              const msg = res.message || 'Unknown error';
@@ -472,9 +477,9 @@ const OpsConsole = () => {
                 placeholder="选择链路" 
                 value={connId}
                 onChange={setConnId}
-                options={connections.map(c => {
-                    const src = devices.find(d => d.id === c.sourceDeviceId)?.name || c.sourceDeviceId;
-                    const dst = devices.find(d => d.id === c.targetDeviceId)?.name || c.targetDeviceId;
+                options={links.map(c => {
+                    const src = devices.find(d => d.id === c.srcDevice)?.name || c.srcDevice;
+                    const dst = devices.find(d => d.id === c.dstDevice)?.name || c.dstDevice;
                     return { value: c.id, label: `${src} -> ${dst}` };
                 })}
             />
@@ -573,14 +578,13 @@ const OpsConsole = () => {
                                     const iface = sw?.interfaces?.find(i => i.name === val);
                                     if (iface?.mode) setVlanMode(iface.mode);
                                     if (iface?.vlan) setVlanId(Number(iface.vlan));
-                                    if (Array.isArray(iface?.allowed_vlans)) setVlanAllowedVlans(iface.allowed_vlans.join(','));
-                                    else if (Array.isArray(iface?.allowedVlans)) setVlanAllowedVlans(iface.allowedVlans.join(','));
+                                    if (Array.isArray(iface?.allowedVlans)) setVlanAllowedVlans(iface.allowedVlans.join(','));
                                     else setVlanAllowedVlans('');
                                     
                                     setVlanCurrentHint(formatVlanHint({
                                       mode: iface?.mode || 'access',
                                       vlan: iface?.vlan,
-                                      allowed_vlans: Array.isArray(iface?.allowed_vlans) ? iface.allowed_vlans : (Array.isArray(iface?.allowedVlans) ? iface.allowedVlans : undefined)
+                                      allowedVlans: Array.isArray(iface?.allowedVlans) ? iface.allowedVlans : undefined
                                     }));
                                     setVlanOriginalHint(formatVlanHint(vlanBaselineRef.current.get(`${vlanSwitchId}:${val}`)));
                                 }}
@@ -628,7 +632,7 @@ const OpsConsole = () => {
                     onChange={handleOspfSelect}
 options={devices.filter(d => (d.configuration?.ospf || d.ospf) || checkDeviceType(d, DeviceType.ROUTER)).map(d => {
                         const ospf = d.configuration?.ospf || d.ospf;
-                        return { value: d.id, label: ospf?.router_id ? `${d.name} (${ospf.router_id})` : d.name };
+                        return { value: d.id, label: ospf?.routerId ? `${d.name} (${ospf.routerId})` : d.name };
                     })}
               />
               {ospfDeviceId && (
@@ -716,13 +720,13 @@ options={devices.filter(d => (d.configuration?.ospf || d.ospf) || checkDeviceTyp
         <Table 
             dataSource={ospfNeighbors}
             columns={[
-                { title: 'Neighbor ID', dataIndex: 'router_id', key: 'router_id' },
+                { title: 'Neighbor ID', dataIndex: 'routerId', key: 'routerId' },
                 { title: 'State', dataIndex: 'state', key: 'state', render: (text) => <Tag color={text === 'Full' ? 'green' : 'red'}>{text}</Tag> },
                 { title: 'Address', dataIndex: 'address', key: 'address' },
                 { title: 'Interface', dataIndex: 'interface', key: 'interface' }
             ]}
             pagination={false}
-            rowKey="router_id"
+            rowKey="routerId"
             size="small"
         />
       </Modal>

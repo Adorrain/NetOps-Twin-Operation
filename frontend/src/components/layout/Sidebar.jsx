@@ -60,22 +60,18 @@ const Sidebar = () => {
             padding: '0 12px',
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'center',
             gap: 10,
-            background: '#0f172a',
           }}
         >
           <HomeOutlined style={{ fontSize: 22, color: '#3b82f6' }} />
-          {!collapsed && (
-            <span style={{ color: '#e5e7eb', fontWeight: 650, fontSize: 16, letterSpacing: 0.2 }}>
-              网络数字孪生实验平台
-            </span>
-          )}
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', paddingTop: 8 }}>
           <Menu
             theme="dark"
             mode="inline"
+            itemHeight={48}
             selectedKeys={[selectedKey]}
             onClick={handleMenuClick}
             items={menuItems}
@@ -84,6 +80,7 @@ const Sidebar = () => {
               borderRight: 0,
               background: 'transparent',
               color: '#e5e7eb',
+              marginTop: 24,
             }}
           />
         </div>

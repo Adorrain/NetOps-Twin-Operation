@@ -1,16 +1,16 @@
-# =========================
-# 数据中心三层映射
-# =========================
+ # 数据中心三层映射
+ 
+ospfReferenceBandwidth: 10G
 
 devices:
   - id: core-1
     name: 核心交换机-1
     role: core
-    device_type: router
+    deviceType: router
     ip: 10.0.1.10
     netmask: 255.255.255.0
     status: up
-    ospf: { router_id: 10.10.10.10, area: 0 }
+    ospf: { routerId: 10.10.10.10, area: 0 }
     interfaces:
       - { name: g0/0, ip: 10.0.1.10, netmask: 255.255.255.252, status: up }
       - { name: g0/1, ip: 10.0.2.10, netmask: 255.255.255.252, status: up }
@@ -18,11 +18,11 @@ devices:
   - id: spine-1
     name: Spine交换机-1
     role: aggregation
-    device_type: switch
+    deviceType: switch
     ip: 10.0.0.1
     netmask: 255.255.255.0
     status: up
-    ospf: { router_id: 1.1.1.1, area: 0 }
+    ospf: { routerId: 1.1.1.1, area: 0 }
     interfaces:
       - { name: g0/0, ip: 10.0.1.1, netmask: 255.255.255.252, status: up }
       - { name: g0/1, ip: 10.0.1.5, netmask: 255.255.255.252, status: up }
@@ -32,11 +32,11 @@ devices:
   - id: spine-2
     name: Spine交换机-2
     role: aggregation
-    device_type: switch
+    deviceType: switch
     ip: 10.0.0.2
     netmask: 255.255.255.0
     status: up
-    ospf: { router_id: 2.2.2.2, area: 0 }
+    ospf: { routerId: 2.2.2.2, area: 0 }
     interfaces:
       - { name: g0/0, ip: 10.0.2.1, netmask: 255.255.255.252, status: up }
       - { name: g0/1, ip: 10.0.2.5, netmask: 255.255.255.252, status: up }
@@ -46,12 +46,12 @@ devices:
   - id: leaf-1
     name: Leaf交换机-1
     role: access
-    device_type: switch
+    deviceType: switch
     ip: 10.0.0.11
     netmask: 255.255.255.0
     status: up
-    ospf: { router_id: 11.11.11.11, area: 1 }
-    vlans: [{ vlan_id: 10, name: 业务网-1 }]
+    ospf: { routerId: 11.11.11.11, area: 1 }
+    vlans: [{ vlanId: 10, name: 业务网-1 }]
     interfaces:
       - { name: g0/0, ip: 10.0.1.2, netmask: 255.255.255.252, status: up }
       - { name: g0/1, ip: 10.0.2.2, netmask: 255.255.255.252, status: up }
@@ -62,12 +62,12 @@ devices:
   - id: leaf-2
     name: Leaf交换机-2
     role: access
-    device_type: switch
+    deviceType: switch
     ip: 10.0.0.12
     netmask: 255.255.255.0
     status: up
-    ospf: { router_id: 12.12.12.12, area: 1 }
-    vlans: [{ vlan_id: 20, name: 业务网-2 }]
+    ospf: { routerId: 12.12.12.12, area: 1 }
+    vlans: [{ vlanId: 20, name: 业务网-2 }]
     interfaces:
       - { name: g0/0, ip: 10.0.1.6, netmask: 255.255.255.252, status: up }
       - { name: g0/1, ip: 10.0.2.6, netmask: 255.255.255.252, status: up }
@@ -78,12 +78,12 @@ devices:
   - id: leaf-3
     name: Leaf交换机-3
     role: access
-    device_type: switch
+    deviceType: switch
     ip: 10.0.0.13
     netmask: 255.255.255.0
     status: up
-    ospf: { router_id: 13.13.13.13, area: 2 }
-    vlans: [{ vlan_id: 30, name: 业务网-3 }]
+    ospf: { routerId: 13.13.13.13, area: 2 }
+    vlans: [{ vlanId: 30, name: 业务网-3 }]
     interfaces:
       - { name: g0/0, ip: 10.0.1.18, netmask: 255.255.255.252, status: up }
       - { name: g0/1, ip: 10.0.2.18, netmask: 255.255.255.252, status: up }
@@ -94,12 +94,12 @@ devices:
   - id: leaf-4
     name: Leaf交换机-4
     role: access
-    device_type: switch
+    deviceType: switch
     ip: 10.0.0.14
     netmask: 255.255.255.0
     status: up
-    ospf: { router_id: 14.14.14.14, area: 2 }
-    vlans: [{ vlan_id: 40, name: 业务网-4 }]
+    ospf: { routerId: 14.14.14.14, area: 2 }
+    vlans: [{ vlanId: 40, name: 业务网-4 }]
     interfaces:
       - { name: g0/0, ip: 10.0.1.14, netmask: 255.255.255.252, status: up }
       - { name: g0/1, ip: 10.0.2.14, netmask: 255.255.255.252, status: up }
@@ -110,7 +110,7 @@ devices:
   - id: server-1
     name: 服务器-1
     role: terminal
-    device_type: server
+    deviceType: server
     ip: 192.168.10.10
     netmask: 255.255.255.0
     gateway: 192.168.10.1
@@ -129,7 +129,7 @@ devices:
       id: server-2,
       name: 服务器-2,
       role: terminal,
-      device_type: server,
+      deviceType: server,
       ip: 192.168.10.11,
       netmask: 255.255.255.0,
       gateway: 192.168.10.1,
@@ -150,7 +150,7 @@ devices:
       id: server-3,
       name: 服务器-3,
       role: terminal,
-      device_type: server,
+      deviceType: server,
       ip: 192.168.10.12,
       netmask: 255.255.255.0,
       gateway: 192.168.10.1,
@@ -172,7 +172,7 @@ devices:
       id: server-4,
       name: 服务器-4,
       role: terminal,
-      device_type: server,
+      deviceType: server,
       ip: 192.168.20.10,
       netmask: 255.255.255.0,
       gateway: 192.168.20.1,
@@ -193,7 +193,7 @@ devices:
       id: server-5,
       name: 服务器-5,
       role: terminal,
-      device_type: server,
+      deviceType: server,
       ip: 192.168.20.11,
       netmask: 255.255.255.0,
       gateway: 192.168.20.1,
@@ -214,7 +214,7 @@ devices:
       id: server-6,
       name: 服务器-6,
       role: terminal,
-      device_type: server,
+      deviceType: server,
       ip: 192.168.20.12,
       netmask: 255.255.255.0,
       gateway: 192.168.20.1,
@@ -236,7 +236,7 @@ devices:
       id: server-7,
       name: 服务器-7,
       role: terminal,
-      device_type: server,
+      deviceType: server,
       ip: 192.168.30.10,
       netmask: 255.255.255.0,
       gateway: 192.168.30.1,
@@ -257,7 +257,7 @@ devices:
       id: server-8,
       name: 服务器-8,
       role: terminal,
-      device_type: server,
+      deviceType: server,
       ip: 192.168.30.11,
       netmask: 255.255.255.0,
       gateway: 192.168.30.1,
@@ -278,7 +278,7 @@ devices:
       id: server-9,
       name: 服务器-9,
       role: terminal,
-      device_type: server,
+      deviceType: server,
       ip: 192.168.30.12,
       netmask: 255.255.255.0,
       gateway: 192.168.30.1,
@@ -300,7 +300,7 @@ devices:
       id: server-10,
       name: 服务器-10,
       role: terminal,
-      device_type: server,
+      deviceType: server,
       ip: 192.168.40.10,
       netmask: 255.255.255.0,
       gateway: 192.168.40.1,
@@ -321,7 +321,7 @@ devices:
       id: server-11,
       name: 服务器-11,
       role: terminal,
-      device_type: server,
+      deviceType: server,
       ip: 192.168.40.11,
       netmask: 255.255.255.0,
       gateway: 192.168.40.1,
@@ -342,7 +342,7 @@ devices:
       id: server-12,
       name: 服务器-12,
       role: terminal,
-      device_type: server,
+      deviceType: server,
       ip: 192.168.40.12,
       netmask: 255.255.255.0,
       gateway: 192.168.40.1,
@@ -363,206 +363,206 @@ devices:
 links:
   - {
       id: l1,
-      src_device: spine-1,
-      src_interface: g0/0,
-      dst_device: leaf-1,
-      dst_interface: g0/0,
+      srcDevice: spine-1,
+      srcInterface: g0/0,
+      dstDevice: leaf-1,
+      dstInterface: g0/0,
       bandwidth: 10G,
       status: up,
     }
   - {
       id: l2,
-      src_device: spine-2,
-      src_interface: g0/0,
-      dst_device: leaf-1,
-      dst_interface: g0/1,
+      srcDevice: spine-2,
+      srcInterface: g0/0,
+      dstDevice: leaf-1,
+      dstInterface: g0/1,
       bandwidth: 10G,
       status: up,
     }
 
   - {
       id: l3,
-      src_device: spine-1,
-      src_interface: g0/1,
-      dst_device: leaf-2,
-      dst_interface: g0/0,
+      srcDevice: spine-1,
+      srcInterface: g0/1,
+      dstDevice: leaf-2,
+      dstInterface: g0/0,
       bandwidth: 10G,
       status: up,
     }
   - {
       id: l4,
-      src_device: spine-2,
-      src_interface: g0/1,
-      dst_device: leaf-2,
-      dst_interface: g0/1,
+      srcDevice: spine-2,
+      srcInterface: g0/1,
+      dstDevice: leaf-2,
+      dstInterface: g0/1,
       bandwidth: 10G,
       status: up,
     }
 
   - {
       id: l5,
-      src_device: spine-1,
-      src_interface: g0/2,
-      dst_device: leaf-3,
-      dst_interface: g0/0,
+      srcDevice: spine-1,
+      srcInterface: g0/2,
+      dstDevice: leaf-3,
+      dstInterface: g0/0,
       bandwidth: 10G,
       status: up,
     }
   - {
       id: l6,
-      src_device: spine-2,
-      src_interface: g0/2,
-      dst_device: leaf-3,
-      dst_interface: g0/1,
+      srcDevice: spine-2,
+      srcInterface: g0/2,
+      dstDevice: leaf-3,
+      dstInterface: g0/1,
       bandwidth: 10G,
       status: up,
     }
 
   - {
       id: l7,
-      src_device: spine-1,
-      src_interface: g0/3,
-      dst_device: leaf-4,
-      dst_interface: g0/0,
+      srcDevice: spine-1,
+      srcInterface: g0/3,
+      dstDevice: leaf-4,
+      dstInterface: g0/0,
       bandwidth: 10G,
       status: up,
     }
   - {
       id: l8,
-      src_device: spine-2,
-      src_interface: g0/3,
-      dst_device: leaf-4,
-      dst_interface: g0/1,
+      srcDevice: spine-2,
+      srcInterface: g0/3,
+      dstDevice: leaf-4,
+      dstInterface: g0/1,
       bandwidth: 10G,
       status: up,
     }
 
   - {
       id: l9,
-      src_device: leaf-1,
-      src_interface: g1/0,
-      dst_device: server-1,
-      dst_interface: eth0,
+      srcDevice: leaf-1,
+      srcInterface: g1/0,
+      dstDevice: server-1,
+      dstInterface: eth0,
       status: up,
       bandwidth: 1G,
     }
   - {
       id: l10,
-      src_device: leaf-1,
-      src_interface: g1/1,
-      dst_device: server-2,
-      dst_interface: eth0,
+      srcDevice: leaf-1,
+      srcInterface: g1/1,
+      dstDevice: server-2,
+      dstInterface: eth0,
       status: up,
       bandwidth: 1G,
     }
   - {
       id: l11,
-      src_device: leaf-1,
-      src_interface: g1/2,
-      dst_device: server-3,
-      dst_interface: eth0,
+      srcDevice: leaf-1,
+      srcInterface: g1/2,
+      dstDevice: server-3,
+      dstInterface: eth0,
       status: up,
       bandwidth: 1G,
     }
 
   - {
       id: l12,
-      src_device: leaf-2,
-      src_interface: g1/0,
-      dst_device: server-4,
-      dst_interface: eth0,
+      srcDevice: leaf-2,
+      srcInterface: g1/0,
+      dstDevice: server-4,
+      dstInterface: eth0,
       status: up,
       bandwidth: 1G,
     }
   - {
       id: l13,
-      src_device: leaf-2,
-      src_interface: g1/1,
-      dst_device: server-5,
-      dst_interface: eth0,
+      srcDevice: leaf-2,
+      srcInterface: g1/1,
+      dstDevice: server-5,
+      dstInterface: eth0,
       status: up,
       bandwidth: 1G,
     }
   - {
       id: l14,
-      src_device: leaf-2,
-      src_interface: g1/2,
-      dst_device: server-6,
-      dst_interface: eth0,
+      srcDevice: leaf-2,
+      srcInterface: g1/2,
+      dstDevice: server-6,
+      dstInterface: eth0,
       status: up,
       bandwidth: 1G,
     }
 
   - {
       id: l15,
-      src_device: leaf-3,
-      src_interface: g1/0,
-      dst_device: server-7,
-      dst_interface: eth0,
+      srcDevice: leaf-3,
+      srcInterface: g1/0,
+      dstDevice: server-7,
+      dstInterface: eth0,
       status: up,
       bandwidth: 1G,
     }
   - {
       id: l16,
-      src_device: leaf-3,
-      src_interface: g1/1,
-      dst_device: server-8,
-      dst_interface: eth0,
+      srcDevice: leaf-3,
+      srcInterface: g1/1,
+      dstDevice: server-8,
+      dstInterface: eth0,
       status: up,
       bandwidth: 1G,
     }
   - {
       id: l17,
-      src_device: leaf-3,
-      src_interface: g1/2,
-      dst_device: server-9,
-      dst_interface: eth0,
+      srcDevice: leaf-3,
+      srcInterface: g1/2,
+      dstDevice: server-9,
+      dstInterface: eth0,
       status: up,
       bandwidth: 1G,
     }
 
   - {
       id: l18,
-      src_device: leaf-4,
-      src_interface: g1/0,
-      dst_device: server-10,
-      dst_interface: eth0,
+      srcDevice: leaf-4,
+      srcInterface: g1/0,
+      dstDevice: server-10,
+      dstInterface: eth0,
       status: up,
       bandwidth: 1G,
     }
   - {
       id: l19,
-      src_device: leaf-4,
-      src_interface: g1/1,
-      dst_device: server-11,
-      dst_interface: eth0,
+      srcDevice: leaf-4,
+      srcInterface: g1/1,
+      dstDevice: server-11,
+      dstInterface: eth0,
       status: up,
       bandwidth: 1G,
     }
   - {
       id: l20,
-      src_device: leaf-4,
-      src_interface: g1/2,
-      dst_device: server-12,
-      dst_interface: eth0,
+      srcDevice: leaf-4,
+      srcInterface: g1/2,
+      dstDevice: server-12,
+      dstInterface: eth0,
       bandwidth: 1G,
       status: up,
     }
   - {
       id: l21,
-      src_device: core-1,
-      src_interface: g0/0,
-      dst_device: spine-1,
-      dst_interface: g0/0,
+      srcDevice: core-1,
+      srcInterface: g0/0,
+      dstDevice: spine-1,
+      dstInterface: g0/0,
       bandwidth: 10G,
       status: up,
     }
   - {
       id: l22,
-      src_device: core-1,
-      src_interface: g0/1,
-      dst_device: spine-2,
-      dst_interface: g0/0,
+      srcDevice: core-1,
+      srcInterface: g0/1,
+      dstDevice: spine-2,
+      dstInterface: g0/0,
       bandwidth: 10G,
       status: up,
     }

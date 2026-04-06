@@ -1,4 +1,3 @@
-/* 全局基础 */
 html, body, #root {
   height: 100%;
 }
@@ -12,14 +11,12 @@ body {
   background: #0b1220;
   overflow: hidden;
 }
-/* 主布局 */
 .app-route-layout {
   height: 100%;
   min-height: 0;
   overflow: hidden;
 }
 
-/* 拓扑区域 */
 .app-topology-content {
   position: relative;
   height: 100%;
@@ -28,7 +25,6 @@ body {
   background: #0b1220;
 }
 
-/* 空状态 */
 .app-empty-wrapper {
   position: absolute;
   inset: 0;
@@ -39,7 +35,6 @@ body {
   color: #94a3b8;
 }
 
-/* 右侧控制台 */
 .app-console-sider {
   background: #0b1220;
   border-left: 1px solid #1f2937;
@@ -59,10 +54,38 @@ body {
   border-bottom: 1px solid #1f2937;
 }
 
+.app-console-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .app-console-title {
   margin: 0;
   font-size: 16px;
   color: #fff;
+}
+
+.app-console-refbw {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.7);
+}
+
+.app-console-refbw-label {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.app-console-refbw-value {
+  color: #e2e8f0;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 .app-console-body {

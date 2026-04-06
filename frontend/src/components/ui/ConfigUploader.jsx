@@ -19,7 +19,7 @@ const inferRole = (device) => {
   if (name.includes('汇聚') || name.includes('agg') || name.includes('distribution')) return 'aggregation';
   if (name.includes('接入') || name.includes('access')) return 'access';
   if (name.includes('边界') || name.includes('edge') || name.includes('防火墙') || name.includes('firewall') || name.includes('fw')) return 'edge';
-  const t = String(device?.deviceType || device?.device_type || device?.type || '').toLowerCase();
+  const t = String(device?.deviceType || '').toLowerCase();
   if (t === 'router') return 'core';
   if (t === 'switch' || t === 'l2_switch') return 'access';
   if (t === 'l3_switch') return 'aggregation';
@@ -57,7 +57,7 @@ const calculateLayout = (devices) => {
 const buildFrontendTopology = (cfg) => {
   const computedLayout = calculateLayout(cfg.devices || []);
   const devices = (cfg.devices || []).map((d) => {
-    const routingTableRaw = d.routing_table || d.routingTable || d.configuration?.routing_table || d.configuration?.routingTable;
+    const routingTableRaw = d.routingTable || d.configuration?.routingTable;
     const routingTable = Array.isArray(routingTableRaw) ? routingTableRaw : [];
     // 后端 normalize 后 OSPF 在 configuration.ospf，保留两者以便 OSPF 操作与系统监控都能拿到
     const ospfConfig = d.ospf ?? d.configuration?.ospf;
@@ -65,14 +65,14 @@ const buildFrontendTopology = (cfg) => {
       id: String(d.id),
       name: d.name,
       role: inferRole(d),
-      deviceType: d.deviceType || d.device_type || d.type || 'unknown',
+      deviceType: d.deviceType || 'unknown',
       position: d.position || computedLayout[d.id] || { x: Math.random() * 20 - 10, y: 0, z: Math.random() * 20 - 10 },
       status: d.status === 'down' || d.status === 'offline' ? 'offline' : 'online',
       vlan: getEndpointAccessVlan(d) ?? undefined,
       configuration: {
         ...d.configuration,
         ospf: ospfConfig,
-        routing_table: routingTable
+        routingTable
       },
       metrics: d.metrics || {
         cpuUsage: Math.floor(Math.random() * 30),
@@ -86,31 +86,30 @@ const buildFrontendTopology = (cfg) => {
       ip: d.ip ?? (Array.isArray(d.interfaces) && d.interfaces.length > 0 ? d.interfaces.find(it => it?.ip)?.ip?.split?.('/')?.[0] ?? d.interfaces[0]?.ip : undefined),
       netmask: d.netmask ?? (Array.isArray(d.interfaces) && d.interfaces.length > 0 ? d.interfaces.find(it => it?.ip)?.netmask ?? d.interfaces[0]?.netmask : undefined),
       ipAddress: d.ip ?? (Array.isArray(d.interfaces) && d.interfaces.length > 0 ? d.interfaces.find(it => it?.ip)?.ip : undefined),
-      macAddress: d.mac_address,
+      macAddress: d.macAddress,
       description: d.description,
       interfaces: d.interfaces || [],
       ospf: ospfConfig,
-      routing_table: routingTable
+      routingTable
     };
   });
-  const connections = (cfg.links || cfg.connections || []).map((c) => ({
+  const links = (cfg.links || []).map((c) => ({
     id: c.id,
-    sourceDeviceId: String(c.src_device_id || c.src_device || c.source || c.sourceDeviceId),
-    targetDeviceId: String(c.dst_device_id || c.dst_device || c.target || c.targetDeviceId),
-    connectionType: c.type || 'ethernet',
+    srcDevice: String(c.srcDevice),
+    dstDevice: String(c.dstDevice),
+    srcInterface: c.srcInterface,
+    dstInterface: c.dstInterface,
     status: c.status || 'up',
-    from: String(c.src_device_id || c.src_device || c.source || c.sourceDeviceId),
-    to: String(c.dst_device_id || c.dst_device || c.target || c.targetDeviceId),
-    bandwidth: c.bandwidth || 1000,
-    latency: c.latency || 1,
-    packetLoss: c.packet_loss || 0
+    bandwidth: c.bandwidth,
+    ospfCost: c.ospfCost,
   }));
   return {
     id: 'imported-topology',
     name: cfg.topology?.name || cfg.name || '导入的拓扑',
     description: cfg.description,
+    ospfReferenceBandwidth: cfg.ospfReferenceBandwidth,
     devices,
-    connections,
+    links,
     createdAt: new Date(),
     updatedAt: new Date()
   };

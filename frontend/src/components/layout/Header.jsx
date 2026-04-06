@@ -22,7 +22,7 @@ const Header = () => {
           width: '100%',
         }}
       >
-        <Text strong style={{ color: '#e5e7eb', fontSize: 18, textAlign: 'center' }}>
+        <Text strong style={{ color: '#e5e7eb', fontSize: 30, textAlign: 'center' }}>
           网络数字孪生实验平台
         </Text>
       </div>
