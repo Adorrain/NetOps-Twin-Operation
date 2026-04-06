@@ -101,7 +101,7 @@ class SimulationService:
         return True
 
     @staticmethod
-    def _bandwidthMbps(raw: Optional[str]) -> Optional[float]:
+    def _bandwidthMbps(raw):
         """带宽字符串 → Mbps；未配置或无法解析时返回 None。"""
         if not raw:
             return None
@@ -125,7 +125,7 @@ class SimulationService:
             return None
         return max(1, int(referenceBandwidth / actualBandwidth))
 
-    def _buildForwardingGraph(self) -> nx.Graph:
+    def _buildForwardingGraph(self):
         """
         构建设备层无向转发图
         """
@@ -269,87 +269,84 @@ class SimulationService:
 
     def ping(self, body: PingBody) -> dict:
         """Ping：源设备向目标设备发送 ICMP Echo"""
-        source_id = body.sourceId
-        target_id = body.targetId
+        sourceId = body.sourceId
+        targetId = body.targetId
         devices = self._deviceMap()
-        source_device = devices.get(source_id)
-        target_device = devices.get(target_id)
-        source_vlan = self._deviceDefaultVlan(source_device) if source_device else 1
-        target_vlan = self._deviceDefaultVlan(target_device) if target_device else 1
-        graph = self._buildForwardingGraphForVlan(source_vlan)
-        shortest = self._dijkstraShortestPath(graph, source_id, target_id)
+        sourceDevice = devices.get(sourceId)
+        targetDevice = devices.get(targetId)
+        sourceVlan = self._deviceDefaultVlan(sourceDevice) if sourceDevice else 1
+        targetVlan = self._deviceDefaultVlan(targetDevice) if targetDevice else 1
+        graph = self._buildForwardingGraphForVlan(sourceVlan)
+        shortest = self._dijkstraShortestPath(graph, sourceId, targetId)
 
-        if not source_device or not target_device:
-            return self._error(f"设备不存在: {source_id if not source_device else target_id}")
-        if source_vlan != target_vlan:
-            return self._error(f"VLAN 不一致，源设备 VLAN {source_vlan}，目标设备 VLAN {target_vlan}")
+        if not sourceDevice or not targetDevice:
+            return self._error(f"设备不存在: {sourceId if not sourceDevice else targetId}")
+        if sourceVlan != targetVlan:
+            return self._error(f"VLAN 不一致，源设备 VLAN {sourceVlan}，目标设备 VLAN {targetVlan}")
         if shortest is None:
             return self._error("网络不可达")
 
-        path, total_cost = shortest
+        path, totalCost = shortest
         hops = max(0, len(path) - 1)
-        base_rtt = float(hops * 1.2 + 0.8)
-        jitter = random.uniform(0.1, 1.8)
-        rtt = round(base_rtt + jitter, 2)
-        message = f"Reply from {target_id}: time={rtt} ms"
+        oneWayDelay = float(hops * 0.2 + 0.5) + random.uniform(0.1, 0.5)
+        rtt = round(oneWayDelay * 2, 2)
+        message = f"来自 {targetId} 的应答: 往返时延={rtt} ms"
         data = {
-            "sourceId": source_id,
-            "targetId": target_id,
-            "vlanId": source_vlan,
+            "sourceId": sourceId,
+            "targetId": targetId,
+            "vlanId": sourceVlan,
             "path": path,
             "hops": hops,
-            "cost": total_cost,
+            "cost": totalCost,
             "rtt": rtt,
         }
-        self._persist_snapshot(f"Ping 测试: {source_id} -> {target_id}", "ops_ping", target_id)
+        self._persist_snapshot(f"Ping 测试: {sourceId} -> {targetId}", "ops_ping", targetId)
         return self._success(message=message, data=data)
 
     def traceroute(self, body: TracerouteBody) -> dict:
         """Traceroute：与 ping 共用 _buildForwardingGraph，沿 Dijkstra 最短路径列出逐跳设备"""
-        source_id = body.sourceId
-        target_id = body.targetId
+        sourceId = body.sourceId
+        targetId = body.targetId
         devices = self._deviceMap()
-        source_device = devices.get(source_id)
-        target_device = devices.get(target_id)
-        source_vlan = self._deviceDefaultVlan(source_device) if source_device else 1
-        target_vlan = self._deviceDefaultVlan(target_device) if target_device else 1
-        graph = self._buildForwardingGraphForVlan(source_vlan)
-        shortest = self._dijkstraShortestPath(graph, source_id, target_id)
+        sourceDevice = devices.get(sourceId)
+        targetDevice = devices.get(targetId)
+        sourceVlan = self._deviceDefaultVlan(sourceDevice) if sourceDevice else 1
+        targetVlan = self._deviceDefaultVlan(targetDevice) if targetDevice else 1
+        graph = self._buildForwardingGraphForVlan(sourceVlan)
+        shortest = self._dijkstraShortestPath(graph, sourceId, targetId)
 
-        if not source_device or not target_device:
-            return self._error(f"设备不存在: {source_id if not source_device else target_id}")
-        if source_vlan != target_vlan:
-            return self._error(f"VLAN 不一致，源设备 VLAN {source_vlan}，目标设备 VLAN {target_vlan}")
+        if not sourceDevice or not targetDevice:
+            return self._error(f"设备不存在: {sourceId if not sourceDevice else targetId}")
+        if sourceVlan != targetVlan:
+            return self._error(f"VLAN 不一致，源设备 VLAN {sourceVlan}，目标设备 VLAN {targetVlan}")
         if shortest is None:
             return self._error("路径不可达")
 
-        path, total_cost = shortest
+        path, totalCost = shortest
         hops = []
-        for index, node_id in enumerate(path):
-            node = devices.get(node_id)
-            hop_no = index + 1
-            hop_name = node.name if node else node_id
-            hop_ip = node.ip if node else None
-            hop_rtt = f"{round(0.7 + hop_no * 1.1 + random.uniform(0.1, 0.9), 2)} ms"
+        for index, nodeId in enumerate(path):
+            node = devices.get(nodeId)
+            hopNo = index + 1
+            hopName = node.name if node else nodeId
+            hopIp = node.ip if node else None
             hops.append(
                 {
-                    "hop": hop_no,
-                    "deviceId": node_id,
-                    "deviceName": hop_name,
-                    "ip": hop_ip,
-                    "rtt": hop_rtt,
+                    "hop": hopNo,
+                    "deviceId": nodeId,
+                    "deviceName": hopName,
+                    "ip": hopIp,
                 }
             )
 
         data = {
-            "sourceId": source_id,
-            "targetId": target_id,
-            "vlanId": source_vlan,
-            "cost": total_cost,
+            "sourceId": sourceId,
+            "targetId": targetId,
+            "vlanId": sourceVlan,
+            "cost": totalCost,
             "path": path,
             "hops": hops,
         }
-        self._persist_snapshot(f"Traceroute: {source_id} -> {target_id}", "ops_traceroute", target_id)
+        self._persist_snapshot(f"Traceroute: {sourceId} -> {targetId}", "ops_traceroute", targetId)
         return self._success(message="Traceroute 完成", data=data)
 
     def UpdateDeviceStatus(self, body):

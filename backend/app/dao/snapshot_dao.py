@@ -11,11 +11,7 @@ from app.utils.serialization import dumpModel
 
 def getLatestTopologyData(db):
     """获取最新拓扑数据"""
-    snapshot = (
-        db.query(TopologySnapshot)
-        .order_by(TopologySnapshot.created_at.desc())
-        .first()
-    )
+    snapshot = (db.query(TopologySnapshot).order_by(TopologySnapshot.created_at.desc()).first())
 
     if not snapshot:
         raise ValueError("快照不存在")
