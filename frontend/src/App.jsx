@@ -43,7 +43,10 @@ const AppContent = () => {
     <Routes>
       <Route path="/" element={<Navigate to="/topology" replace />} />
       <Route path="/topology" element={
-        <Layout className="app-route-layout">
+        <Layout
+          className="app-route-layout"
+          style={{ height: '100%', width: '100%', flexDirection: 'row', minHeight: 0 }}
+        >
           <Content className="app-topology-content">
              {networkTopology ? (
                <NetworkTopology3D 

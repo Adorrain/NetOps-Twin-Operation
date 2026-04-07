@@ -19,8 +19,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         },
         components: {
           Layout: {
-            headerBg: '#212c46ff',
-            siderBg: '#212c46ff',
+            headerBg: '#0f172a',
+            siderBg: '#0f172a',
           },
           Menu: {
             itemBorderRadius: 8,

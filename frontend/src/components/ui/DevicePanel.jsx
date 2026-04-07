@@ -283,11 +283,9 @@ const DevicePanel = () => {
             maxHeight: '85vh',
             display: 'flex',
             flexDirection: 'column',
-            background: 'rgba(15, 23, 42, 0.9)', // Slate-900
-            backdropFilter: 'blur(16px)',
-            border: '1px solid rgba(56, 189, 248, 0.2)', // Sky-400 border
+            background: '#0f172a',
+            border: '1px solid #334155',
             borderRadius: 16,
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
             color: '#f8fafc',
             overflow: 'hidden'
           }}
@@ -299,7 +297,7 @@ const DevicePanel = () => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              background: 'linear-gradient(90deg, rgba(56, 189, 248, 0.1) 0%, rgba(15, 23, 42, 0) 100%)',
+              background: '#1e293b',
               position: 'sticky',
               top: 0,
               zIndex: 10
@@ -310,8 +308,6 @@ const DevicePanel = () => {
                     borderRadius: 12, 
                     background: getStatusBg(effectiveStatus),
                     border: `1px solid ${getStatusBorder(effectiveStatus)}`,
-                    backdropFilter: 'blur(4px)',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                 }}>
                    {getDeviceIcon(dType)}
                 </div>
@@ -343,7 +339,7 @@ const DevicePanel = () => {
                             border: '1px solid #334155',
                             color: '#cbd5e1'
                         }}>
-                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor, boxShadow: `0 0 8px ${statusColor}` }} />
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor }} />
                             {statusLabel(effectiveStatus)}
                         </span>
                     </div>
@@ -434,7 +430,7 @@ const DevicePanel = () => {
                              <div style={{ padding: 16, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                                 {vlanList.map((v, idx) => (
                                     <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(168, 85, 247, 0.1)', border: '1px solid rgba(168, 85, 247, 0.2)', padding: '6px 12px', borderRadius: 8 }}>
-                                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#c084fc', boxShadow: '0 0 5px #a855f7' }} />
+                                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#c084fc' }} />
                                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                                             <span style={{ fontSize: 11, color: '#e9d5ff', fontWeight: 700, lineHeight: 1 }}>ID: {v.id}</span>
                                             {v.name && <span style={{ fontSize: 10, color: 'rgba(192, 132, 252, 0.7)', lineHeight: 1, marginTop: 2 }}>{v.name}</span>}

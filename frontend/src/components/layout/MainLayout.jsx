@@ -23,12 +23,12 @@ const MainLayout = ({ children }) => {
   }, [ui.notifications, markNotificationAsRead])
 
   return (
-    <Layout style={{ minHeight: '100vh', height: '100vh', overflow: 'hidden', background: 'transparent' }}>
+    <Layout style={{ minHeight: '100vh', height: '100vh', overflow: 'hidden', background: '#0f172a' }}>
       {contextHolder}
 
       <Sidebar />
 
-      <Layout style={{ padding: 12, gap: 12, minHeight: 0, overflow: 'hidden', background: 'transparent' }}>
+      <Layout style={{ padding: '12px', gap: 10, minHeight: 0, overflow: 'hidden', background: '#0f172a' }}>
         <Header />
 
         <Content
@@ -37,10 +37,7 @@ const MainLayout = ({ children }) => {
             minHeight: 0,
             position: 'relative',
             overflow: 'hidden',
-            background: '#111827',
-            borderRadius: 12,
-            border: '1px solid #1f2937',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+            background: '#0f172a',
           }}
         >
           {children}

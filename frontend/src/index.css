@@ -4,28 +4,38 @@ html, body, #root {
 }
 
 html {
-  background: #111827;
+  background: #0f172a;
 }
 
 body {
   margin: 0;
-  background: #111827;
+  background: #0f172a;
   overflow: hidden;
 }
-/* 主布局 */
+/* 主布局：拓扑 + 右侧控制台 */
 .app-route-layout {
   height: 100%;
   min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: row;
+  flex: 1;
 }
 
-/* 拓扑区域 */
+.app-route-layout > .ant-layout-content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 拓扑画布区域 */
 .app-topology-content {
   position: relative;
   height: 100%;
-  border-radius: 12px;
+  min-height: 0;
   overflow: hidden;
-  background: #111827;
+  flex: 1;
+  min-width: 0;
+  background: #0f172a;
 }
 
 /* 空状态 */
@@ -35,14 +45,26 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #111827;
+  background: transparent;
   color: #94a3b8;
+}
+
+.app-empty-description {
+  text-align: center;
+  max-width: 320px;
+}
+
+.app-empty-title {
+  margin-bottom: 8px !important;
+  letter-spacing: 0.12em;
+  font-weight: 600 !important;
+  color: #e2e8f0 !important;
 }
 
 /* 右侧控制台 */
 .app-console-sider {
-  background: #111827;
-  border-left: 1px solid #1f2937;
+  flex-shrink: 0;
+  background: #0f172a;
   height: 100%;
   min-height: 0;
 }
@@ -55,14 +77,31 @@ body {
 }
 
 .app-console-header {
-  padding: 12px 16px;
-  border-bottom: 1px solid #1f2937;
+  flex-shrink: 0;
+  padding: 14px 18px;
+  background: #0f172a;
+}
+
+.app-console-header-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-console-header-bar {
+  width: 3px;
+  height: 22px;
+  border-radius: 2px;
+  background: #3b82f6;
+  flex-shrink: 0;
 }
 
 .app-console-title {
-  margin: 0;
-  font-size: 16px;
-  color: #fff;
+  margin: 0 !important;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #f1f5f9 !important;
 }
 
 .app-console-body {
@@ -70,7 +109,7 @@ body {
   min-height: 0;
   overflow-y: auto;
   scrollbar-gutter: stable;
-  padding: 12px;
+  padding: 14px 16px 18px;
 }
 
 .app-upload-page,

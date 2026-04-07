@@ -166,9 +166,7 @@ const ConfigUploader = ({ onConfigLoaded }) => {
               width: '100%',
               maxWidth: 800,
               borderRadius: 16, 
-              background: 'rgba(30, 41, 59, 0.8)',
-              backdropFilter: 'blur(10px)',
-              boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
+              background: '#1e293b',
               display: 'flex',
               flexDirection: 'column'
           }}
@@ -204,7 +202,7 @@ const ConfigUploader = ({ onConfigLoaded }) => {
                 </p>
             </Dragger>
             {uploading && (
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(2, 6, 23, 0.55)', backdropFilter: 'blur(6px)', borderRadius: 12 }}>
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.88)', borderRadius: 12 }}>
                 <Spin size="large" tip="正在解析配置…" />
               </div>
             )}

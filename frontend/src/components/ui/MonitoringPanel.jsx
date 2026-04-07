@@ -68,7 +68,7 @@ const MonitoringPanel = () => {
 
       <Row gutter={[24, 24]}>
         <Col xs={24} sm={12} xl={6}>
-          <Card bordered={false} hoverable style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(8px)', borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+          <Card bordered={false} hoverable style={{ background: '#1e293b', borderRadius: 8 }}>
             <Statistic 
               title={<span style={{ color: '#94a3b8' }}>系统健康度</span>}
               value={systemHealth} 
@@ -82,7 +82,7 @@ const MonitoringPanel = () => {
           </Card>
         </Col>
         <Col xs={24} sm={12} xl={6}>
-          <Card bordered={false} hoverable style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(8px)', borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+          <Card bordered={false} hoverable style={{ background: '#1e293b', borderRadius: 8 }}>
             <Statistic 
               title={<span style={{ color: '#94a3b8' }}>在线设备</span>}
               value={statusCounts[DeviceStatus.ONLINE]} 
@@ -96,7 +96,7 @@ const MonitoringPanel = () => {
           </Card>
         </Col>
         <Col xs={24} sm={12} xl={6}>
-          <Card bordered={false} hoverable style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(8px)', borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+          <Card bordered={false} hoverable style={{ background: '#1e293b', borderRadius: 8 }}>
             <Statistic 
               title={<span style={{ color: '#94a3b8' }}>活跃告警</span>}
               value={statusCounts[DeviceStatus.WARNING] + statusCounts[DeviceStatus.ERROR]} 
@@ -109,7 +109,7 @@ const MonitoringPanel = () => {
           </Card>
         </Col>
         <Col xs={24} sm={12} xl={6}>
-          <Card bordered={false} hoverable style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(8px)', borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+          <Card bordered={false} hoverable style={{ background: '#1e293b', borderRadius: 8 }}>
             <Statistic 
               title={<span style={{ color: '#94a3b8' }}>活跃链路</span>}
               value={connections.filter(c => isLinkActive(c.status)).length} 
@@ -124,7 +124,7 @@ const MonitoringPanel = () => {
 
       <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
         <Col xs={24} lg={8}>
-          <Card title={<span style={{ color: '#e2e8f0' }}>设备分布</span>} bordered={false} hoverable style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(8px)', borderRadius: 12, height: '100%', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} headStyle={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+          <Card title={<span style={{ color: '#e2e8f0' }}>设备分布</span>} bordered={false} hoverable style={{ background: '#1e293b', borderRadius: 8, height: '100%' }} headStyle={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
              {Object.entries(devices.reduce((acc, curr) => {
                const type = (curr.role || curr.deviceType || curr.device_type || 'unknown').toLowerCase();
                acc[type] = (acc[type] || 0) + 1;
@@ -144,7 +144,7 @@ const MonitoringPanel = () => {
           </Card>
         </Col>
         <Col xs={24} lg={8}>
-          <Card title={<span style={{ color: '#e2e8f0' }}>VLAN 配置</span>} bordered={false} hoverable style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(8px)', borderRadius: 12, height: '100%', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} headStyle={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+          <Card title={<span style={{ color: '#e2e8f0' }}>VLAN 配置</span>} bordered={false} hoverable style={{ background: '#1e293b', borderRadius: 8, height: '100%' }} headStyle={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
              {(() => {
                 const allVlans = new Set();
                 devices.forEach(d => getAllVlans(d).forEach(v => allVlans.add(v)));
@@ -165,7 +165,7 @@ const MonitoringPanel = () => {
           </Card>
         </Col>
         <Col xs={24} lg={8}>
-          <Card title={<span style={{ color: '#e2e8f0' }}>OSPF 区域</span>} bordered={false} hoverable style={{ background: 'rgba(30, 41, 59, 0.6)', backdropFilter: 'blur(8px)', borderRadius: 12, height: '100%', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} headStyle={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+          <Card title={<span style={{ color: '#e2e8f0' }}>OSPF 区域</span>} bordered={false} hoverable style={{ background: '#1e293b', borderRadius: 8, height: '100%' }} headStyle={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
              {(() => {
                 const areas = new Set();
                 devices.forEach(d => {
@@ -177,7 +177,7 @@ const MonitoringPanel = () => {
                 if (sortedAreas.length === 0) return <Empty description={<span style={{ color: '#64748b' }}>未发现 OSPF 配置</span>} image={Empty.PRESENTED_IMAGE_SIMPLE} />;
 
                 return sortedAreas.map(areaId => (
-                    <Card key={areaId} size="small" bordered={false} style={{ marginBottom: 12, background: 'linear-gradient(135deg, rgba(82, 196, 26, 0.1) 0%, rgba(82, 196, 26, 0.05) 100%)', borderRadius: 8 }}>
+                    <Card key={areaId} size="small" bordered={false} style={{ marginBottom: 12, background: '#0f172a', borderRadius: 8 }}>
                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <div>
                              <div style={{ fontSize: 12, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Area ID</div>

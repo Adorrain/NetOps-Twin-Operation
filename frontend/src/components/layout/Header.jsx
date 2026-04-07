@@ -19,14 +19,11 @@ const Header = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'rgba(15, 23, 42, 0.85)',
-          borderRadius: 12,
-          border: '1px solid rgba(255,255,255,0.08)',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+          background: '#0f172a',
         }}
       >
-        <Text strong style={{ color: '#fff', fontSize: 22 }}>
-          NetOps 数字孪生平台
+        <Text strong style={{ color: '#fff', fontSize: 28 }}>
+        网络数字孪生实验平台
         </Text>
       </div>
     </AntHeader>

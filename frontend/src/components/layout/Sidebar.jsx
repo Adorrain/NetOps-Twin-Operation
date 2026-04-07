@@ -57,28 +57,22 @@ const Sidebar = () => {
       <div
         style={{
           height: '100%',
-          borderRadius: 18,
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          background: 'rgba(15, 23, 42, 0.65)',
-          border: `1px solid ${token.colorBorderSecondary}`,
-          backdropFilter: 'blur(12px)',
-          boxShadow: '0 10px 40px rgba(0, 0, 0, 0.35)'
+          background: '#0f172a',
         }}
       >
         <div style={{ 
             height: 64,
             margin: 12,
-            borderRadius: 14,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             overflow: 'hidden',
             whiteSpace: 'nowrap',
             flexShrink: 0,
-            background: token.colorFillTertiary,
-            border: `1px solid ${token.colorBorderSecondary}`
+            background: '#0f172a',
         }}>
           <HomeOutlined style={{ fontSize: 24, color: token.colorPrimary }} />
           {!collapsed && <span style={{ marginLeft: 10, color: token.colorText, fontWeight: 650, fontSize: 16, letterSpacing: 0.4 }}>NetOps Twin</span>}
@@ -102,7 +96,6 @@ const Sidebar = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            borderTop: `1px solid ${token.colorBorderSecondary}`,
             cursor: 'pointer',
             transition: 'background-color 160ms ease',
             backgroundColor: triggerHover ? 'rgba(255, 255, 255, 0.06)' : 'transparent'
