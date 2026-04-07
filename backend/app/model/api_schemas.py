@@ -19,6 +19,11 @@ class TracerouteBody(BaseModel):
     targetId: str
 
 
+class SmartRouteBody(BaseModel):
+    sourceId: str
+    targetId: str
+
+
 class DeviceStatusBody(BaseModel):
     deviceId: str
     status: str

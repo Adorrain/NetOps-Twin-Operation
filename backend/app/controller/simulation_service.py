@@ -21,6 +21,7 @@ from app.model.api_schemas import (
     OSPFCostUpdateBody,
     OSPFNeighborsBody,
     PingBody,
+    SmartRouteBody,
     TracerouteBody,
     VlanBody,
 )
@@ -203,26 +204,26 @@ class SimulationService:
 
     def _linkAllowsVlan(self, link, devices, vlan_id):
         """判断链路是否允许 VLAN"""
-        src_device = devices.get(link.srcDevice)
-        dst_device = devices.get(link.dstDevice)
-        src_iface_name = (link.srcInterface or "").strip()
-        dst_iface_name = (link.dstInterface or "").strip()
-        src_iface = self._getInterfaceByName(src_device, src_iface_name) if src_device else None
-        dst_iface = self._getInterfaceByName(dst_device, dst_iface_name) if dst_device else None
-        src_mode = self._normalizeMode((src_iface or {}).get("mode"))
-        dst_mode = self._normalizeMode((dst_iface or {}).get("mode"))
-        src_access_vlan = self._interfaceAccessVlan(src_iface)
-        dst_access_vlan = self._interfaceAccessVlan(dst_iface)
-        src_allowed = self._normalizeAllowedVlans(src_iface or {})
-        dst_allowed = self._normalizeAllowedVlans(dst_iface or {})
+        srcDevice = devices.get(link.srcDevice)
+        dstDevice = devices.get(link.dstDevice)
+        srcIfaceName = (link.srcInterface or "").strip()
+        dstIfaceName = (link.dstInterface or "").strip()
+        srcIface = self._getInterfaceByName(srcDevice, srcIfaceName) if srcDevice else None
+        dstIface = self._getInterfaceByName(dstDevice, dstIfaceName) if dstDevice else None
+        srcMode = self._normalizeMode((srcIface or {}).get("mode"))
+        dstMode = self._normalizeMode((dstIface or {}).get("mode"))
+        srcAccessVlan = self._interfaceAccessVlan(srcIface)
+        dstAccessVlan = self._interfaceAccessVlan(dstIface)
+        srcAllowed = self._normalizeAllowedVlans(srcIface or {})
+        dstAllowed = self._normalizeAllowedVlans(dstIface or {})
 
-        if src_mode == "access" and src_access_vlan != vlan_id:
+        if srcMode == "access" and srcAccessVlan != vlan_id:
             return False
-        if dst_mode == "access" and dst_access_vlan != vlan_id:
+        if dstMode == "access" and dstAccessVlan != vlan_id:
             return False
-        if src_mode == "trunk" and src_allowed is not None and vlan_id not in src_allowed:
+        if srcMode == "trunk" and srcAllowed is not None and vlan_id not in srcAllowed:
             return False
-        if dst_mode == "trunk" and dst_allowed is not None and vlan_id not in dst_allowed:
+        if dstMode == "trunk" and dstAllowed is not None and vlan_id not in dstAllowed:
             return False
         return True
 
@@ -267,7 +268,129 @@ class SimulationService:
             return None
         return path, int(round(total))
 
-    def ping(self, body: PingBody) -> dict:
+    @staticmethod
+    def _addPathCost(graph, path):
+        """计算路径总权重"""
+        if not path or len(path) < 2:
+            return 0
+        total = 0
+        for i in range(len(path) - 1):
+            total += int(graph[path[i]][path[i + 1]].get("weight", 0))
+        return total
+
+    @staticmethod
+    def _pathEdges(path):
+        """将路径转为无向边集合"""
+        edges = set()
+        if not path or len(path) < 2:
+            return edges
+        for i in range(len(path) - 1):
+            u, v = path[i], path[i + 1]
+            edges.add(tuple(sorted((u, v))))
+        return edges
+
+    def _pathRiskScore(self, path, devices):
+        """风险评分：路径上 warning 设备占比"""
+        if not path:
+            return 1.0
+        warningCount = 0
+        for nodeId in path:
+            device = devices.get(nodeId)
+            if (device.status or "").strip().lower() == "warning":
+                warningCount += 1
+        return warningCount / max(1, len(path))
+
+    def _allCandidatePaths(self, graph, sourceId, targetId):
+        """候选路径：枚举源到目的的全部可行简单路径，并按 cost 升序"""
+        if sourceId not in graph or targetId not in graph:
+            return []
+        try:
+            cutoff = max(1, len(graph.nodes()) - 1)
+            paths = list(nx.all_simple_paths(graph, source=sourceId, target=targetId, cutoff=cutoff))
+            paths.sort(key=lambda p: (self._addPathCost(graph, p), len(p)))
+            return paths
+        except (nx.NetworkXNoPath, nx.NodeNotFound):
+            return []
+
+    def _scoreCandidates(self, graph, devices, candidates):
+        """候选路径多目标评分：delay + risk + overlap"""
+        if not candidates:
+            return []
+        basePath = candidates[0]
+        baseCost = self._addPathCost(graph, basePath)
+        baseEdges = self._pathEdges(basePath)
+        rows = []
+        for path in candidates:
+            cost = self._addPathCost(graph, path)
+            delayScore = (cost / max(1, baseCost))
+            riskScore = self._pathRiskScore(path, devices)
+            pathEdges = self._pathEdges(path)
+            overlapRatio = (len(pathEdges & baseEdges) / max(1, len(baseEdges)))
+            score = round(0.5 * delayScore + 0.3 * riskScore + 0.2 * overlapRatio, 4)
+            rows.append(
+                {
+                    "path": path,
+                    "cost": cost,
+                    "hops": max(0, len(path) - 1),
+                    "score": score,
+                    "components": {
+                        "delay": round(delayScore, 4),
+                        "risk": round(riskScore, 4),
+                        "overlap": round(overlapRatio, 4),
+                    },
+                }
+            )
+        rows.sort(key=lambda item: (item["score"], item["cost"], item["hops"]))
+        return rows
+
+    def smartRoute(self, body):
+        """轻量逻辑 SDN：给定 src/dst 输出智能路由决策"""
+        sourceId = body.sourceId
+        targetId = body.targetId
+        devices = self._deviceMap()
+        sourceDevice = devices.get(sourceId)
+        targetDevice = devices.get(targetId)
+        sourceVlan = self._deviceDefaultVlan(sourceDevice) if sourceDevice else 1
+        targetVlan = self._deviceDefaultVlan(targetDevice) if targetDevice else 1
+
+        if not sourceDevice or not targetDevice:
+            return self._error(f"设备不存在: {sourceId if not sourceDevice else targetId}")
+        if sourceVlan != targetVlan:
+            return self._error(f"VLAN 不一致，源设备 VLAN {sourceVlan}，目标设备 VLAN {targetVlan}")
+
+        graph = self._buildForwardingGraphForVlan(sourceVlan)
+        candidates = self._allCandidatePaths(graph, sourceId, targetId)
+        if not candidates:
+            return self._error("路径不可达")
+
+        allPaths = [
+            {
+                "path": path,
+                "cost": self._addPathCost(graph, path),
+                "hops": max(0, len(path) - 1),
+            }
+            for path in candidates
+        ]
+        scored = self._scoreCandidates(graph, devices, candidates)
+        best = scored[0]
+        data = {
+            "sourceId": sourceId,
+            "targetId": targetId,
+            "vlanId": sourceVlan,
+            "strategy": {
+                "type": "weighted_multi_objective",
+                "weights": {"delay": 0.5, "risk": 0.3, "overlap": 0.2},
+            },
+            "allPaths": allPaths,
+            "selectedPath": best["path"],
+            "selectedCost": best["cost"],
+            "selectedScore": best["score"],
+            "candidates": scored,
+        }
+        self._persist_snapshot(f"智能路由决策: {sourceId} -> {targetId}", "ops_smart_route", targetId)
+        return self._success(message="智能路由计算完成", data=data)
+
+    def ping(self, body):
         """Ping：源设备向目标设备发送 ICMP Echo"""
         sourceId = body.sourceId
         targetId = body.targetId
@@ -303,7 +426,7 @@ class SimulationService:
         self._persist_snapshot(f"Ping 测试: {sourceId} -> {targetId}", "ops_ping", targetId)
         return self._success(message=message, data=data)
 
-    def traceroute(self, body: TracerouteBody) -> dict:
+    def traceroute(self, body):
         """Traceroute：与 ping 共用 _buildForwardingGraph，沿 Dijkstra 最短路径列出逐跳设备"""
         sourceId = body.sourceId
         targetId = body.targetId
@@ -426,7 +549,7 @@ class SimulationService:
         self._persist_snapshot(f"恢复 VLAN: {body.deviceId} 端口 {body.port}",)
         return self._success(message="VLAN 已恢复", data=dumpModel(device))
 
-    def ConfigureVlan(self, body: VlanBody) -> dict:
+    def ConfigureVlan(self, body):
         """配置 VLAN 配置"""
         device = self._deviceMap().get(body.deviceId)
         if not device:
@@ -481,7 +604,7 @@ class SimulationService:
         self._persist_snapshot(f"OSPF 配置: {body.deviceId} area={body.area} routerId={routerId}")
         return self._success(message="OSPF 配置已更新", data=dumpModel(device))
 
-    def UpdateOspfCost(self, body: OSPFCostUpdateBody):
+    def UpdateOspfCost(self, body):
         """更新 OSPF 链路成本"""
         linkId = body.linkId
         newCost = body.newCost

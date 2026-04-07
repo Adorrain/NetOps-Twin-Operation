@@ -32,12 +32,12 @@ def checkTopology(data):
         raise ValueError("没有设备")
 
     # 校验链路
-    for l in links:
-        if not isinstance(l, dict):
+    for link in links:
+        if not isinstance(link, dict):
             raise ValueError("链路格式错误")
 
-        if l.get("srcDevice") not in device_list:
-            raise ValueError(f"链路源设备不存在: {l.get('srcDevice')}")
+        if link.get("srcDevice") not in device_list:
+            raise ValueError(f"链路源设备不存在: {link.get('srcDevice')}")
 
-        if l.get("dstDevice") not in device_list:
-            raise ValueError(f"链路目标设备不存在: {l.get('dstDevice')}")
+        if link.get("dstDevice") not in device_list:
+            raise ValueError(f"链路目标设备不存在: {link.get('dstDevice')}")

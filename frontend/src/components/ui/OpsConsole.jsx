@@ -107,6 +107,10 @@ const OpsConsole = () => {
   const [isPinging, setIsPinging] = useState(false);
   const [traceResult, setTraceResult] = useState([]);
   const [isTracing, setIsTracing] = useState(false);
+  const [smartSrcId, setSmartSrcId] = useState('');
+  const [smartDstId, setSmartDstId] = useState('');
+  const [smartRouteResult, setSmartRouteResult] = useState(null);
+  const [isSmartRouting, setIsSmartRouting] = useState(false);
 
   // States (Link)
   const [connId, setConnId] = useState('');
@@ -184,6 +188,10 @@ const OpsConsole = () => {
     setTraceResult([]);
   }, [srcId, dstId]);
 
+  useEffect(() => {
+    setSmartRouteResult(null);
+  }, [smartSrcId, smartDstId]);
+
   const execPing = async () => {
     if (!srcId || !dstId) {
       message.warning('请选择源设备和目标设备');
@@ -234,7 +242,7 @@ const OpsConsole = () => {
         const data = await opsApi.traceroute(srcId, dstId);
         if (data.success) {
             const hops = data.data?.hops ?? data.hops ?? [];
-            const formattedHops = hops.map(h => `${h.hop}. ${h.deviceName ?? h.device_name} (${h.ip}) - ${h.rtt}`);
+            const formattedHops = hops.map(h => `${h.hop}. ${h.deviceName ?? h.device_name} (${h.ip})`);
             setTraceResult(formattedHops);
             addLog('success', `路由追踪完成`);
         } else {
@@ -247,6 +255,50 @@ const OpsConsole = () => {
         addLog('error', `Traceroute 请求异常: ${err.message || 'Unknown error'}`);
     } finally {
         setIsTracing(false);
+    }
+  };
+
+  const execSmartRoute = async () => {
+    if (!smartSrcId || !smartDstId) {
+      message.warning('请选择源设备和目标设备');
+      return;
+    }
+
+    setIsSmartRouting(true);
+    setSmartRouteResult(null);
+    const srcName = getDeviceName(smartSrcId);
+    const dstName = getDeviceName(smartDstId);
+    addLog('info', `开始智能路由决策: ${srcName} -> ${dstName}...`);
+
+    try {
+      const data = await opsApi.smartRoute(smartSrcId, smartDstId);
+      if (data.success) {
+        const routeData = data.data || {};
+        const selectedPath = Array.isArray(routeData.selectedPath) ? routeData.selectedPath : [];
+        const bestCost = routeData.selectedCost;
+        const bestScore = routeData.selectedScore;
+        const allPaths = Array.isArray(routeData.allPaths) ? routeData.allPaths : [];
+        const candidates = Array.isArray(routeData.candidates) ? routeData.candidates : [];
+        const bestPathText = selectedPath.map(getDeviceName).join(' -> ');
+        setSmartRouteResult({
+          bestPathText,
+          bestCost,
+          bestScore,
+          allPaths,
+          candidates,
+        });
+        message.success(`智能路由完成：${srcName} -> ${dstName}`);
+        addLog('success', `智能路由完成: 最优路径 ${bestPathText || '(空)'}，cost=${bestCost}, score=${bestScore}`);
+      } else {
+        const errMsg = getErrorMessage(data);
+        message.warning(errMsg);
+        addLog('error', `智能路由失败: ${errMsg}`);
+      }
+    } catch (err) {
+      addLog('error', `智能路由请求异常: ${err.message || 'Unknown error'}`);
+      message.error(err.message || '智能路由请求失败');
+    } finally {
+      setIsSmartRouting(false);
     }
   };
 
@@ -465,6 +517,55 @@ const OpsConsole = () => {
                 </div>
             )}
          </Space>
+      )
+    },
+    {
+      key: 'smart-route',
+      label: <Space><ApartmentOutlined style={{ color: '#13c2c2' }} />智能路由</Space>,
+      children: (
+        <Space orientation="vertical" style={{ width: '100%' }}>
+          <Space style={{ width: '100%' }} orientation="vertical">
+            <Select
+              style={{ width: '100%' }}
+              placeholder="源设备"
+              value={smartSrcId}
+              onChange={setSmartSrcId}
+              options={devices.map(d => ({ value: d.id, label: d.name }))}
+            />
+            <Select
+              style={{ width: '100%' }}
+              placeholder="目标设备"
+              value={smartDstId}
+              onChange={setSmartDstId}
+              options={devices.map(d => ({ value: d.id, label: d.name }))}
+            />
+          </Space>
+          <Button block icon={<ApartmentOutlined />} loading={isSmartRouting} onClick={execSmartRoute}>
+            计算智能路由
+          </Button>
+          {smartRouteResult && (
+            <div style={{ background: 'rgba(0,0,0,0.2)', padding: 8, borderRadius: 4 }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>最优路径:</Text>
+              <div style={{ fontSize: 12, color: '#ccc', marginLeft: 8 }}>{smartRouteResult.bestPathText || '-'}</div>
+              <div style={{ fontSize: 12, color: '#ccc', marginLeft: 8 }}>
+                cost: {smartRouteResult.bestCost ?? '-'}，score: {smartRouteResult.bestScore ?? '-'}
+              </div>
+              <Text type="secondary" style={{ fontSize: 12, marginTop: 8, display: 'block' }}>
+                全部可达路径:
+              </Text>
+              {(smartRouteResult.allPaths || []).map((item, idx) => (
+                <div key={`path-${idx}`} style={{ fontSize: 12, color: '#ccc', marginLeft: 8, marginBottom: 4 }}>
+                  <div>
+                    #{idx + 1} cost={item.cost} hops={item.hops}
+                  </div>
+                  <div style={{ color: '#aaa' }}>
+                    {(item.path || []).map(getDeviceName).join(' -> ')}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Space>
       )
     },
     {

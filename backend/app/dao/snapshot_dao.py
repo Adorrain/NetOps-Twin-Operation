@@ -19,13 +19,13 @@ def getLatestTopologyData(db):
     return TopologyData(**snapshot.data), snapshot
 
 
-def createSnapshot(db, topologyData, description, Type, target):
+def createSnapshot(db, topologyData, description, type, target):
     """保存拓扑数据快照"""
     snapshot = TopologySnapshot(data=dumpModel(topologyData))
     db.add(snapshot)
 
     db.add(
-        OperationLog( operation_type=Type, trigger_device=target, details=description,)
+        OperationLog( operation_type=type, trigger_device=target, details=description,)
     )
 
     db.commit()

@@ -12,6 +12,8 @@ const ping = (sourceId, targetId) => postJson('/ops/ping', { sourceId, targetId 
 
 const traceroute = (sourceId, targetId) => postJson('/ops/traceroute', { sourceId, targetId });
 
+const smartRoute = (sourceId, targetId) => postJson('/ops/smart/route', { sourceId, targetId });
+
 const updateDevice = (id, data) => postJson('/ops/device/status', { deviceId: id, status: data.status });
 
 const updateConnection = (id, data) => postJson('/ops/link/status', { linkId: id, status: data.status });
@@ -29,6 +31,7 @@ const getOspfNeighbors = (deviceId) => postJson('/ops/ospf/neighbors', { deviceI
 export const opsApi = {
   ping,
   traceroute,
+  smartRoute,
   updateDevice,
   updateConnection,
   updateInterfaceStatus,

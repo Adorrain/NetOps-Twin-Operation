@@ -15,6 +15,7 @@ from app.model.api_schemas import (
     OSPFConfigBody,
     OSPFNeighborsBody,
     PingBody,
+    SmartRouteBody,
     TracerouteBody,
     VlanBody,
 )
@@ -44,6 +45,12 @@ def Traceroute():
     service = getSimulationService()
     body = parseBody(TracerouteBody)
     return jsonify(service.traceroute(body))
+
+
+def smartRoute():
+    service = getSimulationService()
+    body = parseBody(SmartRouteBody)
+    return jsonify(service.smartRoute(body))
 
 
 def updateDeviceStatus():
@@ -98,6 +105,7 @@ def setupRouter(bp: Blueprint) -> None:
     """集中注册 ops 路由"""
     bp.add_url_rule("/ping", "ping", ping, methods=["POST"])
     bp.add_url_rule("/traceroute", "Traceroute", Traceroute, methods=["POST"])
+    bp.add_url_rule("/smart/route", "smartRoute", smartRoute, methods=["POST"])
     bp.add_url_rule("/device/status", "updateDeviceStatus", updateDeviceStatus, methods=["POST"])
     bp.add_url_rule("/link/status", "updateLinkStatus", updateLinkStatus, methods=["POST"])
     bp.add_url_rule("/interface/status", "updateInterfaceStatus", updateInterfaceStatus, methods=["POST"])
