@@ -1,0 +1,48 @@
+# 配置演示说明（关于配置文件中状态的定义，最开始的定义都是up）
+
+# ospf参考带宽，为了计算链路cost，参考带宽/链路带宽
+ospf_reference_bandwidth: 10G
+
+# 定义设备列表
+devices:
+    # 设备的id，保证设备的唯一性
+  - id: core-1
+    # 设备的名称，以中文形式方便显示在面板上
+    name: 核心路由器1
+    # 设备的角色（core、aggregation、access、edge、 terminal），保证仿真建立时的位置布局关系
+    role: core
+    # 设备类型（router、switch、pc、 server）,根据不同的设备类型，渲染对应的组件
+    device_type: router
+    # 设备的ip地址
+    ip: 202.16.1.1
+    # 设备的子网掩码
+    netmask: 255.255.255.255
+    # 设备的状态（up、down）
+    status: up
+    # 设备的ospf区域，也可以加上路由id即 ospf: { router_id: 10.10.10.10, area: 0 }
+    ospf: { area: 0 }
+    # 设备的接口列表，定义接口的ip，名称，子网掩码，状态
+    interfaces:
+      - { name: g0/0, ip: 10.0.0.1, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.0.5, netmask: 255.255.255.252, status: up }
+      - { name: g0/2, ip: 10.0.0.9, netmask: 255.255.255.252, status: up }
+    # - { name: g1/2, mode: access, vlan: 20, status: up } # 也支持定义vlan
+
+# 定义链路列表，定义链路的源设备，源接口，目的设备，目的接口，状态，带宽
+links:
+  - {
+      # 链路的id，保证链路的唯一性
+      id: l1,
+      # 链路的源设备
+      src_device: core-1,
+      # 链路的源设备接口
+      src_interface: g0/0,
+      # 链路的目的设备
+      dst_device: core-2,
+      # 链路的目的接口
+      dst_interface: g0/0,
+      # 链路的状态
+      status: up,
+      # 链路的带宽（这里的带宽指链路的实际带宽）
+      bandwidth: 100G,
+    }
