@@ -123,7 +123,7 @@ class SimulationService:
 
 
     def _ospf_reference_mbps(self) -> float:
-        """参考带宽（Mbps）来自拓扑配置 TopologyData.ospf_reference_bandwidth。"""
+        """参考带宽（Mbps）来自拓扑配置 TopologyData.ospf_reference_bandwidth"""
         return self._bandwidth_to_mbps(self.topology.ospf_reference_bandwidth)
 
     def _get_link_cost(self, link) -> int:

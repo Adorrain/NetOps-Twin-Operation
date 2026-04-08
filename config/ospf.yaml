@@ -1,37 +1,6 @@
-# =========================
 # OSPF操作实验
-# =========================
 
-# OSPF 参考带宽；接口 cost = 参考带宽(Mbps) / 链路带宽(Mbps)
 ospf_reference_bandwidth: 10G
-
-# 脚本信息主要包含两部分，一是设备信息，二是链路信息
-# devices:
-#   - id: core-1      # 设备ID，唯一标识
-#     name: 路由器1    # 设备名称
-#     role: core      # 设备角色，core、aggregation、access、terminal
-#     device_type: router       # 设备类型，router、switch、pc
-#     ip: 202.16.1.1      # 设备IP地址
-#     netmask: 255.255.255.255       # 设备子网掩码
-#     status: up      # 设备状态，up、down、maintenance
-#     ospf: { area: 0 }       # OSPF区域，0、1、2
-#     interfaces:
-#       - { name: g0/0, ip: 10.0.0.1, netmask: 255.255.255.252, status: up } # 接口信息，包括接口名称、IP地址、子网掩码、状态
-#       - { name: g0/1, ip: 10.0.0.5, netmask: 255.255.255.252, status: up }
-#       - { name: g0/2, ip: 10.0.0.9, netmask: 255.255.255.252, status: up }
-
-
-# links:
-#   - {
-#       id: l1,       # 链路ID，唯一标识
-#       src_device: core-1,       # 源设备ID
-#       src_interface: g0/0,      # 源接口名称
-#       dst_device: core-2,       # 目的设备ID
-#       dst_interface: g0/0,      # 目的接口名称
-#       status: up,       # 链路状态，up、down、maintenance
-#       bandwidth: 1G,       # 链路带宽
-#     } # 链路信息，包括链路ID、源设备ID、源接口名称、目的设备ID、目的接口名称、链路状态
-
 
 devices:
   - id: core-1
