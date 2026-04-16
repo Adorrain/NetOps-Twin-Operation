@@ -9,19 +9,17 @@ import {
   CloseOutlined,
   CloudServerOutlined,
   GatewayOutlined,
-  SafetyCertificateOutlined,
   ArrowUpOutlined,
   ApiOutlined
 } from '@ant-design/icons';
-import { useAppStore } from '../../utils/appStore';
+import { useAppActions, useAppState } from '../../utils/appStore';
 import { DeviceStatus } from '../../types';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { getAllVlans } from '../../utils/net';
 
-const { Text, Title } = Typography;
-
 const DevicePanel = () => {
-  const { selectedDeviceId, setSelectedDevice, networkTopology, deviceStatuses } = useAppStore();
+  const { selectedDeviceId, networkTopology, deviceStatuses } = useAppState();
+  const { setSelectedDevice } = useAppActions();
   const [routingModalOpen, setRoutingModalOpen] = useState(false);
   const [routingFilter, setRoutingFilter] = useState('');
 
@@ -43,7 +41,6 @@ const DevicePanel = () => {
     if (t.includes('router')) return <ClusterOutlined style={style} />;
     if (t.includes('switch')) return <GatewayOutlined style={style} />;
     if (t.includes('server')) return <CloudServerOutlined style={style} />;
-    if (t.includes('firewall')) return <SafetyCertificateOutlined style={style} />;
     return <LaptopOutlined style={style} />;
   };
 
@@ -53,8 +50,6 @@ const DevicePanel = () => {
     if (type.includes('router')) return '路由器';
     if (type.includes('switch')) return '交换机';
     if (type.includes('server')) return '服务器';
-    if (type.includes('firewall')) return '防火墙';
-    if (type.includes('access_point')) return '无线 AP';
     return '通用设备';
   };
 

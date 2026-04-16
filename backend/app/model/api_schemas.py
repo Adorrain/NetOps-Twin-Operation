@@ -56,16 +56,6 @@ class VlanBody(BaseModel):
     allowedVlans: Optional[List[int]] = None
 
 
-class OSPFConfigBody(BaseModel):
-    deviceId: str
-    area: int
-    routerId: Optional[str] = None
-
-
-class OSPFNeighborsBody(BaseModel):
-    deviceId: str
-
-
 class OSPFCostUpdateBody(BaseModel):
     linkId: str
     newCost: int

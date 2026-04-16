@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./coverage.png" alt="NetOps Logo" width="80%" style="box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25); border-radius: 12px;" />
+  <img src="./Pictures/coverage.png" alt="NetOps Logo" width="80%" style="box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25); border-radius: 12px;" />
   <h1>基于NetOps的网络运维数字孪生系统的研究与设计</h1>
   <p>基于 NetOps 理念的网络运维数字孪生系统，通过 YAML 脚本定义网络设备参数，使用 Three.js 进行 3D 可视化展示，实现网络拓扑的数字孪生仿真。</p>
 
@@ -20,7 +20,6 @@
 ## 文档
 
 - 技术文档（产品定位/设计/技术栈/前后端/数据库/接口与响应格式）：[docs/techdocs.md](docs/techdocs.md)
-
 
 ## 快速开始
 
@@ -53,4 +52,3 @@ npm run dev
 cd backend
 python main.py
 ```
-

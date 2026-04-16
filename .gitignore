@@ -9,7 +9,6 @@ dist
 dist-ssr
 *.local
 
-.vscode/*
 !.vscode/extensions.json
 .idea
 .DS_Store
@@ -21,3 +20,6 @@ dist-ssr
 
 # Backend
 __pycache__/
+
+# Environment
+venv/

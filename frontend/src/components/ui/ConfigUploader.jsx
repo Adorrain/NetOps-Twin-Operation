@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Upload, message, Card, Spin } from 'antd';
 import { InboxOutlined, FileTextOutlined } from '@ant-design/icons';
-import { useAppStore } from '../../utils/appStore';
+import { useAppActions } from '../../utils/appStore';
 import { uploadTopologyFile } from '../../api/topology/topologyApi';
 import { getEndpointAccessVlan } from '../../utils/net';
 
@@ -11,19 +11,16 @@ const inferRole = (device) => {
   const name = String(device?.name || '').toLowerCase();
   const rawRole = String(device?.role || '').toLowerCase();
   if (rawRole) {
-    if (rawRole === 'firewall' || rawRole === 'dmz') return 'edge';
     if (['core', 'aggregation', 'access', 'edge', 'terminal'].includes(rawRole)) return rawRole;
     return 'terminal';
   }
   if (name.includes('核心') || name.includes('core')) return 'core';
   if (name.includes('汇聚') || name.includes('agg') || name.includes('distribution')) return 'aggregation';
   if (name.includes('接入') || name.includes('access')) return 'access';
-  if (name.includes('边界') || name.includes('edge') || name.includes('防火墙') || name.includes('firewall') || name.includes('fw')) return 'edge';
+  if (name.includes('边界') || name.includes('edge')) return 'edge';
   const t = String(device?.deviceType || '').toLowerCase();
   if (t === 'router') return 'core';
-  if (t === 'switch' || t === 'l2_switch') return 'access';
-  if (t === 'l3_switch') return 'aggregation';
-  if (t === 'firewall') return 'edge';
+  if (t === 'switch') return 'access';
   return 'terminal';
 };
 
@@ -116,7 +113,7 @@ const buildFrontendTopology = (cfg) => {
 };
 
 const ConfigUploader = ({ onConfigLoaded }) => {
-  const { setLoading, addNotification, setNetworkTopology } = useAppStore();
+  const { setLoading, addNotification, setNetworkTopology } = useAppActions();
   const [uploading, setUploading] = useState(false);
 
   const handleUpload = async (file) => {

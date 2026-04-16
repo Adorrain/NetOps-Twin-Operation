@@ -20,13 +20,9 @@ const updateConnection = (id, data) => postJson('/ops/link/status', { linkId: id
 
 const updateInterfaceStatus = (deviceId, ifaceName, status) => postJson('/ops/interface/status', { deviceId, ifaceName, status });
 
-const updateOspf = (deviceId, data) => postJson('/ops/ospf/config', { deviceId, area: data.area, routerId: data.routerId });
-
 const recoverVlan = (deviceId, data) => postJson('/ops/vlan/recover', { deviceId, port: data.port });
 
 const configureVlan = (deviceId, data) => postJson('/ops/vlan/configure', { deviceId, port: data.port, mode: data.mode, vlanId: data.vlanId, allowedVlans: data.allowedVlans });
-
-const getOspfNeighbors = (deviceId) => postJson('/ops/ospf/neighbors', { deviceId });
 
 export const opsApi = {
   ping,
@@ -35,8 +31,6 @@ export const opsApi = {
   updateDevice,
   updateConnection,
   updateInterfaceStatus,
-  updateOspf,
   recoverVlan,
   configureVlan,
-  getOspfNeighbors,
 };

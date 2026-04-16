@@ -9,12 +9,13 @@ import {
   LeftOutlined,
   RightOutlined
 } from '@ant-design/icons';
-import { useAppStore } from '../../utils/appStore';
+import { useAppActions, useAppState } from '../../utils/appStore';
 
 const { Sider } = Layout;
 
 const Sidebar = () => {
-  const { ui, updateUI } = useAppStore();
+  const { ui } = useAppState();
+  const { updateUI } = useAppActions();
   const navigate = useNavigate();
   const location = useLocation();
   const collapsed = ui.sidebarCollapsed;
@@ -50,7 +51,6 @@ const Sidebar = () => {
             bottom: 0,
           background: '#0b1220',
           padding: 12,
-          borderRight: '1px solid #1f2937',
         }}
     >
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -91,7 +91,6 @@ const Sidebar = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            borderTop: '1px solid #1f2937',
             cursor: 'pointer',
             background: 'transparent',
           }}

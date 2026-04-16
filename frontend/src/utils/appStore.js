@@ -1,46 +1,25 @@
-/**
- * 全局状态管理（Context + useReducer）。
- *
- * Author: Adorrain
- * Date: 2026-01-30
- */
+/** 全局状态管理（单一 Context + useReducer） */
 
-import React, { createContext, useCallback, useContext, useMemo, useReducer } from 'react';
-
-/**
- * 创建初始 UI 状态
- */
-const createInitialUI = () => ({
-  sidebarOpen: true,
-  sidebarCollapsed: false,
-  activePanel: 'topology',
-  loadingStates: new Map(),
-  notifications: [],
-});
+import React, { createContext, useContext, useMemo, useReducer } from 'react';
 
 const initialState = {
   networkTopology: null,
   selectedDeviceId: null,
   deviceStatuses: new Map(),
   opsLogs: [],
-  ui: createInitialUI(),
+  ui: {
+  sidebarOpen: true,
+  sidebarCollapsed: false,
+  activePanel: 'topology',
+  loadingStates: new Map(),
+  notifications: [],
+  },
 };
 
-const ACTIONS = {
-  SET_NETWORK_TOPOLOGY: 'SET_NETWORK_TOPOLOGY',
-  SET_SELECTED_DEVICE: 'SET_SELECTED_DEVICE',
-  UPDATE_DEVICE_STATUS: 'UPDATE_DEVICE_STATUS',
-  ADD_OPS_LOG: 'ADD_OPS_LOG',
-  UPDATE_UI: 'UPDATE_UI',
-  ADD_NOTIFICATION: 'ADD_NOTIFICATION',
-  MARK_NOTIFICATION_AS_READ: 'MARK_NOTIFICATION_AS_READ',
-  SET_LOADING: 'SET_LOADING',
-};
-
-function appReducer(state, action) {
+function reducer(state, action) {
   switch (action.type) {
-    case ACTIONS.SET_NETWORK_TOPOLOGY: {
-      const topology = action.payload;
+    case 'SET_NETWORK_TOPOLOGY': {
+      const topology = action.topology;
       if (topology && Array.isArray(topology.devices)) {
         const deviceStatuses = new Map();
         topology.devices.forEach((device) => {
@@ -52,18 +31,18 @@ function appReducer(state, action) {
       return { ...state, networkTopology: topology };
     }
 
-    case ACTIONS.SET_SELECTED_DEVICE:
-      return { ...state, selectedDeviceId: action.payload };
+    case 'SET_SELECTED_DEVICE':
+      return { ...state, selectedDeviceId: action.deviceId };
 
-    case ACTIONS.UPDATE_DEVICE_STATUS: {
-      const { deviceId, status } = action.payload;
+    case 'UPDATE_DEVICE_STATUS': {
+      const { deviceId, status } = action;
       const statuses = new Map(state.deviceStatuses);
       statuses.set(deviceId, status);
       return { ...state, deviceStatuses: statuses };
     }
 
-    case ACTIONS.ADD_OPS_LOG: {
-      const log = action.payload;
+    case 'ADD_OPS_LOG': {
+      const log = action.log;
       const newLog = {
         ...log,
         id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
@@ -72,12 +51,12 @@ function appReducer(state, action) {
       return { ...state, opsLogs: [newLog, ...state.opsLogs].slice(0, 100) };
     }
 
-    case ACTIONS.UPDATE_UI: {
-      return { ...state, ui: { ...state.ui, ...action.payload } };
+    case 'UPDATE_UI': {
+      return { ...state, ui: { ...state.ui, ...action.updates } };
     }
 
-    case ACTIONS.ADD_NOTIFICATION: {
-      const notification = action.payload;
+    case 'ADD_NOTIFICATION': {
+      const notification = action.notification;
       const newNotification = {
         ...notification,
         id: Date.now().toString(),
@@ -94,8 +73,8 @@ function appReducer(state, action) {
       };
     }
 
-    case ACTIONS.MARK_NOTIFICATION_AS_READ: {
-      const notificationId = action.payload;
+    case 'MARK_NOTIFICATION_AS_READ': {
+      const notificationId = action.notificationId;
       return {
         ...state,
         ui: {
@@ -107,8 +86,8 @@ function appReducer(state, action) {
       };
     }
 
-    case ACTIONS.SET_LOADING: {
-      const { key, loading } = action.payload;
+    case 'SET_LOADING': {
+      const { key, loading } = action;
       const loadingStates = new Map(state.ui.loadingStates);
 
       if (loading) loadingStates.set(key, true);
@@ -125,86 +104,39 @@ function appReducer(state, action) {
 const AppStoreContext = createContext(null);
 
 function AppStoreProvider({ children }) {
-  const [state, dispatch] = useReducer(appReducer, initialState);
+  const [state, dispatch] = useReducer(reducer, initialState);
 
-  const setNetworkTopology = useCallback(
-    (topology) => dispatch({ type: ACTIONS.SET_NETWORK_TOPOLOGY, payload: topology }),
-    [dispatch],
-  );
+  // 用 createElement 避免 JSX 在 .js 文件下的解析差异
+  return React.createElement(AppStoreContext.Provider, { value: { state, dispatch } }, children);
+}
 
-  const setSelectedDevice = useCallback(
-    (deviceId) => dispatch({ type: ACTIONS.SET_SELECTED_DEVICE, payload: deviceId }),
-    [dispatch],
-  );
+function useAppContext() {
+  const context = useContext(AppStoreContext);
+  if (!context) throw new Error('App store hooks must be used within AppStoreProvider');
+  return context;
+}
 
-  const updateDeviceStatus = useCallback(
-    (deviceId, status) =>
-      dispatch({ type: ACTIONS.UPDATE_DEVICE_STATUS, payload: { deviceId, status } }),
-    [dispatch],
-  );
+function useAppActions() {
+  const { dispatch } = useAppContext();
 
-  const addOpsLog = useCallback(
-    (log) => dispatch({ type: ACTIONS.ADD_OPS_LOG, payload: log }),
-    [dispatch],
-  );
-
-  const updateUI = useCallback(
-    (updates) => dispatch({ type: ACTIONS.UPDATE_UI, payload: updates }),
-    [dispatch],
-  );
-
-  const addNotification = useCallback(
-    (notification) => dispatch({ type: ACTIONS.ADD_NOTIFICATION, payload: notification }),
-    [dispatch],
-  );
-
-  const markNotificationAsRead = useCallback(
-    (notificationId) =>
-      dispatch({ type: ACTIONS.MARK_NOTIFICATION_AS_READ, payload: notificationId }),
-    [dispatch],
-  );
-
-  const setLoading = useCallback(
-    (key, loading) => dispatch({ type: ACTIONS.SET_LOADING, payload: { key, loading } }),
-    [dispatch],
-  );
-
-  const actions = useMemo(
+  return useMemo(
     () => ({
-      setNetworkTopology,
-      setSelectedDevice,
-      updateDeviceStatus,
-      addOpsLog,
-      updateUI,
-      addNotification,
-      markNotificationAsRead,
-      setLoading,
+      setNetworkTopology: (topology) => dispatch({ type: 'SET_NETWORK_TOPOLOGY', topology }),
+      setSelectedDevice: (deviceId) => dispatch({ type: 'SET_SELECTED_DEVICE', deviceId }),
+      updateDeviceStatus: (deviceId, status) =>
+        dispatch({ type: 'UPDATE_DEVICE_STATUS', deviceId, status }),
+      addOpsLog: (log) => dispatch({ type: 'ADD_OPS_LOG', log }),
+      updateUI: (updates) => dispatch({ type: 'UPDATE_UI', updates }),
+      addNotification: (notification) => dispatch({ type: 'ADD_NOTIFICATION', notification }),
+      markNotificationAsRead: (notificationId) =>
+        dispatch({ type: 'MARK_NOTIFICATION_AS_READ', notificationId }),
+      setLoading: (key, loading) => dispatch({ type: 'SET_LOADING', key, loading }),
     }),
-    [
-      setNetworkTopology,
-      setSelectedDevice,
-      updateDeviceStatus,
-      addOpsLog,
-      updateUI,
-      addNotification,
-      markNotificationAsRead,
-      setLoading,
-    ],
+    [dispatch],
   );
-
-  const value = useMemo(() => ({ state, actions }), [state, actions]);
-
-  // 用 createElement 避免 JSX 语法在 .js 文件下的解析差异
-  return React.createElement(AppStoreContext.Provider, { value }, children);
 }
 
-function useAppStore() {
-  const ctx = useContext(AppStoreContext);
-  if (!ctx) throw new Error('useAppStore must be used within AppStoreProvider');
+const useAppState = () => useAppContext().state;
 
-  const { state, actions } = ctx;
-  return { ...state, ...actions };
-}
-
-export { useAppStore, AppStoreProvider };
+export { AppStoreProvider, useAppState, useAppActions };
 

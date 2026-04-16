@@ -10,12 +10,13 @@ import {
   CheckCircleOutlined,
 } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
-import { useAppStore } from '../../utils/appStore';
+import { useAppActions, useAppState } from '../../utils/appStore';
 import { ConnectionStatus, DeviceStatus } from '../../types'
 import { isLinkActive } from '../../utils/net'
 
 const MonitoringPanel = () => {
-  const { networkTopology, deviceStatuses, setSelectedDevice } = useAppStore()
+  const { networkTopology, deviceStatuses } = useAppState()
+  const { setSelectedDevice } = useAppActions()
   const navigate = useNavigate()
 
   const devices = useMemo(() => networkTopology?.devices || [], [networkTopology])

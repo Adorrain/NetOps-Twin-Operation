@@ -13,8 +13,6 @@ export const DeviceType = {
   ROUTER: 'router',
   SWITCH: 'switch',
   SERVER: 'server',
-  FIREWALL: 'firewall',
-  ACCESS_POINT: 'access_point'
 };
 
 /**

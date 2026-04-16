@@ -14,7 +14,7 @@ import DevicePanel from './components/ui/DevicePanel';
 import ConfigUploader from './components/ui/ConfigUploader';
 import OpsConsole from './components/ui/OpsConsole';
 import MonitoringPanel from './components/ui/MonitoringPanel';
-import { AppStoreProvider, useAppStore } from './utils/appStore';
+import { AppStoreProvider, useAppActions, useAppState } from './utils/appStore';
 
 const { Content, Sider } = Layout;
 const { Title, Text } = Typography;
@@ -23,7 +23,8 @@ const { Title, Text } = Typography;
  * 路由内容组件：根据 URL 同步 UI 面板状态，并渲染各页面内容
  */
 const AppContent = () => {
-  const { networkTopology, setSelectedDevice, updateUI } = useAppStore();
+  const { networkTopology } = useAppState();
+  const { setSelectedDevice, updateUI } = useAppActions();
   const location = useLocation();
   const navigate = useNavigate();
 

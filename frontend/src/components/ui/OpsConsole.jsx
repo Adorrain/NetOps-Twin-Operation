@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { 
-  Select, Input, Button, Table, 
+  Select, Input, Button,
   Modal, Tag, Alert, message, Collapse, Space, 
   Typography, Row, Col, Divider, List, Empty
 } from 'antd';
@@ -13,19 +13,10 @@ import {
   PlayCircleOutlined,
   DeleteOutlined
 } from '@ant-design/icons';
-import { useAppStore } from '../../utils/appStore';
-import { DeviceStatus, ConnectionStatus, DeviceType } from '../../types';
+import { useAppActions, useAppState } from '../../utils/appStore';
+import { DeviceStatus, ConnectionStatus } from '../../types';
 import { isVlanCapableDevice } from '../../utils/net';
 import { opsApi } from '../../api/ops/opsApi';
-const checkDeviceType = (device, type) => {
-  const dType = device?.deviceType || '';
-  if (dType === type) return true;
-  if (type === DeviceType.SWITCH) {
-    const role = String(device?.role || '').toLowerCase();
-    return role === 'access' || role === 'aggregation';
-  }
-  return false;
-};
 
 const formatVlanHint = (cfg) => {
   if (!cfg) return '-';
@@ -56,7 +47,7 @@ const explainLog = (log) => {
       return 'ICMP Echo Request 已收到对应的 Echo Reply';
     }
     if (t === 'error' || t === 'warning') {
-      if (msg.includes('不可达')) return '目标主机未响应 ICMP 请求，可能是路由不可达、防火墙拦截或设备离线';
+      if (msg.includes('不可达')) return '目标主机未响应 ICMP 请求，可能是路由不可达或设备离线';
       return '网络诊断工具执行失败';
     }
   }
@@ -89,13 +80,8 @@ const getErrorMessage = (res) => {
 const { Text } = Typography;
 
 const OpsConsole = () => {
-  const { 
-    networkTopology, 
-    setNetworkTopology, 
-    updateDeviceStatus,
-    opsLogs: logs,
-    addOpsLog
-  } = useAppStore();
+  const { networkTopology, opsLogs: logs } = useAppState();
+  const { setNetworkTopology, updateDeviceStatus, addOpsLog } = useAppActions();
 
   const devices = useMemo(() => networkTopology?.devices || [], [networkTopology]);
   const links = useMemo(() => networkTopology?.links || [], [networkTopology]);
@@ -133,13 +119,6 @@ const OpsConsole = () => {
   const [vlanAllowedVlans, setVlanAllowedVlans] = useState('');
   const [vlanOriginalHint, setVlanOriginalHint] = useState('');
   const [vlanCurrentHint, setVlanCurrentHint] = useState('');
-
-  // States (OSPF)
-  const [ospfDeviceId, setOspfDeviceId] = useState('');
-  const [ospfRouterId, setOspfRouterId] = useState('');
-  const [ospfArea, setOspfArea] = useState(0);
-  const [ospfNeighbors, setOspfNeighbors] = useState([]);
-  const [showNeighborsModal, setShowNeighborsModal] = useState(false);
 
   // States (Logs)
   const [logsModalOpen, setLogsModalOpen] = useState(false);
@@ -365,55 +344,6 @@ const OpsConsole = () => {
         }
     } catch (e) {
         addLog('error', `更新接口状态异常: ${e.message}`);
-        message.error(e.message);
-    }
-  };
-
-  const handleOspfSelect = (devId) => {
-    setOspfDeviceId(devId);
-    const dev = devices.find(d => d.id === devId);
-    const ospf = dev && (dev.configuration?.ospf || dev.ospf);
-    if (ospf) {
-      setOspfRouterId(ospf.routerId || '');
-      setOspfArea(ospf.area ?? 0);
-    } else {
-      setOspfRouterId('');
-      setOspfArea(0);
-    }
-  };
-
-  const updateOspfConfigAction = async () => {
-    if (!ospfDeviceId || !networkTopology) return;
-    try {
-        const res = await opsApi.updateOspf(ospfDeviceId, { routerId: ospfRouterId, area: ospfArea });
-        if (res.success) {
-            updateTopologyDevice(ospfDeviceId, res.data || {});
-            const devName = getDeviceName(ospfDeviceId);
-            message.success(`${devName} 配置已生效`);
-            addLog('success', `更新 OSPF 配置 ${devName}: RID=${ospfRouterId}, Area=${ospfArea}`);
-        } else {
-             const msg = res.message;
-             addLog('error', `OSPF 更新失败: ${msg}`);
-             message.error(msg);
-        }
-    } catch (e) {
-        addLog('error', `OSPF 更新异常: ${e.message}`);
-        message.error(e.message);
-    }
-  };
-  
-  const handleGetNeighbors = async () => {
-    if (!ospfDeviceId) return;
-    try {
-        const res = await opsApi.getOspfNeighbors(ospfDeviceId);
-        if (res.success) {
-            setOspfNeighbors(res.data);
-            setShowNeighborsModal(true);
-            addLog('success', `获取 ${getDeviceName(ospfDeviceId)} 的 OSPF 邻居列表`);
-        } else {
-            message.error(res.message);
-        }
-    } catch (e) {
         message.error(e.message);
     }
   };
@@ -721,36 +651,6 @@ const OpsConsole = () => {
          </Space>
       )
     },
-    {
-      key: 'ospf-ops',
-      label: <Space><ApartmentOutlined style={{ color: '#52c41a' }} />OSPF 操作</Space>,
-      children: (
-          <Space orientation="vertical" style={{ width: '100%' }}>
-              <Select 
-                    style={{ width: '100%' }} 
-                    placeholder="选择路由器" 
-                    value={ospfDeviceId}
-                    onChange={handleOspfSelect}
-options={devices.filter(d => (d.configuration?.ospf || d.ospf) || checkDeviceType(d, DeviceType.ROUTER)).map(d => {
-                        const ospf = d.configuration?.ospf || d.ospf;
-                        return { value: d.id, label: ospf?.routerId ? `${d.name} (${ospf.routerId})` : d.name };
-                    })}
-              />
-              {ospfDeviceId && (
-                  <>
-                    <Row gutter={8}>
-                        <Col span={12}><Input placeholder="Router ID" value={ospfRouterId} onChange={e => setOspfRouterId(e.target.value)} /></Col>
-                        <Col span={12}><Input type="number" placeholder="Area ID" value={ospfArea} onChange={e => setOspfArea(Number(e.target.value))} /></Col>
-                    </Row>
-                    <Row gutter={8}>
-                        <Col span={12}><Button type="primary" block onClick={updateOspfConfigAction}>更新</Button></Col>
-                        <Col span={12}><Button danger block onClick={handleGetNeighbors}>查看邻居表</Button></Col>
-                    </Row>
-                  </>
-              )}
-          </Space>
-      )
-    },
   ];
 
   // UI Render
@@ -810,27 +710,6 @@ options={devices.filter(d => (d.configuration?.ospf || d.ospf) || checkDeviceTyp
         />
       </Modal>
 
-      {/* OSPF Neighbors Modal */}
-      <Modal
-        title={`OSPF 邻居表 - ${getDeviceName(ospfDeviceId)}`}
-        open={showNeighborsModal}
-        onCancel={() => setShowNeighborsModal(false)}
-        footer={[<Button key="close" onClick={() => setShowNeighborsModal(false)}>关闭</Button>]}
-        width={700}
-      >
-        <Table 
-            dataSource={ospfNeighbors}
-            columns={[
-                { title: 'Neighbor ID', dataIndex: 'routerId', key: 'routerId' },
-                { title: 'State', dataIndex: 'state', key: 'state', render: (text) => <Tag color={text === 'Full' ? 'green' : 'red'}>{text}</Tag> },
-                { title: 'Address', dataIndex: 'address', key: 'address' },
-                { title: 'Interface', dataIndex: 'interface', key: 'interface' }
-            ]}
-            pagination={false}
-            rowKey="routerId"
-            size="small"
-        />
-      </Modal>
     </div>
   );
 };

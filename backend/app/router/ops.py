@@ -12,8 +12,6 @@ from app.model.api_schemas import (
     InterfaceStatusBody,
     LinkStatusBody,
     OSPFCostUpdateBody,
-    OSPFConfigBody,
-    OSPFNeighborsBody,
     PingBody,
     SmartRouteBody,
     TracerouteBody,
@@ -83,18 +81,6 @@ def configureVlan():
     return jsonify(service.ConfigureVlan(body))
 
 
-def updateOspfConfig():
-    service = getSimulationService()
-    body = parseBody(OSPFConfigBody)
-    return jsonify(service.UpdateOspfConfig(body))
-
-
-def getOspfNeighbors():
-    service = getSimulationService()
-    body = parseBody(OSPFNeighborsBody)
-    return jsonify(service.GetOspfNeighbors(body))
-
-
 def updateOspfCost():
     service = getSimulationService()
     body = parseBody(OSPFCostUpdateBody)
@@ -105,14 +91,12 @@ def setupRouter(bp: Blueprint) -> None:
     """集中注册 ops 路由"""
     bp.add_url_rule("/ping", "ping", ping, methods=["POST"])
     bp.add_url_rule("/traceroute", "Traceroute", Traceroute, methods=["POST"])
-    bp.add_url_rule("/smart/route", "smartRoute", smartRoute, methods=["POST"])
+    bp.add_url_rule("/smartroute", "smartRoute", smartRoute, methods=["POST"])
     bp.add_url_rule("/device/status", "updateDeviceStatus", updateDeviceStatus, methods=["POST"])
     bp.add_url_rule("/link/status", "updateLinkStatus", updateLinkStatus, methods=["POST"])
     bp.add_url_rule("/interface/status", "updateInterfaceStatus", updateInterfaceStatus, methods=["POST"])
     bp.add_url_rule("/vlan/recover", "recoverVlan", recoverVlan, methods=["POST"])
     bp.add_url_rule("/vlan/configure", "configureVlan", configureVlan, methods=["POST"])
-    bp.add_url_rule("/ospf/config", "updateOspfConfig", updateOspfConfig, methods=["POST"])
-    bp.add_url_rule("/ospf/neighbors", "getOspfNeighbors", getOspfNeighbors, methods=["POST"])
     bp.add_url_rule("/ospf/cost/update", "updateOspfCost", updateOspfCost, methods=["POST"])
 
 

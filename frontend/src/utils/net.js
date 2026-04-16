@@ -51,7 +51,7 @@ export const isVlanCapableDevice = (device) => {
  */
 export const isEndpointDevice = (device) => {
   const t = normalizeDeviceType(device);
-  return t === 'pc' || t === 'server' || t === 'terminal' || t === 'host' || t === 'access_point';
+  return t === 'pc' || t === 'server' || t === 'terminal' || t === 'host';
 };
 
 /**

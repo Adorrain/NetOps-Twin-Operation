@@ -112,7 +112,7 @@ const inferEffectiveDeviceType = (device) => {
   if (lowerDeviceType.includes('router') || renderType.includes('router')) return 'router';
   if (lowerName.includes('core')) return 'core';
   if (lowerName.includes('agg')) return 'aggregation';
-  if (renderType.includes('edge') || renderType.includes('firewall') || lowerName.includes('fw')) return 'edge';
+  if (renderType.includes('edge')) return 'edge';
   if (lowerDeviceType.includes('server') || renderType.includes('server')) return 'server';
   if (renderType.includes('pc') || renderType.includes('terminal')) return 'pc';
   if (renderType.includes('switch')) return 'access';
@@ -129,7 +129,7 @@ const resolveSizeType = (device) => {
   const lowerName = String(name || '').toLowerCase();
   if (renderType.includes('core')) return 'core';
   if (renderType.includes('aggregation') || renderType.includes('agg')) return 'aggregation';
-  if (renderType.includes('edge') || renderType.includes('firewall') || lowerName.includes('fw')) return 'edge';
+  if (renderType.includes('edge')) return 'edge';
   return 'access';
 };
 

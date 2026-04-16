@@ -5,28 +5,9 @@
 """
 
 import random
-import time
-from typing import Any, Dict, List, Optional, Tuple
-
 import networkx as nx
 from networkx.algorithms.shortest_paths.weighted import dijkstra_path, dijkstra_path_length
-from sqlalchemy.orm import Session
-
 from app.dao.snapshot_dao import createSnapshot
-from app.model.api_schemas import (
-    DeviceStatusBody,
-    InterfaceStatusBody,
-    LinkStatusBody,
-    OSPFConfigBody,
-    OSPFCostUpdateBody,
-    OSPFNeighborsBody,
-    PingBody,
-    SmartRouteBody,
-    TracerouteBody,
-    VlanBody,
-)
-from app.model.db_models import TopologySnapshot
-from app.model.topology import Device, Link, TopologyData
 from app.utils.serialization import dumpModel
 
 
@@ -582,28 +563,6 @@ class SimulationService:
         self._persist_snapshot(f"VLAN 配置: {body.deviceId} 端口 {body.port} mode={mode}")
         return self._success(message="VLAN 配置已生效", data=dumpModel(device))
 
-    def UpdateOspfConfig(self, body):
-        """更新 OSPF 配置"""
-        device = self._deviceMap().get(body.deviceId)
-        if not device:
-            return self._error(f"设备不存在: {body.deviceId}")
-
-        if device.ospf is None:
-            device.ospf = {}
-
-        routerId = body.routerId or (str(device.ip).split("/")[0] if device.ip else "1.1.1.1")
-        device.ospf["area"] = body.area
-        device.ospf["routerId"] = routerId
-        device.ospf["lastResetTime"] = 0
-
-        configurationOspf = device.configuration.setdefault("ospf", {})
-        configurationOspf["area"] = body.area
-        configurationOspf["routerId"] = routerId
-        configurationOspf["lastResetTime"] = 0
-
-        self._persist_snapshot(f"OSPF 配置: {body.deviceId} area={body.area} routerId={routerId}")
-        return self._success(message="OSPF 配置已更新", data=dumpModel(device))
-
     def UpdateOspfCost(self, body):
         """更新 OSPF 链路成本"""
         linkId = body.linkId
@@ -626,59 +585,3 @@ class SimulationService:
         self._persist_snapshot(f"OSPF Cost 更新: {linkId} -> {costValue}", "ospfCost", linkId)
         return self._success(message="OSPF Cost 已更新", data=dumpModel(targetLink))
 
-    @staticmethod
-    def _ospfNeighborState(ospf):
-        """OSPF 邻居状态机"""
-        t = time.time() - float(ospf.get("lastResetTime", 0) or 0)
-        if t < 5:
-            return "Init"
-        if t < 10:
-            return "2-Way"
-        if t < 15:
-            return "ExStart"
-        if t < 20:
-            return "Loading"
-        return "Full"
-
-    def GetOspfNeighbors(self, body):
-        deviceId = body.deviceId
-        devices = self._deviceMap()
-        device = devices.get(deviceId)
-        links = self.topologyData.links
-        rows = []
-        if not device or not device.ospf:
-            return self._success(message="无 OSPF 配置或设备不存在", data=[])
-
-        ospfConfiguration = device.ospf
-        state = self._ospfNeighborState(ospfConfiguration)
-
-        for link in links:
-            neighborId = None
-            localInterface = ""
-            if link.srcDevice == deviceId:
-                neighborId = link.dstDevice
-                localInterface = link.srcInterface or ""
-            elif link.dstDevice == deviceId:
-                neighborId = link.srcDevice
-                localInterface = link.dstInterface or ""
-
-            if not neighborId:
-                continue
-            neighborDevice = devices.get(neighborId)
-            if not neighborDevice or not neighborDevice.ospf:
-                continue
-
-            neighborOspf = neighborDevice.ospf or {}
-            routerId = neighborOspf.get("routerId") or "0.0.0.0"
-            rows.append(
-                {
-                    "neighborId": neighborId,
-                    "routerId": routerId,
-                    "address": neighborDevice.ip,
-                    "interface": localInterface,
-                    "state": state,
-                    "area": str(neighborOspf.get("area", 0)),
-                }
-            )
-
-        return self._success(message="OK", data=rows)
