@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Table, Typography, Button, ConfigProvider, theme, Modal, Input } from 'antd';
+import { Table, Button, ConfigProvider, theme, Modal, Input } from 'antd';
 import { 
   LaptopOutlined, 
   ClusterOutlined, 
@@ -15,7 +15,7 @@ import {
 import { useAppActions, useAppState } from '../../utils/appStore';
 import { DeviceStatus } from '../../types';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
-import { getAllVlans } from '../../utils/net';
+import { getAllVlans } from '../../utils/utils';
 
 const DevicePanel = () => {
   const { selectedDeviceId, networkTopology, deviceStatuses } = useAppState();

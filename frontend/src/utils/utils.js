@@ -41,6 +41,17 @@ export const getAllVlans = (device) => {
  */
 export const isVlanCapableDevice = (device) => {
   if (!device) return false;
+  const type = normalizeDeviceType(device);
+  const name = String(device?.name || '').toLowerCase();
+  const role = String(device?.role || '').toLowerCase();
+  if (
+    type.includes('switch') ||
+    name.includes('交换机') ||
+    role === 'access' ||
+    role === 'aggregation'
+  ) {
+    return true;
+  }
   if (device.vlan != null) return true;
   const ifaces = Array.isArray(device.interfaces) ? device.interfaces : [];
   return ifaces.some(it => it?.vlan != null || it?.mode || it?.allowedVlans);

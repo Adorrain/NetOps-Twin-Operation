@@ -3,7 +3,7 @@ import { Upload, message, Card, Spin } from 'antd';
 import { InboxOutlined, FileTextOutlined } from '@ant-design/icons';
 import { useAppActions } from '../../utils/appStore';
 import { uploadTopologyFile } from '../../api/topology/topologyApi';
-import { getEndpointAccessVlan } from '../../utils/net';
+import { getEndpointAccessVlan } from '../../utils/utils';
 
 const { Dragger } = Upload;
 
@@ -113,7 +113,7 @@ const buildFrontendTopology = (cfg) => {
 };
 
 const ConfigUploader = ({ onConfigLoaded }) => {
-  const { setLoading, addNotification, setNetworkTopology } = useAppActions();
+  const { setNetworkTopology } = useAppActions();
   const [uploading, setUploading] = useState(false);
 
   const handleUpload = async (file) => {
@@ -124,7 +124,6 @@ const ConfigUploader = ({ onConfigLoaded }) => {
     }
 
     setUploading(true);
-    setLoading('config-upload', true);
 
     try {
       let cfg;
@@ -139,12 +138,9 @@ const ConfigUploader = ({ onConfigLoaded }) => {
       if (onConfigLoaded) onConfigLoaded(topo);
       
       message.success(`配置加载成功: ${topo.name}`);
-      addNotification({ type: 'success', title: '配置已加载', message: `拓扑就绪: ${topo.name}` });
     } catch (error) {
       message.error(`加载失败: ${error.message}`);
-      addNotification({ type: 'error', title: '加载失败', message: error.message });
     } finally {
-      setLoading('config-upload', false);
       setUploading(false);
     }
     return false;

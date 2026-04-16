@@ -12,7 +12,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { useAppActions, useAppState } from '../../utils/appStore';
 import { ConnectionStatus, DeviceStatus } from '../../types'
-import { isLinkActive } from '../../utils/net'
+import { isLinkActive } from '../../utils/utils'
 
 const MonitoringPanel = () => {
   const { networkTopology, deviceStatuses } = useAppState()

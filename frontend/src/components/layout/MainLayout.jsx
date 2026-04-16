@@ -1,16 +1,11 @@
 import React from 'react'
-import { Layout, Spin } from 'antd'
+import { Layout } from 'antd'
 import Header from './Header'
 import Sidebar from './Sidebar'
-import { useAppState } from '../../utils/appStore'
 
 const { Content } = Layout
 
 const MainLayout = ({ children }) => {
-  const { ui } = useAppState()
-
-  const globalLoading = ui.loadingStates?.size > 0
-
   return (
     <Layout style={{ minHeight: '100vh', height: '100vh', overflow: 'hidden', background: 'transparent' }}>
 
@@ -31,21 +26,6 @@ const MainLayout = ({ children }) => {
           }}
         >
           {children}
-
-          {globalLoading && (
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'rgba(0,0,0,0.4)',
-              }}
-            >
-              <Spin size="large" />
-            </div>
-          )}
         </Content>
       </Layout>
     </Layout>

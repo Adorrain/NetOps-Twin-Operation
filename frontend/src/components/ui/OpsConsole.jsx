@@ -15,7 +15,7 @@ import {
 } from '@ant-design/icons';
 import { useAppActions, useAppState } from '../../utils/appStore';
 import { DeviceStatus, ConnectionStatus } from '../../types';
-import { isVlanCapableDevice } from '../../utils/net';
+import { isVlanCapableDevice } from '../../utils/utils';
 import { opsApi } from '../../api/ops/opsApi';
 
 const formatVlanHint = (cfg) => {
@@ -34,12 +34,6 @@ const formatVlanHint = (cfg) => {
 const explainLog = (log) => {
   const t = log.type;
   const msg = String(log.message || '').toLowerCase();
-
-  if (msg.includes('ospf')) {
-    if (msg.includes('full') || msg.includes('恢复')) return 'OSPF 邻居状态机已达到 Full 状态，路由信息已完全同步';
-    if (msg.includes('down') || msg.includes('重置')) return 'OSPF 进程重启或邻居关系中断，正在重新进行 Hello 报文交互';
-    if (msg.includes('更新') || msg.includes('配置')) return 'OSPF 协议参数变更已应用，将触发链路状态更新 (LSU)';
-  }
 
   if (msg.includes('ping') || msg.includes('traceroute') || msg.includes('路由追踪')) {
     if (t === 'success') {

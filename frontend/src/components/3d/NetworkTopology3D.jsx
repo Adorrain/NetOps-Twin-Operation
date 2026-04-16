@@ -9,10 +9,9 @@
 
 import React, { Suspense, useMemo, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Grid, Text, RoundedBox, Line, Html, Float } from '@react-three/drei';
-import { Spin } from 'antd';
+import { OrbitControls, Grid, Text, RoundedBox, Line, Float } from '@react-three/drei';
 import * as THREE from 'three';
-import { getDisplayVlanId } from '../../utils/net';
+import { getDisplayVlanId } from '../../utils/utils';
 
 /**
  * ===========================
@@ -22,8 +21,6 @@ import { getDisplayVlanId } from '../../utils/net';
 /**
  * 标准化拓扑数据结构，兼容不同字段命名与缺省情况。
  *
- * @param {any} raw 原始拓扑对象。
- * @returns {{devices:any[], links:any[], flows:any[], alerts:any[]}} 标准化后的拓扑对象。
  */
 function normalizeTopology(raw) {
   return {
@@ -120,13 +117,11 @@ const inferEffectiveDeviceType = (device) => {
 };
 
 const resolveSizeType = (device) => {
-  const { name } = getDeviceTypeStrings(device);
   const renderType = getDeviceRenderType(device);
   const effectiveType = inferEffectiveDeviceType(device);
 
   if (effectiveType !== 'router') return effectiveType;
 
-  const lowerName = String(name || '').toLowerCase();
   if (renderType.includes('core')) return 'core';
   if (renderType.includes('aggregation') || renderType.includes('agg')) return 'aggregation';
   if (renderType.includes('edge')) return 'edge';
@@ -423,7 +418,6 @@ function LinkLine({ link, devices }) {
   const isActive = isLinkActiveLoose(status);
   const utilization = Number(link.utilization ?? 0);
   const isPeak = Boolean(link.is_peak) || utilization >= 0.75 || String(link.peak_level || '').toLowerCase() === 'high' || String(link.peak_level || '').toLowerCase() === 'critical';
-  const isOptimized = String(link.optimization_state || '').toLowerCase() === 'optimized';
   const color = isActive ? '#3b82f6' : '#334155'; // 非 active 链路统一灰色
 
   return (
@@ -560,14 +554,7 @@ export default function NetworkTopology3D({ topology, onDeviceClick }) {
           <pointLight position={[-10, 10, -10]} intensity={2.0} />
           {/* <Environment preset="city" /> */} 
 
-          <Suspense fallback={
-            <Html center>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                <Spin size="large" />
-                <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, letterSpacing: 0.4 }}>正在加载 3D 场景…</div>
-              </div>
-            </Html>
-          }>
+          <Suspense fallback={null}>
             <Scene topology={topology} onDeviceClick={onDeviceClick} />
           </Suspense>
 
