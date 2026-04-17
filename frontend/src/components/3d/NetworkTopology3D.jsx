@@ -267,8 +267,8 @@ const TerminalDevice = ({ size }) => {
 /** 渲染单个设备及其标签、状态光圈和交互效果。 */
 function DeviceMesh({ device, onClick }) {
   const { position = { x: 0, y: 0, z: 0 }, name, status, metrics } = device;
-  const modelTypeRaw = String(device?.role || device?.deviceType || 'switch').toLowerCase();
-  const modelType = modelTypeRaw === 'terminal' || modelTypeRaw === 'workstation' ? 'pc' : modelTypeRaw;
+  const effectiveType = inferEffectiveDeviceType(device);
+  const modelType = String(effectiveType || 'access').toLowerCase();
   const
     size = getDeviceSize(device),
     baseColor = getDeviceBaseColor(device),
@@ -281,6 +281,10 @@ function DeviceMesh({ device, onClick }) {
   /** 按模型类型渲染对应设备外观。 */
   const renderModel = () => {
     switch (modelType) {
+      case 'core':
+      case 'aggregation':
+      case 'access':
+      case 'edge':
       case 'switch':
         return <SwitchDevice size={size} color={baseColor} statusColor={statusColor} />;
       case 'server':
@@ -297,7 +301,7 @@ function DeviceMesh({ device, onClick }) {
   return (
     <group 
       ref={meshRef}
-      position={[position.x, size[1] / 2, position.z]} 
+      position={[position.x ?? 0, (position.y ?? 0) + size[1] / 2, position.z ?? 0]} 
       onClick={(e) => { e.stopPropagation(); onClick && onClick(e); }}
     >
       {/* 设备主体（悬浮动画容器） */}
