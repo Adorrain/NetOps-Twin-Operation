@@ -148,7 +148,7 @@ const ServerDevice = ({ size, statusColor = '#22c55e' }) => {
   );
 };
 
-/** 渲染交换机设备模型。 */
+/** 渲染交换机设备模型 */
 const SwitchDevice = ({ size, color = '#38bdf8', statusColor = '#22c55e' }) => {
   return (
     <group position={[0, ((size[1] * 1.28) - size[1]) / 2, 0]}>
@@ -161,7 +161,7 @@ const SwitchDevice = ({ size, color = '#38bdf8', statusColor = '#22c55e' }) => {
         <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.15} />
       </mesh>
 
-      <group position={[0, 0.4, size[2] / 2 + 0.03]}>
+      <group position={[0, 0.36, size[2] / 2 + 0.03]}>
         {Array.from({ length: 3 }).map((_, row) => {
           const y = (size[1] * 1.28) / 2 - ((size[1] * 1.28) / 3) / 2 - row * ((size[1] * 1.28) / 3);
 

@@ -1,9 +1,8 @@
-import React, { useMemo, useState } from 'react';
-import { Table, Button, ConfigProvider, theme, Modal, Input } from 'antd';
+import React, { useMemo } from 'react';
+import { Table, Button, ConfigProvider, theme } from 'antd';
 import { 
   LaptopOutlined, 
   ClusterOutlined, 
-  ApartmentOutlined,
   PartitionOutlined, 
   SettingOutlined,
   CloseOutlined,
@@ -27,8 +26,6 @@ import {
 const DevicePanel = () => {
   const { selectedDeviceId, networkTopology, deviceStatuses } = useAppState();
   const { setSelectedDevice } = useAppActions();
-  const [routingModalOpen, setRoutingModalOpen] = useState(false);
-  const [routingFilter, setRoutingFilter] = useState('');
 
   const device = useMemo(() => {
     if (!selectedDeviceId || !networkTopology || !Array.isArray(networkTopology.devices)) return null;
@@ -57,73 +54,17 @@ const DevicePanel = () => {
     return device.ospf || device.configuration?.ospf;
   };
 
-  const getRoutingTable = (device) => {
-    const rt = device.routingTable || device.configuration?.routingTable;
-    return Array.isArray(rt) ? rt : [];
-  };
-
   const getVlanInfo = (device) => {
     return getAllVlans(device).map(id => ({ id, name: `VLAN ${id}` }));
   };
 
   const ospfConfig = getOspfConfig(device);
-  const routingTable = getRoutingTable(device);
   const vlanList = getVlanInfo(device);
   const dType = device.role || device.deviceType;
   const statusColor = getDeviceStatusColor(effectiveStatus);
   const rawIp = device.ip ?? device.ipAddress ?? device.interfaces?.find(i => i?.ip)?.ip;
   const primaryIp = rawIp != null && rawIp !== '' ? (typeof rawIp === 'string' && rawIp.includes('/') ? rawIp.split('/')[0] : rawIp) : '-';
   const primaryNetmask = device.netmask ?? device.interfaces?.find(i => i?.ip)?.netmask ?? device.interfaces?.[0]?.netmask ?? (typeof rawIp === 'string' && rawIp.includes('/') ? `/${rawIp.split('/')[1]}` : undefined);
-
-  const q = String(routingFilter || '').trim().toLowerCase();
-  const filteredRoutingTable = !q
-    ? routingTable
-    : routingTable.filter((r) => {
-        const destination = String(r?.destination ?? '').toLowerCase();
-        const nextHop = String(r?.next_hop ?? '').toLowerCase();
-        const outIf = String(r?.out_interface ?? '').toLowerCase();
-        const cost = String(r?.cost ?? '').toLowerCase();
-        return destination.includes(q) || nextHop.includes(q) || outIf.includes(q) || cost.includes(q);
-      });
-
-  const routingColumns = [
-    {
-      title: '目的地',
-      dataIndex: 'destination',
-      key: 'destination',
-      width: 140,
-      render: (text) => <span style={{ fontWeight: 500, color: '#e2e8f0', fontFamily: 'monospace' }}>{text || '-'}</span>,
-      sorter: (a, b) => String(a?.destination ?? '').localeCompare(String(b?.destination ?? ''))
-    },
-    {
-      title: '下一跳',
-      key: 'next_hop',
-      width: 120,
-      render: (_, record) => {
-        const v = record?.next_hop;
-        return <span style={{ fontFamily: 'monospace', color: '#93c5fd' }}>{v || '-'}</span>;
-      },
-      sorter: (a, b) => String(a?.next_hop ?? '').localeCompare(String(b?.next_hop ?? ''))
-    },
-    {
-      title: '出接口',
-      key: 'out_interface',
-      width: 120,
-      render: (_, record) => {
-        const v = record?.out_interface;
-        return <span style={{ fontFamily: 'monospace', color: '#94a3b8' }}>{v || '-'}</span>;
-      },
-      sorter: (a, b) => String(a?.out_interface ?? '').localeCompare(String(b?.out_interface ?? ''))
-    },
-    {
-      title: 'Cost',
-      dataIndex: 'cost',
-      key: 'cost',
-      width: 80,
-      render: (v) => <span style={{ fontFamily: 'monospace', color: '#4ade80', fontWeight: 700 }}>{v ?? '-'}</span>,
-      sorter: (a, b) => Number(a?.cost ?? 0) - Number(b?.cost ?? 0)
-    }
-  ];
 
   const interfaceColumns = [
     { 
@@ -375,28 +316,6 @@ const DevicePanel = () => {
                         </div>
                     )}
 
-                    {routingTable.length > 0 && (
-                        <div style={{ marginBottom: 16, background: 'rgba(30, 41, 59, 0.3)', border: '1px solid rgba(51, 65, 85, 0.5)', borderRadius: 12, overflow: 'hidden' }}>
-                            <div style={{ background: 'rgba(30, 41, 59, 0.8)', padding: '8px 16px', borderBottom: '1px solid rgba(51, 65, 85, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, fontSize: 11, fontWeight: 600, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <ApartmentOutlined style={{ color: '#60a5fa' }} /> 路由表 ({routingTable.length})
-                                </span>
-                                <Button size="small" onClick={() => setRoutingModalOpen(true)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#e2e8f0' }}>
-                                    查看全部
-                                </Button>
-                             </div>
-                             <div style={{ padding: 16 }}>
-                                <Table
-                                    dataSource={routingTable.slice(0, 8)}
-                                    columns={routingColumns}
-                                    pagination={false}
-                                    size="small"
-                                    rowKey={(r, idx) => `${r?.destination ?? 'dst'}-${r?.next_hop ?? r?.nextHop ?? 'nh'}-${r?.out_interface ?? r?.outInterface ?? 'oi'}-${idx}`}
-                                />
-                             </div>
-                        </div>
-                    )}
-
                     {/* Interfaces */}
                     <div style={{ background: 'rgba(30, 41, 59, 0.3)', border: '1px solid rgba(51, 65, 85, 0.5)', borderRadius: 12, overflow: 'hidden' }}>
                         <div style={{ background: 'rgba(30, 41, 59, 0.8)', padding: '8px 16px', borderBottom: '1px solid rgba(51, 65, 85, 0.5)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 600, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -421,37 +340,6 @@ const DevicePanel = () => {
           </div>
         </Motion.div>
 
-        <Modal
-            title={`路由表 - ${device.name}`}
-            open={routingModalOpen}
-            onCancel={() => setRoutingModalOpen(false)}
-            footer={null}
-            width={760}
-            styles={{
-                body: { background: 'rgba(15, 23, 42, 0.98)' },
-                header: { background: 'rgba(15, 23, 42, 0.98)' },
-                content: { background: 'rgba(15, 23, 42, 0.98)', border: '1px solid rgba(56, 189, 248, 0.2)' }
-            }}
-        >
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
-                <Input
-                    value={routingFilter}
-                    onChange={(e) => setRoutingFilter(e.target.value)}
-                    placeholder="搜索：目的地 / 下一跳 / 出接口 / cost"
-                    allowClear
-                />
-                <Button onClick={() => setRoutingFilter('')} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#e2e8f0' }}>
-                    清空
-                </Button>
-            </div>
-            <Table
-                dataSource={filteredRoutingTable}
-                columns={routingColumns}
-                size="small"
-                rowKey={(r, idx) => `${r?.destination ?? 'dst'}-${r?.next_hop ?? 'nh'}-${r?.out_interface ?? 'oi'}-${idx}`}
-                pagination={{ pageSize: 10, showSizeChanger: false }}
-            />
-        </Modal>
     </AnimatePresence>
   );
 };
