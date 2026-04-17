@@ -11,13 +11,10 @@ import React, { Suspense, useMemo, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Grid, Text, RoundedBox, Line, Float } from '@react-three/drei';
 import * as THREE from 'three';
+import { BASE_COLOR_BY_TYPE, DEVICE_SIZE_CONFIG, VLAN_PALETTE } from '../../types';
 import { getDisplayVlanId } from '../../utils/utils';
+import { getDeviceStatusColor } from '../../utils/deviceUtils';
 
-/**
- * ===========================
- * 工具：标准化拓扑数据（防炸核心）
- * ===========================
- */
 /**
  * 标准化拓扑数据结构，兼容不同字段命名与缺省情况。
  *
@@ -37,52 +34,12 @@ function normalizeTopology(raw) {
  * ===========================
  * 先定义“数据/规则”，组件只负责渲染，避免阅读时在 JSX 前后跳来跳去。
  */
-const DEVICE_SIZE_CONFIG = {
-  core: { size: [3, 0.8, 2] },
-  aggregation: { size: [2.5, 0.6, 1.8] },
-  access: { size: [2, 0.5, 1.5] },
-  edge: { size: [2.3, 0.7, 1.7] },
-  server: { size: [1.2, 2.5, 1.2] },
-  router: { size: [2, 0.5, 1.5] },
-  pc: { size: [0.8, 0.6, 0.1] },
-};
-
-const BASE_COLOR_BY_TYPE = {
-  core: '#00ffff',
-  aggregation: '#38bdf8',
-  access: '#3b82f6',
-  edge: '#f97316',
-  router: '#4ade80',
-  server: '#a855f7',
-  pc: '#94a3b8',
-  unknown: '#64748b',
-};
-
-const VLAN_PALETTE = [
-  '#f472b6',
-  '#22d3ee',
-  '#a78bfa',
-  '#34d399',
-  '#fbbf24',
-  '#f87171',
-  '#60a5fa',
-  '#c084fc',
-];
-
-const getStatusColor = (status) => {
-  let statusColor = '#22c55e';
-  const s = String(status || '').toLowerCase();
-  if (s === 'offline' || s === 'down') statusColor = '#64748b';
-  if (s === 'warning') statusColor = '#eab308';
-  if (s === 'error') statusColor = '#ef4444';
-  if (s === 'offline' || s === 'down') statusColor = '#64748b';
-  return statusColor;
-};
-
+/** 判断设备是否处于高负载状态。 */
 const isHighLoad = (metrics) => {
   return Boolean(metrics && (metrics.cpuUsage > 90 || metrics.networkIn > 8000));
 };
 
+/** 提取并标准化设备类型相关字符串字段。 */
 const getDeviceTypeStrings = (device) => {
   const name = device?.name || '';
   const role = device?.role || '';
@@ -94,11 +51,13 @@ const getDeviceTypeStrings = (device) => {
   };
 };
 
+/** 计算设备用于渲染分类的基础类型。 */
 const getDeviceRenderType = (device) => {
   const { role, deviceType } = getDeviceTypeStrings(device);
   return String(role || deviceType || 'access').toLowerCase();
 };
 
+/** 推断设备在配色/尺寸规则中的有效类型。 */
 const inferEffectiveDeviceType = (device) => {
   const { name, deviceType } = getDeviceTypeStrings(device);
   const renderType = getDeviceRenderType(device);
@@ -116,6 +75,7 @@ const inferEffectiveDeviceType = (device) => {
   return renderType;
 };
 
+/** 解析设备尺寸映射所使用的类型键。 */
 const resolveSizeType = (device) => {
   const renderType = getDeviceRenderType(device);
   const effectiveType = inferEffectiveDeviceType(device);
@@ -128,21 +88,25 @@ const resolveSizeType = (device) => {
   return 'access';
 };
 
+/** 获取设备模型尺寸。 */
 const getDeviceSize = (device) => {
   const sizeType = resolveSizeType(device);
   return DEVICE_SIZE_CONFIG[sizeType]?.size || DEVICE_SIZE_CONFIG.access.size;
 };
 
+/** 获取设备基础颜色。 */
 const getDeviceBaseColor = (device) => {
   const effectiveType = inferEffectiveDeviceType(device);
   return BASE_COLOR_BY_TYPE[effectiveType] || BASE_COLOR_BY_TYPE.access;
 };
 
+/** 获取设备底部环形指示器颜色。 */
 const getRingColor = (device, baseColor) => {
   const vlanId = getDisplayVlanId(device);
   return vlanId ? VLAN_PALETTE[parseInt(vlanId, 10) % VLAN_PALETTE.length] : baseColor;
 };
 
+/** 宽松判断链路是否为活跃状态。 */
 const isLinkActiveLoose = (status) => {
   if (status == null || status === '') return true;
   const s = String(status || '').toLowerCase();
@@ -151,148 +115,145 @@ const isLinkActiveLoose = (status) => {
 
 /**
  * ===========================
- * 3D 几何组件库 (更好的模型)
+ * 设备模型组件
  * ===========================
  */
-
-// 1. 机架式交换机/服务器 (机架式风格)
-const RackDevice = ({ size, color, ports = false, isServer = false, statusColor }) => {
+/** 渲染服务器设备模型。 */
+const ServerDevice = ({ size, statusColor = '#22c55e' }) => {
   return (
     <group>
-      {/* 机箱主体 - 金属质感 (降低金属度以适应本地光照) */}
-      <RoundedBox args={size} radius={0.05} smoothness={4}>
-        <meshStandardMaterial 
-          color="#475569" // 提亮颜色 (Slate-600)
-          roughness={0.4}
-          metalness={0.3} // 降低金属度，避免在无 HDR 环境下变黑
-        />
+      <RoundedBox args={size} radius={0.05}>
+        <meshStandardMaterial color="#475569" />
       </RoundedBox>
-      
-      {/* 前面板状态条 */}
-      <mesh position={[0, size[1]/2 - 0.05, size[2]/2 + 0.01]}>
-        <boxGeometry args={[size[0] * 0.9, 0.05, 0.02]} />
-        <meshStandardMaterial color={statusColor} roughness={0.6} metalness={0.1} />
+
+      <mesh position={[0, size[1] / 2 - 0.12, size[2] / 2 + 0.01]}>
+        <boxGeometry args={[size[0] * 0.96, 0.06, 0.02]} />
+        <meshStandardMaterial color={statusColor} />
       </mesh>
 
-      {/* 端口面板 */}
-      {ports && (
-        <group position={[0, 0, size[2]/2 + 0.01]}>
-          {Array.from({ length: 8 }).map((_, i) => (
-             <mesh key={i} position={[(i - 3.5) * (size[0]/10), 0, 0]}>
-               <boxGeometry args={[size[0]/14, size[1]/3, 0.02]} />
-               <meshStandardMaterial color="#0f172a" roughness={0.7} metalness={0.05} />
-             </mesh>
-          ))}
-        </group>
-      )}
-
-      {/* 服务器特有的闪烁灯 */}
-      {isServer && (
-        <group position={[size[0]/3, size[1]/4, size[2]/2 + 0.01]}>
-           {[0, 1, 2].map(i => (
-             <mesh key={i} position={[0, -i * 0.15, 0]}>
-               <circleGeometry args={[0.04, 16]} />
-               <meshStandardMaterial color={color} roughness={0.4} metalness={0.2} />
-             </mesh>
-           ))}
-        </group>
-      )}
-    </group>
-  );
-};
-
-const RouterDevice = ({ size, color = "#38bdf8", statusColor = "#22c55e" }) => {
-  const radius = Math.max(size[0], size[2]) * 0.4;
-  // 让路由器在视觉上更接近机架交换机高度比例
-  const thickness = size[1] * 0.5;
-
-  return (
-    <group>
-      {/* 主体（圆盘） */}
-      <mesh>
-        <cylinderGeometry args={[radius, radius, thickness, 48]} />
-        <meshStandardMaterial
-          color="#475569"
-          roughness={0.45}
-          metalness={0.25}
-        />
-      </mesh>
-
-      {/* 顶部图标（经典路由器“交叉箭头”） */}
-      <group position={[0, thickness / 2 + 0.02, 0]}>
-        {/* 横线 */}
-        <mesh>
-          <boxGeometry args={[radius * 1.2, 0.03, 0.06]} />
-          <meshBasicMaterial color="#e2e8f0" toneMapped={false} />
+      <group position={[0, 0, size[2] / 2 + 0.02]}>
+        <mesh position={[size[0] / 3, size[1] / 5, 0]}>
+          <circleGeometry args={[0.07, 24]} />
+          <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={1.5} />
         </mesh>
 
-        {/* 竖线 */}
-        <mesh rotation={[0, Math.PI / 2, 0]}>
-          <boxGeometry args={[radius * 1.2, 0.03, 0.06]} />
-          <meshBasicMaterial color="#e2e8f0" toneMapped={false} />
-        </mesh>
-
-        {/* 四个方向箭头 */}
-        {[0, Math.PI / 2, Math.PI, Math.PI * 1.5].map((angle, i) => (
-          <mesh
-            key={i}
-            position={[
-              Math.cos(angle) * radius * 0.65,
-              0,
-              Math.sin(angle) * radius * 0.65
-            ]}
-            rotation={[Math.PI / 2, 0, -angle]}
-          >
-            <coneGeometry args={[0.05, 0.12, 3]} />
-            <meshBasicMaterial color={color} toneMapped={false} />
+        {[0, 1, 2].map((i) => (
+          <mesh key={i} position={[0, -size[1] / 6 - i * 0.11, 0]}>
+            <boxGeometry args={[size[0] * 0.88, 0.024, 0.01]} />
+            <meshStandardMaterial color="#cbd5e1" metalness={0.8} roughness={0.2} />
           </mesh>
         ))}
       </group>
-
-      {/* 状态环（简化但保留高级感） */}
-      <mesh rotation={[Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[radius * 0.95, radius * 1.05, 48]} />
-        <meshBasicMaterial
-          color={statusColor}
-          transparent
-          opacity={0.6}
-          toneMapped={false}
-        />
-      </mesh>
     </group>
   );
 };
 
+/** 渲染交换机设备模型。 */
+const SwitchDevice = ({ size, color = '#38bdf8', statusColor = '#22c55e' }) => {
+  return (
+    <group position={[0, ((size[1] * 1.28) - size[1]) / 2, 0]}>
+      <RoundedBox args={[size[0], size[1] * 1.36, size[2]]} radius={0.08}>
+        <meshStandardMaterial color="#475569" />
+      </RoundedBox>
 
-// 4. 终端/PC (显示器风格)
-const TerminalDevice = ({ size, color, statusColor }) => {
+      <mesh position={[0, (size[1] * 1.28) / 2 - 0.06, 0]}>
+        <boxGeometry args={[size[0] * 0.94, 0.04, size[2] * 0.9]} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.15} />
+      </mesh>
+
+      <group position={[0, 0.4, size[2] / 2 + 0.03]}>
+        {Array.from({ length: 3 }).map((_, row) => {
+          const y = (size[1] * 1.28) / 2 - ((size[1] * 1.28) / 3) / 2 - row * ((size[1] * 1.28) / 3);
+
+          return (
+            <group key={row} position={[0, y - (size[1] * 1.28) / 2, 0]}>
+              {row !== 0 && (
+                <mesh position={[0, (size[1] * 1.28) / 6, 0]}>
+                  <boxGeometry args={[size[0] * 0.96, 0.01, 0.01]} />
+                  <meshStandardMaterial color="#64748b" />
+                </mesh>
+              )}
+              
+              {Array.from({ length: 5 }).map((_, i) => {
+                const x =
+                  -size[0] * 0.33 +
+                  (i * (size[0] * 0.42)) / 7;
+
+                return (
+                  <mesh key={i} position={[x, 0, 0]}>
+                    <boxGeometry args={[0.08, 0.05, 0.02]} />
+                    <meshStandardMaterial color="#cbd5e1" metalness={0.8} roughness={0.2} />
+                  </mesh>
+                );
+              })}
+
+              <mesh position={[size[0] * 0.12, 0.01, 0.01]}>
+                <boxGeometry args={[size[0] * 0.28, 0.03, 0.02]} />
+                <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.15} />
+              </mesh>
+
+              <mesh position={[size[0] * 0.38, 0, 0]}>
+                <circleGeometry args={[0.045, 20]} />
+                <meshStandardMaterial color={statusColor} emissive={statusColor} emissiveIntensity={1.1} />
+              </mesh>
+            </group>
+          );
+        })}
+      </group>
+    </group>
+  );
+};
+
+/** 渲染路由器设备模型。 */
+const RouterDevice = ({ size }) => {
   return (
     <group>
+      <mesh>
+        <cylinderGeometry args={[Math.max(size[0], size[2]) * 0.4, Math.max(size[0], size[2]) * 0.4, size[1] * 0.8, 48]} />
+        <meshStandardMaterial color="#475569" roughness={0.4} metalness={0.3} />
+      </mesh>
+
+      <group position={[0, (size[1] * 0.8) / 2 + 0.03, 0]}>
+        {[0, Math.PI / 2, Math.PI, Math.PI * 1.5].map((angle, i) => (
+          <group key={i} rotation={[0, angle, 0]}>
+            <mesh position={[0, 0, Math.max(size[0], size[2]) * 0.4 * 0.18]}>
+              <boxGeometry args={[0.16, 0.03, Math.max(size[0], size[2]) * 0.4 * 0.58]} />
+              <meshBasicMaterial color="#e2e8f0" toneMapped={false} />
+            </mesh>
+
+            <mesh position={[0, 0, Math.max(size[0], size[2]) * 0.4 * 0.58]} rotation={[Math.PI / 2, 0, 0]}>
+              <coneGeometry args={[0.15, 0.28, 3]} />
+              <meshBasicMaterial color="#e2e8f0" toneMapped={false} />
+            </mesh>
+          </group>
+        ))}
+      </group>
+    </group>
+  );
+};
+/** 渲染终端/PC设备模型（显示器风格）。 */
+const TerminalDevice = ({ size }) => {
+  return (
+    <group scale={[1.35, 1.35, 1.35]}>
       {/* 屏幕 */}
       <RoundedBox args={[size[0], size[1]*0.8, 0.1]} radius={0.05} position={[0, size[1]/2, 0]}>
-        <meshPhysicalMaterial color="#0f172a" roughness={0.2} metalness={0.8} />
+        <meshPhysicalMaterial color="#475569" roughness={0.3} metalness={0.2} />
       </RoundedBox>
       {/* 屏幕内容 */}
       <mesh position={[0, size[1]/2, 0.06]}>
-        <planeGeometry args={[size[0] - 0.1, size[1]*0.8 - 0.1]} />
-        <meshStandardMaterial color={color} roughness={0.35} metalness={0.05} opacity={0.8} transparent />
-      </mesh>
-      
-      {/* 状态灯 (状态指示器) */}
-      <mesh position={[size[0]/2 - 0.05, size[1]/2 - 0.25, 0.06]}>
-        <circleGeometry args={[0.02, 16]} />
-        <meshStandardMaterial color={statusColor} roughness={0.4} metalness={0.05} />
+        <planeGeometry args={[size[0], size[1]*0.8]} />
+        <meshStandardMaterial color="#475569" roughness={0.35} metalness={0.05} opacity={0.8} transparent />
       </mesh>
 
       {/* 支架 */}
       <mesh position={[0, 0, -0.2]}>
         <cylinderGeometry args={[0.05, 0.1, 0.5]} />
-        <meshStandardMaterial color="#334155" />
+        <meshStandardMaterial color="#475569" />
       </mesh>
       {/* 底座 */}
       <mesh position={[0, -0.25, -0.2]}>
         <boxGeometry args={[0.4, 0.05, 0.4]} />
-        <meshStandardMaterial color="#334155" />
+        <meshStandardMaterial color="#475569" />
       </mesh>
     </group>
   );
@@ -303,40 +264,33 @@ const TerminalDevice = ({ size, color, statusColor }) => {
  * 设备 Mesh（主入口）
  * ===========================
  */
+/** 渲染单个设备及其标签、状态光圈和交互效果。 */
 function DeviceMesh({ device, onClick }) {
   const { position = { x: 0, y: 0, z: 0 }, name, status, metrics } = device;
-  const effectiveType = inferEffectiveDeviceType(device);
-  const size = getDeviceSize(device);
-  const baseColor = getDeviceBaseColor(device);
-  const vlanId = getDisplayVlanId(device);
-  const ringColor = getRingColor(device, baseColor);
-  const statusColor = getStatusColor(status);
-  const highLoad = isHighLoad(metrics);
+  const modelTypeRaw = String(device?.role || device?.deviceType || 'switch').toLowerCase();
+  const modelType = modelTypeRaw === 'terminal' || modelTypeRaw === 'workstation' ? 'pc' : modelTypeRaw;
+  const
+    size = getDeviceSize(device),
+    baseColor = getDeviceBaseColor(device),
+    vlanId = getDisplayVlanId(device),
+    ringColor = getRingColor(device, baseColor),
+    statusColor = getDeviceStatusColor(status),
+    highLoad = isHighLoad(metrics);
   const meshRef = useRef();
 
-  useFrame(({ clock }) => {
-     if (highLoad && meshRef.current) {
-        const t = (Math.sin(clock.getElapsedTime() * 10) + 1) / 2;
-        meshRef.current.position.y = (size[1]/2) + (t * 0.1); // 紧张的抖动
-     }
-  });
-
-  // 渲染不同模型
+  /** 按模型类型渲染对应设备外观。 */
   const renderModel = () => {
-    switch (effectiveType) {
-      case 'core':
-      case 'aggregation':
-      case 'access':
-      case 'edge':
-        return <RackDevice size={size} color={baseColor} ports={true} statusColor={statusColor} />;
+    switch (modelType) {
+      case 'switch':
+        return <SwitchDevice size={size} color={baseColor} statusColor={statusColor} />;
       case 'server':
-        return <RackDevice size={size} color={baseColor} isServer={true} statusColor={statusColor} />;
+        return <ServerDevice size={size} color={baseColor} statusColor={statusColor} />;
       case 'router':
         return <RouterDevice size={size} color={baseColor} statusColor={statusColor} />;
       case 'pc':
         return <TerminalDevice size={size} color={baseColor} statusColor={statusColor} />;
       default:
-        return <RackDevice size={size} color={baseColor} statusColor={statusColor} />;
+        return <ServerDevice size={size} color={baseColor} statusColor={statusColor} />;
     }
   };
 
@@ -346,7 +300,7 @@ function DeviceMesh({ device, onClick }) {
       position={[position.x, size[1] / 2, position.z]} 
       onClick={(e) => { e.stopPropagation(); onClick && onClick(e); }}
     >
-      {/* 悬浮动画容器 */}
+      {/* 设备主体（悬浮动画容器） */}
       <Float speed={2} rotationIntensity={0.2} floatIntensity={0.2}>
         {renderModel()}
       </Float>
@@ -365,15 +319,15 @@ function DeviceMesh({ device, onClick }) {
         {highLoad && "\n⚠ HIGH LOAD"}
       </Text>
 
-      {/* 选中/交互光圈 (VLAN 指示器) */}
+      {/* 底部环形指示器（含 VLAN 颜色语义） */}
       <mesh position={[0, -size[1]/2 + 0.02, 0]} rotation={[-Math.PI/2, 0, 0]}>
         <ringGeometry args={[size[0]/2, size[0]/2 + 0.15, 32]} />
         <meshBasicMaterial 
             color={ringColor} 
-            opacity={vlanId ? 0.6 : 0.3} // 有VLAN时更亮
+            opacity={vlanId ? 0.6 : 0.3}
             transparent 
             side={THREE.DoubleSide} 
-            toneMapped={false} // 配合Bloom发光
+            toneMapped={false}
         />
       </mesh>
 
@@ -399,12 +353,10 @@ function DeviceMesh({ device, onClick }) {
  * 链路（光束效果）
  * ===========================
  */
+/** 渲染设备之间的链路线与辉光层。 */
 function LinkLine({ link, devices }) {
-  const srcId = link.srcDevice;
-  const dstId = link.dstDevice;
-
-  const from = devices.find((d) => String(d.id) === String(srcId));
-  const to = devices.find((d) => String(d.id) === String(dstId));
+  const from = devices.find((d) => String(d.id) === String(link.srcDevice));
+  const to = devices.find((d) => String(d.id) === String(link.dstDevice));
 
   if (!from || !to || !from.position || !to.position) return null;
 
@@ -413,12 +365,12 @@ function LinkLine({ link, devices }) {
     [to.position.x, 0.5, to.position.z],
   ];
 
-  const status = String(link.status || '');
-  const isDown = status.toLowerCase() === 'down';
-  const isActive = isLinkActiveLoose(status);
-  const utilization = Number(link.utilization ?? 0);
+  const status = String(link.status || ''),
+    isDown = status.toLowerCase() === 'down',
+    isActive = isLinkActiveLoose(status),
+    utilization = Number(link.utilization ?? 0);
   const isPeak = Boolean(link.is_peak) || utilization >= 0.75 || String(link.peak_level || '').toLowerCase() === 'high' || String(link.peak_level || '').toLowerCase() === 'critical';
-  const color = isActive ? '#3b82f6' : '#334155'; // 非 active 链路统一灰色
+  const color = isActive ? '#3b82f6' : '#334155';
 
   return (
     <group>
@@ -450,22 +402,20 @@ function LinkLine({ link, devices }) {
  * 数据流粒子（脉冲）
  * ===========================
  */
+/** 渲染链路上的流动粒子脉冲效果。 */
 function FlowParticles({ link, devices }) {
-  const srcId = link.srcDevice;
-  const dstId = link.dstDevice;
+  const from = devices.find((d) => String(d.id) === String(link.srcDevice));
+  const to = devices.find((d) => String(d.id) === String(link.dstDevice));
 
-  const from = devices.find((d) => String(d.id) === String(srcId));
-  const to = devices.find((d) => String(d.id) === String(dstId));
-
-  // Hooks 必须无条件调用
+  // Hook 调用顺序必须稳定，避免条件调用导致规则破坏。
   const particlesRef = useRef();
 
-  // 粒子流：统一蓝色（移除 DDoS 特殊效果）
-  const status = String(link.status || '');
-  const isActive = isLinkActiveLoose(status);
-  const particleCount = 5;
-  const speed = 1.0;
-  const color = '#38bdf8';
+  // 粒子参数：统一蓝色脉冲。
+  const status = String(link.status || ''),
+    isActive = isLinkActiveLoose(status),
+    particleCount = 5,
+    speed = 1.0,
+    color = '#38bdf8';
 
   const particlesGeometry = useMemo(() => {
     const geometry = new THREE.BufferGeometry();
@@ -475,7 +425,7 @@ function FlowParticles({ link, devices }) {
   }, [particleCount]);
 
   useFrame(({ clock }) => {
-    // 在帧循环内检查是否存在
+    // 帧更新：沿链路方向推进粒子位置。
     if (!particlesRef.current || !from || !to) return;
     
     const start = new THREE.Vector3(from.position.x, 0.5, from.position.z);
@@ -492,7 +442,7 @@ function FlowParticles({ link, devices }) {
     positions.needsUpdate = true;
   });
 
-  // 仅在 hooks 之后提前返回以进行渲染
+  // 在 Hook 调用后再做渲染短路，保证 Hook 规则正确。
   if (!from || !to) return null;
   if (!isActive) return null;
 
@@ -504,12 +454,13 @@ function FlowParticles({ link, devices }) {
         size={0.15}
         transparent
         opacity={1}
-        toneMapped={false} // 对 Bloom 效果至关重要
+        toneMapped={false}
       />
     </points>
   );
 }
 
+/** 渲染拓扑场景中的网格、设备、链路与流粒子。 */
 function Scene({ topology, onDeviceClick }) {
   const safe = normalizeTopology(topology);
 
@@ -539,13 +490,14 @@ function Scene({ topology, onDeviceClick }) {
   );
 }
 
+/** 3D拓扑视图主组件，负责构建 Canvas 与相机/光照控制。 */
 export default function NetworkTopology3D({ topology, onDeviceClick }) {
   return (
     <div style={{ width: '100%', height: '100%', background: '#0b1220' }}>
         <Canvas
           shadows
           camera={{ position: [15, 12, 15], fov: 45 }}
-          dpr={[1, 2]} // 优化高分屏
+          dpr={[1, 2]}
         >
           {/* 环境与光照 - 均衡亮度版 */}
           <ambientLight intensity={1.5} />

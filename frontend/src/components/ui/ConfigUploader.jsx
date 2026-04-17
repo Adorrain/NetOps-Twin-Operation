@@ -8,28 +8,25 @@ import { getEndpointAccessVlan } from '../../utils/utils';
 const { Dragger } = Upload;
 
 const inferRole = (device) => {
-  const name = String(device?.name || '').toLowerCase();
-  const rawRole = String(device?.role || '').toLowerCase();
-  if (rawRole) {
-    if (['core', 'aggregation', 'access', 'edge', 'terminal'].includes(rawRole)) return rawRole;
-    return 'terminal';
-  }
-  if (name.includes('核心') || name.includes('core')) return 'core';
-  if (name.includes('汇聚') || name.includes('agg') || name.includes('distribution')) return 'aggregation';
-  if (name.includes('接入') || name.includes('access')) return 'access';
-  if (name.includes('边界') || name.includes('edge')) return 'edge';
-  const t = String(device?.deviceType || '').toLowerCase();
-  if (t === 'router') return 'core';
-  if (t === 'switch') return 'access';
-  return 'terminal';
+  return String(device?.role || device?.deviceType || 'terminal').toLowerCase();
 };
 
 const calculateLayout = (devices) => {
-  const core = devices.filter((d) => inferRole(d) === 'core');
-  const agg = devices.filter((d) => inferRole(d) === 'aggregation');
-  const access = devices.filter((d) => inferRole(d) === 'access');
-  const edge = devices.filter((d) => inferRole(d) === 'edge');
-  const terminal = devices.filter((d) => inferRole(d) === 'terminal');
+  const core = [];
+  const agg = [];
+  const access = [];
+  const edge = [];
+  const terminal = [];
+
+  devices.forEach((d) => {
+    const role = inferRole(d);
+    if (role === 'core') core.push(d);
+    else if (role === 'aggregation') agg.push(d);
+    else if (role === 'access') access.push(d);
+    else if (role === 'edge') edge.push(d);
+    else terminal.push(d);
+  });
+
   const layout = {};
   const spacingX = 6;
   const terminalSpacingX = spacingX / 2;
@@ -52,12 +49,11 @@ const calculateLayout = (devices) => {
 };
 
 const buildFrontendTopology = (cfg) => {
-  const computedLayout = calculateLayout(cfg.devices || []);
-  const devices = (cfg.devices || []).map((d) => {
-    const routingTableRaw = d.routingTable || d.configuration?.routingTable;
-    const routingTable = Array.isArray(routingTableRaw) ? routingTableRaw : [];
-    // 后端 normalize 后 OSPF 在 configuration.ospf，保留两者以便 OSPF 操作与系统监控都能拿到
-    const ospfConfig = d.ospf ?? d.configuration?.ospf;
+  const computedLayout = calculateLayout(cfg.devices);
+  const devices = cfg.devices.map((d) => {
+    const routingTable = d.routingTable || d.configuration?.routingTable || [];
+    const ospfConfig = d.ospf || d.configuration?.ospf;
+    const primaryInterface = d.interfaces?.[0];
     return {
       id: String(d.id),
       name: d.name,
@@ -80,17 +76,17 @@ const buildFrontendTopology = (cfg) => {
         uptime: 0,
         lastUpdated: new Date()
       },
-      ip: d.ip ?? (Array.isArray(d.interfaces) && d.interfaces.length > 0 ? d.interfaces.find(it => it?.ip)?.ip?.split?.('/')?.[0] ?? d.interfaces[0]?.ip : undefined),
-      netmask: d.netmask ?? (Array.isArray(d.interfaces) && d.interfaces.length > 0 ? d.interfaces.find(it => it?.ip)?.netmask ?? d.interfaces[0]?.netmask : undefined),
-      ipAddress: d.ip ?? (Array.isArray(d.interfaces) && d.interfaces.length > 0 ? d.interfaces.find(it => it?.ip)?.ip : undefined),
+      ip: d.ip || primaryInterface?.ip?.split('/')?.[0],
+      netmask: d.netmask || primaryInterface?.netmask,
+      ipAddress: d.ip || primaryInterface?.ip,
       macAddress: d.macAddress,
       description: d.description,
-      interfaces: d.interfaces || [],
+      interfaces: d.interfaces,
       ospf: ospfConfig,
       routingTable
     };
   });
-  const links = (cfg.links || []).map((c) => ({
+  const links = cfg.links.map((c) => ({
     id: c.id,
     srcDevice: String(c.srcDevice),
     dstDevice: String(c.dstDevice),
@@ -117,9 +113,9 @@ const ConfigUploader = ({ onConfigLoaded }) => {
   const [uploading, setUploading] = useState(false);
 
   const handleUpload = async (file) => {
-    const isYamlOrJson = file.name.endsWith('.yaml') || file.name.endsWith('.yml');
-    if (!isYamlOrJson) {
-      message.error('请上传 YAML 配置文件');
+    const isYaml = file.name.endsWith('.yaml') || file.name.endsWith('.yml');
+    if (!isYaml) {
+      message.error('请上传 YAML 格式配置文件');
       return Upload.LIST_IGNORE;
     }
 
@@ -149,7 +145,7 @@ const ConfigUploader = ({ onConfigLoaded }) => {
   return (
     <div style={{ width: '100%', height: '100%', padding: 48, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
       <Card 
-          title={<span style={{ fontSize: 18 }}><FileTextOutlined /> 上传网络配置</span>} 
+          title={<span style={{ fontSize: 18 }}><FileTextOutlined /> 上传拓扑配置文件</span>} 
           variant="borderless"
           style={{ 
               width: '100%',

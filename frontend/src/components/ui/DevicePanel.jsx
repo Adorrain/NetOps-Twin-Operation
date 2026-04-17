@@ -13,9 +13,16 @@ import {
   ApiOutlined
 } from '@ant-design/icons';
 import { useAppActions, useAppState } from '../../utils/appStore';
-import { DeviceStatus } from '../../types';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { getAllVlans } from '../../utils/utils';
+import {
+  normalizeDeviceStatus,
+  getDeviceStatusColor,
+  getDeviceStatusBg,
+  getDeviceStatusBorder,
+  getDeviceStatusLabel,
+  getDeviceTypeLabel
+} from '../../utils/deviceUtils';
 
 const DevicePanel = () => {
   const { selectedDeviceId, networkTopology, deviceStatuses } = useAppState();
@@ -44,67 +51,7 @@ const DevicePanel = () => {
     return <LaptopOutlined style={style} />;
   };
 
-  const typeLabel = (deviceType) => {
-    const type = (deviceType || '').toLowerCase();
-    if (type.includes('pc') || type.includes('host') || type.includes('terminal')) return '终端主机';
-    if (type.includes('router')) return '路由器';
-    if (type.includes('switch')) return '交换机';
-    if (type.includes('server')) return '服务器';
-    return '通用设备';
-  };
-
-  const normalizeStatus = (status) => {
-    const s = String(status || '').toLowerCase();
-    if (s === 'up' || s === 'active' || s === 'online') return DeviceStatus.ONLINE;
-    if (s === 'down' || s === 'offline') return DeviceStatus.OFFLINE;
-    if (s === 'warning') return DeviceStatus.WARNING;
-    if (s === 'error') return DeviceStatus.ERROR;
-    if (s === 'maintenance') return DeviceStatus.MAINTENANCE;
-    return status;
-  };
-
-  const effectiveStatus = deviceStatuses.get(device.id) || normalizeStatus(device.status);
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case DeviceStatus.ONLINE: return '#22c55e'; // green-500
-      case DeviceStatus.WARNING: return '#eab308'; // yellow-500
-      case DeviceStatus.ERROR: return '#ef4444'; // red-500
-      case DeviceStatus.OFFLINE: return '#64748b'; // slate-500
-      default: return '#64748b';
-    }
-  };
-
-  const getStatusBg = (status) => {
-    switch (status) {
-      case DeviceStatus.ONLINE: return 'rgba(34, 197, 94, 0.1)';
-      case DeviceStatus.WARNING: return 'rgba(234, 179, 8, 0.1)';
-      case DeviceStatus.ERROR: return 'rgba(239, 68, 68, 0.1)';
-      case DeviceStatus.OFFLINE: return 'rgba(100, 116, 139, 0.1)';
-      default: return 'rgba(100, 116, 139, 0.1)';
-    }
-  };
-
-  const getStatusBorder = (status) => {
-      switch (status) {
-        case DeviceStatus.ONLINE: return 'rgba(34, 197, 94, 0.3)';
-        case DeviceStatus.WARNING: return 'rgba(234, 179, 8, 0.3)';
-        case DeviceStatus.ERROR: return 'rgba(239, 68, 68, 0.3)';
-        case DeviceStatus.OFFLINE: return 'rgba(100, 116, 139, 0.3)';
-        default: return 'rgba(100, 116, 139, 0.3)';
-      }
-  };
-
-  const statusLabel = (status) => {
-    switch (status) {
-      case DeviceStatus.ONLINE: return '在线 (Online)';
-      case DeviceStatus.WARNING: return '警告 (Warning)';
-      case DeviceStatus.ERROR: return '故障 (Error)';
-      case DeviceStatus.OFFLINE: return '离线 (Offline)';
-      case DeviceStatus.MAINTENANCE: return '维护中';
-      default: return '未知';
-    }
-  };
+  const effectiveStatus = deviceStatuses.get(device.id) || normalizeDeviceStatus(device.status);
 
   const getOspfConfig = (device) => {
     return device.ospf || device.configuration?.ospf;
@@ -123,7 +70,7 @@ const DevicePanel = () => {
   const routingTable = getRoutingTable(device);
   const vlanList = getVlanInfo(device);
   const dType = device.role || device.deviceType;
-  const statusColor = getStatusColor(effectiveStatus);
+  const statusColor = getDeviceStatusColor(effectiveStatus);
   const rawIp = device.ip ?? device.ipAddress ?? device.interfaces?.find(i => i?.ip)?.ip;
   const primaryIp = rawIp != null && rawIp !== '' ? (typeof rawIp === 'string' && rawIp.includes('/') ? rawIp.split('/')[0] : rawIp) : '-';
   const primaryNetmask = device.netmask ?? device.interfaces?.find(i => i?.ip)?.netmask ?? device.interfaces?.[0]?.netmask ?? (typeof rawIp === 'string' && rawIp.includes('/') ? `/${rawIp.split('/')[1]}` : undefined);
@@ -272,8 +219,8 @@ const DevicePanel = () => {
                 <div style={{ 
                     padding: 16, 
                     borderRadius: 12, 
-                    background: getStatusBg(effectiveStatus),
-                    border: `1px solid ${getStatusBorder(effectiveStatus)}`,
+                    background: getDeviceStatusBg(effectiveStatus),
+                    border: `1px solid ${getDeviceStatusBorder(effectiveStatus)}`,
                     backdropFilter: 'blur(4px)',
                     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                 }}>
@@ -293,7 +240,7 @@ const DevicePanel = () => {
                             textTransform: 'uppercase',
                             letterSpacing: '0.05em'
                         }}>
-                            {typeLabel(dType)}
+                            {getDeviceTypeLabel(dType)}
                         </span>
                         <span style={{ 
                             display: 'flex',
@@ -308,7 +255,7 @@ const DevicePanel = () => {
                             color: '#cbd5e1'
                         }}>
                             <span style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor, boxShadow: `0 0 8px ${statusColor}` }} />
-                            {statusLabel(effectiveStatus)}
+                            {getDeviceStatusLabel(effectiveStatus)}
                         </span>
                     </div>
                 </div>

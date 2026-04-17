@@ -55,6 +55,9 @@ class VlanBody(BaseModel):
     vlanId: Optional[int] = None
     allowedVlans: Optional[List[int]] = None
 
+class OSPFRouteBody(BaseModel):
+    sourceId: str
+    targetId: str
 
 class OSPFCostUpdateBody(BaseModel):
     linkId: str
