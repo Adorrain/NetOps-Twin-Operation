@@ -13,7 +13,6 @@ import {
   PlayCircleOutlined,
   DeleteOutlined
 } from '@ant-design/icons';
-import { useAppActions, useAppState } from '../../utils/appStore';
 import { DeviceStatus, ConnectionStatus } from '../../types';
 import { isVlanCapableDevice } from '../../utils/utils';
 import { opsApi } from '../../api/ops/opsApi';
@@ -73,9 +72,7 @@ const getErrorMessage = (res) => {
 
 const { Text } = Typography;
 
-const OpsConsole = () => {
-  const { networkTopology, opsLogs: logs } = useAppState();
-  const { setNetworkTopology, updateDeviceStatus, addOpsLog } = useAppActions();
+const OpsConsole = ({ networkTopology, setNetworkTopology, logs, setOpsLogs }) => {
 
   const devices = useMemo(() => networkTopology?.devices || [], [networkTopology]);
   const links = useMemo(() => networkTopology?.links || [], [networkTopology]);
@@ -153,8 +150,20 @@ const OpsConsole = () => {
   };
 
   const addLog = (type, messageText) => {
-    addOpsLog({ type, message: messageText });
+    const newLog = {
+      type,
+      message: messageText,
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+      timestamp: new Date(),
+    };
+    setOpsLogs((prev) => [newLog, ...(Array.isArray(prev) ? prev : [])].slice(0, 100));
   };
+
+  useEffect(() => {
+    if (!networkTopology) {
+      setOpsLogs([]);
+    }
+  }, [networkTopology, setOpsLogs]);
   const getLogTagColor = (type) => (
     type === 'error' ? 'red' : type === 'warning' ? 'gold' : type === 'success' ? 'green' : 'blue'
   );
@@ -336,7 +345,6 @@ const OpsConsole = () => {
         const res = await opsApi.updateDevice(deviceId, { status: newDeviceStatus });
         if (res.success) {
             updateTopologyDevice(deviceId, res.data || {});
-             updateDeviceStatus(deviceId, newDeviceStatus);
              const devName = getDeviceName(deviceId);
              message.info(`${devName} 更新为 ${newDeviceStatus}`);
              addLog('info', `设备 ${devName} 状态更新为 ${newDeviceStatus}`);

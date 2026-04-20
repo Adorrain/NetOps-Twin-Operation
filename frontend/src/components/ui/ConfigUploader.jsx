@@ -1,15 +1,11 @@
 import React, { useState } from 'react';
 import { Upload, message, Card, Spin } from 'antd';
 import { InboxOutlined, FileTextOutlined } from '@ant-design/icons';
-import { useAppActions } from '../../utils/appStore';
 import { uploadTopologyFile } from '../../api/topology/topologyApi';
 import { getEndpointAccessVlan } from '../../utils/utils';
+import { inferDeviceRole, getDeviceOspfConfig } from '../../utils/deviceUtils';
 
 const { Dragger } = Upload;
-
-const inferRole = (device) => {
-  return String(device?.role || device?.deviceType || 'terminal').toLowerCase();
-};
 
 const calculateLayout = (devices) => {
   const grouped = {
@@ -21,7 +17,7 @@ const calculateLayout = (devices) => {
   };
 
   devices.forEach((d) => {
-    const role = inferRole(d);
+    const role = inferDeviceRole(d);
     if (role === 'core') grouped.core.push(d);
     else if (role === 'aggregation') grouped.aggregation.push(d);
     else if (role === 'access') grouped.access.push(d);
@@ -52,12 +48,12 @@ const buildFrontendTopology = (cfg) => {
   const computedLayout = calculateLayout(cfg.devices);
   const devices = cfg.devices.map((d) => {
     const routingTable = d.routingTable || d.configuration?.routingTable || [];
-    const ospfConfig = d.ospf || d.configuration?.ospf;
+    const ospfConfig = getDeviceOspfConfig(d);
     const primaryInterface = d.interfaces?.[0];
     return {
       id: String(d.id),
       name: d.name,
-      role: inferRole(d),
+      role: inferDeviceRole(d),
       deviceType: d.deviceType || 'unknown',
       position: d.position || computedLayout[d.id] || { x: Math.random() * 20 - 10, y: 0, z: Math.random() * 20 - 10 },
       status: d.status === 'down' || d.status === 'offline' ? 'offline' : 'online',
@@ -108,8 +104,7 @@ const buildFrontendTopology = (cfg) => {
   };
 };
 
-const ConfigUploader = ({ onConfigLoaded }) => {
-  const { setNetworkTopology } = useAppActions();
+const ConfigUploader = ({ onConfigLoaded, setNetworkTopology }) => {
   const [uploading, setUploading] = useState(false);
 
   const handleUpload = async (file) => {
@@ -124,7 +119,7 @@ const ConfigUploader = ({ onConfigLoaded }) => {
     try {
       let cfg;
       try {
-        cfg = await uploadTopologyFile(file, 300000);
+        cfg = await uploadTopologyFile(file);
       } catch (err) {
         throw new Error('后端处理失败: ' + err.message);
       }

@@ -15,24 +15,9 @@ export const postJson = (path, body) =>
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
-  })
-    .then(res => res.json())
-    .catch(err => {
-      const msg = err && (err.message || String(err));
-      if (msg === 'Failed to fetch' || msg.includes('Load failed') || msg.includes('NetworkError')) {
-        throw new Error('无法连接后端，请确认已在 backend 目录启动：python main.py（端口 8000）');
-      }
-      throw err;
-    });
-
-/**
- * 带超时控制的 fetch 请求
- */
-export const fetchWithTimeout = async (url, options, timeoutMs = 10000) => {
-  return Promise.race([
-    fetch(url, options),
-    new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Request timeout')), timeoutMs);
-    })
-  ]);
-};
+  }).then(res => {
+    if (!res.ok) {
+      throw new Error(`请求失败：${res.status}`);
+    }
+    return res.json();
+  });

@@ -24,9 +24,7 @@ def createSnapshot(db, topologyData, description, type, target):
     snapshot = TopologySnapshot(data=dumpModel(topologyData))
     db.add(snapshot)
 
-    db.add(
-        OperationLog( operation_type=type, trigger_device=target, details=description,)
-    )
+    db.add(OperationLog(operation_type=type, trigger_device=target, details=description))
 
     db.commit()
     return snapshot

@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Table, Button, ConfigProvider, theme } from 'antd';
+import { Table, Button, ConfigProvider, theme, Modal } from 'antd';
 import { 
   LaptopOutlined, 
   ClusterOutlined, 
@@ -11,8 +11,6 @@ import {
   ArrowUpOutlined,
   ApiOutlined
 } from '@ant-design/icons';
-import { useAppActions, useAppState } from '../../utils/appStore';
-import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { getAllVlans } from '../../utils/utils';
 import {
   normalizeDeviceStatus,
@@ -20,12 +18,12 @@ import {
   getDeviceStatusBg,
   getDeviceStatusBorder,
   getDeviceStatusLabel,
-  getDeviceTypeLabel
+  getDeviceTypeLabel,
+  getDeviceOspfConfig,
+  getDevicePrimaryIpInfo
 } from '../../utils/deviceUtils';
 
-const DevicePanel = () => {
-  const { selectedDeviceId, networkTopology, deviceStatuses } = useAppState();
-  const { setSelectedDevice } = useAppActions();
+const DevicePanel = ({ selectedDeviceId, networkTopology, setSelectedDevice }) => {
 
   const device = useMemo(() => {
     if (!selectedDeviceId || !networkTopology || !Array.isArray(networkTopology.devices)) return null;
@@ -48,23 +46,17 @@ const DevicePanel = () => {
     return <LaptopOutlined style={style} />;
   };
 
-  const effectiveStatus = deviceStatuses.get(device.id) || normalizeDeviceStatus(device.status);
-
-  const getOspfConfig = (device) => {
-    return device.ospf || device.configuration?.ospf;
-  };
+  const effectiveStatus = normalizeDeviceStatus(device.status);
 
   const getVlanInfo = (device) => {
     return getAllVlans(device).map(id => ({ id, name: `VLAN ${id}` }));
   };
 
-  const ospfConfig = getOspfConfig(device);
+  const ospfConfig = getDeviceOspfConfig(device);
   const vlanList = getVlanInfo(device);
   const dType = device.role || device.deviceType;
   const statusColor = getDeviceStatusColor(effectiveStatus);
-  const rawIp = device.ip ?? device.ipAddress ?? device.interfaces?.find(i => i?.ip)?.ip;
-  const primaryIp = rawIp != null && rawIp !== '' ? (typeof rawIp === 'string' && rawIp.includes('/') ? rawIp.split('/')[0] : rawIp) : '-';
-  const primaryNetmask = device.netmask ?? device.interfaces?.find(i => i?.ip)?.netmask ?? device.interfaces?.[0]?.netmask ?? (typeof rawIp === 'string' && rawIp.includes('/') ? `/${rawIp.split('/')[1]}` : undefined);
+  const { primaryIp, primaryNetmask } = getDevicePrimaryIpInfo(device);
 
   const interfaceColumns = [
     { 
@@ -119,31 +111,30 @@ const DevicePanel = () => {
   ];
 
   return (
-    <AnimatePresence>
-        <Motion.div
-          initial={{ y: -50, opacity: 0, scale: 0.95 }}
-          animate={{ y: 0, opacity: 1, scale: 1 }}
-          exit={{ y: -50, opacity: 0, scale: 0.95 }}
-          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-          style={{
-            position: 'absolute',
-            top: 24,
-            left: '50%',
-            x: '-50%',
-            zIndex: 1000,
-            width: 700,
-            maxHeight: '85vh',
-            display: 'flex',
-            flexDirection: 'column',
-            background: 'rgba(15, 23, 42, 0.9)', // Slate-900
-            backdropFilter: 'blur(16px)',
-            border: '1px solid rgba(56, 189, 248, 0.2)', // Sky-400 border
-            borderRadius: 16,
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
-            color: '#f8fafc',
-            overflow: 'hidden'
-          }}
-        >
+    <Modal
+      open={Boolean(selectedDeviceId && device)}
+      onCancel={onClose}
+      footer={null}
+      centered
+      width={700}
+      closable={false}
+      destroyOnClose
+      styles={{
+        body: {
+          padding: 0,
+          maxHeight: '85vh',
+          display: 'flex',
+          flexDirection: 'column',
+          background: 'rgba(15, 23, 42, 0.9)',
+          backdropFilter: 'blur(16px)',
+          border: '1px solid rgba(56, 189, 248, 0.2)',
+          borderRadius: 16,
+          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
+          color: '#f8fafc',
+          overflow: 'hidden'
+        }
+      }}
+    >
           {/* Header */}
           <div style={{ 
               padding: '16px 24px', 
@@ -338,9 +329,7 @@ const DevicePanel = () => {
                 </div>
              </ConfigProvider>
           </div>
-        </Motion.div>
-
-    </AnimatePresence>
+    </Modal>
   );
 };
 

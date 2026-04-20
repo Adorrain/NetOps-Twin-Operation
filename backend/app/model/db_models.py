@@ -48,7 +48,7 @@ class OperationLog(Base):
     trigger_device = Column( String, nullable=True, comment="操作对象ID")
 
     # 操作详细数据
-    details = Column( Text, nullable=True, comment="操作详情描述")
+    details = Column(Text, nullable=True, comment="操作详情描述")
 
     # 操作时间
     created_at = Column(DateTime(timezone=True), server_default=func.now())

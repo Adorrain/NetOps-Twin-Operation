@@ -27,7 +27,9 @@ ALTER USER netops_user WITH SUPERUSER;
 ALTER USER netops_user WITH SUPERUSER;
 ```
 
-关于数据库SQL语句的相关编写和基础语法可参考如下：
+关于数据库SQL语句的相关编写和连接可参考如下：
+
+http://www.postgres.cn/docs/current/index.html
 
 https://flask.palletsprojects.com/zh-cn/stable/tutorial/database/
 

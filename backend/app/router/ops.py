@@ -86,8 +86,7 @@ def updateOspfCost():
     body = parseBody(OSPFCostUpdateBody)
     return jsonify(service.UpdateOspfCost(body))
 
-
-def setupRouter(bp: Blueprint) -> None:
+def setupRouter(bp):
     """集中注册 ops 路由"""
     bp.add_url_rule("/ping", "ping", ping, methods=["POST"])
     bp.add_url_rule("/traceroute", "Traceroute", Traceroute, methods=["POST"])

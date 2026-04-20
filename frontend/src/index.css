@@ -94,8 +94,7 @@ body {
   padding: 12px;
 }
 
-.app-upload-page,
-.app-monitoring-page {
+.app-upload-page {
   height: 100%;
   min-height: 0;
   overflow-y: auto;

@@ -5,11 +5,11 @@ import Sidebar from './Sidebar'
 
 const { Content } = Layout
 
-const MainLayout = ({ children }) => {
+const MainLayout = ({ children, networkTopology }) => {
   return (
     <Layout style={{ minHeight: '100vh', height: '100vh', overflow: 'hidden', background: 'transparent' }}>
 
-      <Sidebar />
+      <Sidebar networkTopology={networkTopology} />
 
       <Layout style={{ padding: 12, gap: 12, minHeight: 0, overflow: 'hidden', background: 'transparent' }}>
         <Header />

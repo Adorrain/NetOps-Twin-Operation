@@ -53,3 +53,24 @@ export const getDeviceTypeLabel = (deviceType) => {
   return '通用设备';
 };
 
+export const inferDeviceRole = (device) => {
+  return String(device?.role || device?.deviceType || 'terminal').toLowerCase();
+};
+
+export const getDeviceOspfConfig = (device) => {
+  return device?.ospf || device?.configuration?.ospf;
+};
+
+export const getDevicePrimaryIpInfo = (device) => {
+  const rawIp = device?.ip ?? device?.ipAddress ?? device?.interfaces?.find((it) => it?.ip)?.ip;
+  const primaryIp = rawIp != null && rawIp !== ''
+    ? (typeof rawIp === 'string' && rawIp.includes('/') ? rawIp.split('/')[0] : rawIp)
+    : '-';
+  const primaryNetmask = device?.netmask
+    ?? device?.interfaces?.find((it) => it?.ip)?.netmask
+    ?? device?.interfaces?.[0]?.netmask
+    ?? (typeof rawIp === 'string' && rawIp.includes('/') ? `/${rawIp.split('/')[1]}` : undefined);
+
+  return { rawIp, primaryIp, primaryNetmask };
+};
+

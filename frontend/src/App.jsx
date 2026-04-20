@@ -5,16 +5,15 @@
  * Date: 2026-01-30
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Layout, Typography, Empty } from 'antd';
+import { Layout, Typography, Empty, Button, Modal } from 'antd';
 import MainLayout from './components/layout/MainLayout';
 import NetworkTopology3D from './components/3d/NetworkTopology3D';
 import DevicePanel from './components/ui/DevicePanel';
 import ConfigUploader from './components/ui/ConfigUploader';
 import OpsConsole from './components/ui/OpsConsole';
 import MonitoringPanel from './components/ui/MonitoringPanel';
-import { AppStoreProvider, useAppActions, useAppState } from './utils/appStore';
 
 const { Content, Sider } = Layout;
 const { Title, Text } = Typography;
@@ -22,20 +21,16 @@ const { Title, Text } = Typography;
 /**
  * 路由内容组件：根据 URL 同步 UI 面板状态，并渲染各页面内容
  */
-const AppContent = () => {
-  const { networkTopology } = useAppState();
-  const { setSelectedDevice, updateUI } = useAppActions();
+const AppContent = ({ networkTopology, setNetworkTopology }) => {
+  const [selectedDeviceId, setSelectedDeviceId] = useState(null);
+  const [opsLogs, setOpsLogs] = useState([]);
+  const [monitorPanelOpen, setMonitorPanelOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
   const handleDeviceClick = (device) => {
-    setSelectedDevice(device?.id);
+    setSelectedDeviceId(device?.id ?? null);
   };
-
-  useEffect(() => {
-    const path = location.pathname.substring(1) || 'topology';
-    updateUI({ activePanel: path });
-  }, [location, updateUI]);
 
 /**
   * 脚本配置成功上传后跳转拓扑页
@@ -43,6 +38,13 @@ const AppContent = () => {
   const handleConfigLoaded = () => {
     navigate('/topology');
   };
+
+  useEffect(() => {
+    if (location.pathname !== '/topology') {
+      setSelectedDeviceId(null);
+      setMonitorPanelOpen(false);
+    }
+  }, [location.pathname]);
 
   return (
     <Routes>
@@ -69,7 +71,11 @@ const AppContent = () => {
                 />
               </div>
             )}
-             <DevicePanel />
+             <DevicePanel
+               selectedDeviceId={selectedDeviceId}
+               setSelectedDevice={setSelectedDeviceId}
+               networkTopology={networkTopology}
+             />
           </Content>
 
           <Sider width={400} theme="dark" className="app-console-sider">
@@ -83,23 +89,48 @@ const AppContent = () => {
                     <Text className="app-console-refbw-label">参考带宽</Text>
                     <Text className="app-console-refbw-value">{networkTopology?.ospfReferenceBandwidth || '-'}</Text>
                   </div>
+                  <Button type="default" size="small" onClick={() => setMonitorPanelOpen(true)}>
+                    监控面板
+                  </Button>
                 </div>
              </div>
              <div className="app-console-body">
-               <OpsConsole />
+               <OpsConsole
+                 networkTopology={networkTopology}
+                 setNetworkTopology={setNetworkTopology}
+                 logs={opsLogs}
+                 setOpsLogs={setOpsLogs}
+               />
              </div>
           </Sider>
+          <Modal
+            title="监控面板"
+            open={monitorPanelOpen}
+            onCancel={() => setMonitorPanelOpen(false)}
+            footer={null}
+            width="80vw"
+            style={{ top: 24 }}
+            destroyOnHidden
+          >
+            <div style={{ maxHeight: '70vh', overflow: 'auto' }}>
+              <MonitoringPanel
+                networkTopology={networkTopology}
+                onOpenDevice={setSelectedDeviceId}
+              />
+            </div>
+          </Modal>
         </Layout>
       } />
       <Route path="/upload" element={
         <div className="app-upload-page">
-          <ConfigUploader onConfigLoaded={handleConfigLoaded} />
+          <ConfigUploader
+            onConfigLoaded={handleConfigLoaded}
+            setNetworkTopology={setNetworkTopology}
+          />
         </div>
       } />
       <Route path="/monitoring" element={
-        <div className="app-monitoring-page">
-          <MonitoringPanel />
-        </div>
+        <Navigate to="/topology" replace />
       } />
     </Routes>
   );
@@ -109,13 +140,13 @@ const AppContent = () => {
  * 应用根组件：提供路由与整体布局
  */
 function App() {
+  const [networkTopology, setNetworkTopology] = useState(null);
+
   return (
     <BrowserRouter>
-      <AppStoreProvider>
-        <MainLayout>
-          <AppContent />
-        </MainLayout>
-      </AppStoreProvider>
+      <MainLayout networkTopology={networkTopology}>
+        <AppContent networkTopology={networkTopology} setNetworkTopology={setNetworkTopology} />
+      </MainLayout>
     </BrowserRouter>
   );
 }

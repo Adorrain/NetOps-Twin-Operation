@@ -1,18 +1,11 @@
 import React, { useCallback, useMemo, useState } from 'react'
-import { Button, ConfigProvider, Input, List, Select, Space, Table, Tag } from 'antd'
+import { ConfigProvider, Input, Select, Space, Table, Tag } from 'antd'
 import {
-  AimOutlined,
-  ReloadOutlined,
   SearchOutlined,
-  WarningOutlined,
-  ExclamationCircleOutlined,
-  CloseCircleOutlined,
-  CheckCircleOutlined,
 } from '@ant-design/icons'
-import { useNavigate } from 'react-router-dom'
-import { useAppActions, useAppState } from '../../utils/appStore';
 import { ConnectionStatus, DeviceStatus } from '../../types'
-import { isLinkActive } from '../../utils/utils'
+import { getAllVlans, isLinkActive } from '../../utils/utils'
+import { normalizeDeviceStatus, getDeviceOspfConfig, getDevicePrimaryIpInfo } from '../../utils/deviceUtils'
 
 const STATUS_FILTER_OPTIONS = [
   { value: 'all', label: '状态：全部' },
@@ -23,24 +16,11 @@ const STATUS_FILTER_OPTIONS = [
   { value: DeviceStatus.OFFLINE, label: '状态：离线' },
 ]
 
-const MonitoringPanel = () => {
-  const { networkTopology, deviceStatuses } = useAppState()
-  const { setSelectedDevice } = useAppActions()
-  const navigate = useNavigate()
-
+const MonitoringPanel = ({ networkTopology }) => {
   const devices = useMemo(() => networkTopology?.devices || [], [networkTopology])
   const links = useMemo(() => networkTopology?.links || [], [networkTopology])
 
-  // Data normalization
-  const normalizeDeviceStatus = useCallback((status) => {
-    const s = String(status || '').toLowerCase();
-    if (s === 'up' || s === 'active' || s === 'online') return DeviceStatus.ONLINE;
-    if (s === 'down' || s === 'offline') return DeviceStatus.OFFLINE;
-    if (s === 'warning') return DeviceStatus.WARNING;
-    if (s === 'error') return DeviceStatus.ERROR;
-    if (s === 'maintenance') return DeviceStatus.MAINTENANCE
-    return DeviceStatus.ONLINE
-  }, [])
+  const DEVICE_STATUS_SET = useMemo(() => new Set(Object.values(DeviceStatus)), [])
 
   const statusCounts = useMemo(() => {
     const counts = {
@@ -52,17 +32,20 @@ const MonitoringPanel = () => {
     };
     
     devices.forEach(device => {
-      const status = normalizeDeviceStatus(deviceStatuses.get(device.id) || device.status || DeviceStatus.OFFLINE)
+      const status = normalizeDeviceStatus(device.status || DeviceStatus.OFFLINE)
       if (counts[status] !== undefined) counts[status]++;
     })
     return counts
-  }, [devices, deviceStatuses, normalizeDeviceStatus])
+  }, [devices, normalizeDeviceStatus])
 
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const getDeviceStatusValue = useCallback(
-    (device) => normalizeDeviceStatus(deviceStatuses.get(device.id) || device.status || DeviceStatus.OFFLINE),
-    [deviceStatuses, normalizeDeviceStatus]
+    (device) => {
+      const normalized = normalizeDeviceStatus(device.status || DeviceStatus.OFFLINE)
+      return DEVICE_STATUS_SET.has(normalized) ? normalized : DeviceStatus.ONLINE
+    },
+    [DEVICE_STATUS_SET]
   )
 
   const deviceRows = useMemo(() => {
@@ -83,8 +66,14 @@ const MonitoringPanel = () => {
   }, [query, statusFilter, devices, getDeviceStatusValue])
 
   const ospfAreaOf = useCallback((device) => {
-    const ospf = device.ospf || device.configuration?.ospf
+    const ospf = getDeviceOspfConfig(device)
     return ospf?.area
+  }, [])
+
+  const vlanTextOf = useCallback((device) => {
+    const vlans = getAllVlans(device)
+    if (!vlans.length) return '-'
+    return vlans.join(', ')
   }, [])
 
   const getStatusTagColor = useCallback((status) => {
@@ -180,31 +169,11 @@ const MonitoringPanel = () => {
   }, [links])
 
   const alarmItems = useMemo(() => {
-    // Data first: merge & keep device alarms above link alarms
     return [...deviceAlarmItems, ...connectionAlarmItems]
   }, [deviceAlarmItems, connectionAlarmItems])
 
   const activeLinkCount = useMemo(() => links.filter((link) => isLinkActive(link.status)).length, [links])
   const totalLinkCount = links.length
-
-  const handleOpenDevice = useCallback(
-    (deviceId) => {
-      if (!deviceId) return
-      setSelectedDevice(deviceId)
-      navigate('/topology')
-    },
-    [setSelectedDevice, navigate]
-  )
-
-  const handleResetFilters = useCallback(() => {
-    setQuery('')
-    setStatusFilter('all')
-  }, [])
-
-  const openFirstAlarm = useCallback(() => {
-    if (!alarmItems.length) return
-    handleOpenDevice(alarmItems[0].deviceId)
-  }, [alarmItems, handleOpenDevice])
 
   const deviceColumns = useMemo(() => {
     return [
@@ -265,46 +234,35 @@ const MonitoringPanel = () => {
         render: (area) => (area === undefined || area === null ? <span style={{ color: '#94a3b8' }}>-</span> : `Area ${area}`),
       },
       {
-        title: '动作',
-        key: 'actions',
+        title: 'VLAN',
+        dataIndex: 'vlan',
+        key: 'vlan',
         width: 180,
-        render: (_, record) => (
-          <Space>
-            <Button size="small" onClick={() => handleOpenDevice(record.id)}>
-              定位设备
-            </Button>
-          </Space>
-        ),
+        render: (text) => <span style={{ color: '#c4b5fd' }}>{text || '-'}</span>,
       },
     ]
-  }, [handleOpenDevice, getStatusTagColor, getStatusText])
+  }, [getStatusTagColor, getStatusText])
 
   const tableData = useMemo(() => {
     return deviceRows.map((d) => {
       const status = getDeviceStatusValue(d)
       const ospfArea = ospfAreaOf(d)
+      const vlan = vlanTextOf(d)
       const roleLabel = d.role || d.deviceType || 'unknown'
-      const rawIp = d.ip ?? d.ipAddress ?? d.interfaces?.find((it) => it?.ip)?.ip
-      const primaryIp = rawIp != null && rawIp !== '' ? String(rawIp).split('/')[0] : ''
+      const { primaryIp: normalizedPrimaryIp } = getDevicePrimaryIpInfo(d)
 
       return {
         key: d.id,
         id: d.id,
         name: d.name,
-        ip: primaryIp,
+        ip: normalizedPrimaryIp === '-' ? '' : String(normalizedPrimaryIp),
         roleLabel,
         status,
         ospfArea,
+        vlan,
       }
     })
-  }, [deviceRows, getDeviceStatusValue, ospfAreaOf])
-
-  const alarmSeveritySummary = useMemo(() => {
-    const warn = alarmItems.filter((i) => i.kind === 'device' && i.severity === DeviceStatus.WARNING).length
-    const err = alarmItems.filter((i) => i.kind === 'device' && i.severity === DeviceStatus.ERROR).length
-    const link = alarmItems.filter((i) => i.kind === 'link').length
-    return { warn, err, link }
-  }, [alarmItems])
+  }, [deviceRows, getDeviceStatusValue, ospfAreaOf, vlanTextOf])
 
   return (
     <ConfigProvider
@@ -349,102 +307,41 @@ const MonitoringPanel = () => {
               </Tag>
             </Space>
             <div style={{ marginTop: 8, color: 'rgba(229,231,235,0.7)', fontSize: 12 }}>
-              告警项 {alarmItems.length} 条 — 动作：点击右侧打开对应设备面板
+              告警项 {alarmItems.length} 条
             </div>
           </div>
-          <Space>
-            <Button icon={<ReloadOutlined />} onClick={handleResetFilters}>
-              重置过滤
-            </Button>
-            <Button type="primary" icon={<AimOutlined />} onClick={openFirstAlarm} disabled={!alarmItems.length}>
-              打开首条告警
-            </Button>
-          </Space>
         </div>
 
-        <div style={{ display: 'flex', gap: 12, minHeight: 0 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-              <Space wrap>
-                <Input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="搜索：设备名 / id / IP"
-                  prefix={<SearchOutlined />}
-                  style={{ width: 320 }}
-                  allowClear
-                />
-                <Select
-                  value={statusFilter}
-                  onChange={setStatusFilter}
-                  style={{ width: 180 }}
-                  options={STATUS_FILTER_OPTIONS}
-                />
-              </Space>
-              <Tag>
-                过滤结果 {tableData.length} 条 — 动作：使用“定位设备”
-              </Tag>
-            </div>
-
-            <Table
-              size="small"
-              rowKey="id"
-              dataSource={tableData}
-              columns={deviceColumns}
-              pagination={{ pageSize: 10, showSizeChanger: false }}
-              scroll={{ x: 980 }}
-              style={{ background: '#0b1220' }}
-            />
-          </div>
-
-          <div style={{ width: 380, minWidth: 380 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <Space size={6}>
-                <WarningOutlined />
-                <span style={{ color: '#e5e7eb', fontWeight: 600 }}>
-                  告警列表 {alarmItems.length} 条 — 动作：打开对应设备面板
-                </span>
-              </Space>
-            </div>
-
-            <Space wrap style={{ marginBottom: 10 }}>
-              <Tag icon={<ExclamationCircleOutlined />} color="gold">设备告警 {alarmSeveritySummary.warn}</Tag>
-              <Tag icon={<CloseCircleOutlined />} color="red">设备故障 {alarmSeveritySummary.err}</Tag>
-              <Tag icon={<CheckCircleOutlined />} color="gray">链路告警 {alarmSeveritySummary.link}</Tag>
-            </Space>
-
-            <div style={{ border: '1px solid #1f2937', borderRadius: 8, padding: 8, background: '#0b1220' }}>
-              <List
-                size="small"
-                dataSource={alarmItems}
-                locale={{ emptyText: '暂无告警项' }}
-                renderItem={(item) => (
-                  <List.Item style={{ padding: '8px 0', borderBottom: '1px solid rgba(31,41,55,0.8)' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                        <Space size={8}>
-                          {item.kind === 'device' ? (
-                            <Tag color={getStatusTagColor(item.severity)}>{getStatusText(item.severity)}</Tag>
-                          ) : (
-                            <Tag color="red">链路</Tag>
-                          )}
-                          <span style={{ color: '#e5e7eb', fontWeight: 600 }}>{item.title}</span>
-                        </Space>
-                      </div>
-                      <div style={{ color: 'rgba(229,231,235,0.7)', fontSize: 12, lineHeight: 1.4 }}>
-                        {item.message}
-                      </div>
-                      <div>
-                        <Button size="small" onClick={() => handleOpenDevice(item.deviceId)} disabled={!item.deviceId}>
-                          动作：打开面板
-                        </Button>
-                      </div>
-                    </div>
-                  </List.Item>
-                )}
+        <div style={{ minHeight: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+            <Space wrap>
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="搜索：设备名 / id / IP"
+                prefix={<SearchOutlined />}
+                style={{ width: 320 }}
+                allowClear
               />
-            </div>
+              <Select
+                value={statusFilter}
+                onChange={setStatusFilter}
+                style={{ width: 180 }}
+                options={STATUS_FILTER_OPTIONS}
+              />
+            </Space>
+            <Tag>过滤结果 {tableData.length} 条</Tag>
           </div>
+
+          <Table
+            size="small"
+            rowKey="id"
+            dataSource={tableData}
+            columns={deviceColumns}
+            pagination={{ pageSize: 10, showSizeChanger: false, position: ['topRight'] }}
+            scroll={{ x: 980 }}
+            style={{ background: '#0b1220' }}
+          />
         </div>
       </div>
     </ConfigProvider>
