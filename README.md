@@ -1,6 +1,6 @@
 <div align="center">
   <img src="./Pictures/coverage.png" alt="NetOps Logo" width="80%" style="box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25); border-radius: 12px;" />
-  <h1>基于NetOps的网络运维数字孪生系统的研究与设计</h1>
+  <h3>基于NetOps的网络运维数字孪生系统的研究与设计</h3>
   <p>基于 NetOps 理念的网络运维数字孪生系统，通过 YAML 脚本定义网络设备参数，使用 Three.js 进行 3D 可视化展示，实现网络拓扑的数字孪生仿真。</p>
 
   <p>
@@ -15,21 +15,18 @@
 
 ## 项目概述
 
-    本项目旨在创建一个现代化的网络运维管理平台，通过数字孪生技术实现网络设备的 3D 可视化展示和运维管理。系统支持通过 YAML 配置文件定义网络拓扑结构，包括 PC、路由器、交换机等设备的参数配置，并在前端通过 Three.js 进行逼真的 3D 渲染展示。
+本项目旨在创建一个现代化的网络运维管理平台，通过数字孪生技术实现网络设备的3D可视化展示和运维管理。系统支持通过 YAML 配置文件定义网络拓扑结构，包括 PC、路由器、交换机等设备的参数配置，并在前端通过 Three.js 实现 3D 渲染展示
 
 ## 文档
 
-- Docker 部署文档：[docs/Docker部署.md](docs/Docker部署.md)
-- 数据配置说明：[docs/dataConfig.md](docs/dataConfig.md)
-- 参考资料：[docs/reference.md](docs/reference.md)
+[Docker 部署文档](docs/Docker部署.md) | [数据配置说明](docs/dataConfig.md) | [参考资料](docs/reference.md)
 
 ## 快速开始
 
-### 环境要求
+### 环境准备
 
-- Node.js 18+
-- Python 3.10+
-- npm 或 pnpm
+- Node.js 18+（安装地址：https://nodejs.org/en/download）
+- Python 3.10+（安装地址：https://www.python.org/downloads/）
 
 ### 安装依赖
 
@@ -46,11 +43,11 @@ pip install -r requirements.txt
 ### 开发环境启动
 
 ```bash
-# 启动前端服务
-cd frontend
-npm run dev
-
 # 启动后端服务
 cd backend
 python main.py
+
+# 启动前端服务
+cd frontend
+npm run dev
 ```
