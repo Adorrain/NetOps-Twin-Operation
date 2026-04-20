@@ -15,11 +15,13 @@
 
 ## 项目概述
 
-本项目旨在创建一个现代化的网络运维管理平台，通过数字孪生技术实现网络设备的 3D 可视化展示和运维管理。系统支持通过 YAML 配置文件定义网络拓扑结构，包括 PC、路由器、交换机等设备的参数配置，并在前端通过 Three.js 进行逼真的 3D 渲染展示。
+    本项目旨在创建一个现代化的网络运维管理平台，通过数字孪生技术实现网络设备的 3D 可视化展示和运维管理。系统支持通过 YAML 配置文件定义网络拓扑结构，包括 PC、路由器、交换机等设备的参数配置，并在前端通过 Three.js 进行逼真的 3D 渲染展示。
 
 ## 文档
 
-- 技术文档（产品定位/设计/技术栈/前后端/数据库/接口与响应格式）：[docs/techdocs.md](docs/techdocs.md)
+- Docker 部署文档：[docs/Docker部署.md](docs/Docker部署.md)
+- 数据配置说明：[docs/dataConfig.md](docs/dataConfig.md)
+- 参考资料：[docs/reference.md](docs/reference.md)
 
 ## 快速开始
 

@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Table, Button, ConfigProvider, theme, Modal } from 'antd';
+import { Table, Button, ConfigProvider, theme } from 'antd';
 import { 
   LaptopOutlined, 
   ClusterOutlined, 
@@ -111,28 +111,22 @@ const DevicePanel = ({ selectedDeviceId, networkTopology, setSelectedDevice }) =
   ];
 
   return (
-    <Modal
-      open={Boolean(selectedDeviceId && device)}
-      onCancel={onClose}
-      footer={null}
-      centered
-      width={700}
-      closable={false}
-      destroyOnClose
-      styles={{
-        body: {
-          padding: 0,
-          maxHeight: '85vh',
-          display: 'flex',
-          flexDirection: 'column',
-          background: 'rgba(15, 23, 42, 0.9)',
-          backdropFilter: 'blur(16px)',
-          border: '1px solid rgba(56, 189, 248, 0.2)',
-          borderRadius: 16,
-          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
-          color: '#f8fafc',
-          overflow: 'hidden'
-        }
+    <div
+      style={{
+        position: 'absolute',
+        top: 24,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 1000,
+        width: 700,
+        maxHeight: '85vh',
+        display: 'flex',
+        flexDirection: 'column',
+        background: '#0f172a',
+        border: '1px solid #334155',
+        borderRadius: 16,
+        color: '#f8fafc',
+        overflow: 'hidden'
       }}
     >
           {/* Header */}
@@ -329,7 +323,7 @@ const DevicePanel = ({ selectedDeviceId, networkTopology, setSelectedDevice }) =
                 </div>
              </ConfigProvider>
           </div>
-    </Modal>
+    </div>
   );
 };
 
