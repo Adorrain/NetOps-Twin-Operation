@@ -11,7 +11,7 @@ from flask import Blueprint, jsonify, request
 from pydantic import ValidationError
 
 from app.controller.simulation_service import SimulationService
-from app.dao.snapshot_dao import createSnapshot
+from app.dao.snapshot_dao import createSnapshot, getLatestTopologyData
 from app.model.topology import TopologyData
 from app.service.database import databaseService
 from app.utils.serialization import checkTopology, dumpModel
@@ -47,3 +47,16 @@ def uploadTopology():
         pass
 
     return jsonify(dumpModel(service.topologyData))
+
+
+@app.route("/topology/latest", methods=["GET"])
+def getLatestTopology():
+    """读取数据库中最新拓扑快照，供前端冷启动恢复。"""
+    session = databaseService.getDb()
+    try:
+        topologyData, _ = getLatestTopologyData(session)
+        return jsonify(dumpModel(topologyData))
+    except ValueError:
+        return jsonify(detail="暂无可用拓扑快照"), 404
+    except Exception as e:
+        return jsonify(detail=f"读取拓扑快照失败：{e}"), 500

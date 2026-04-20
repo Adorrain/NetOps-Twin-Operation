@@ -36,6 +36,9 @@ export const ConnectionStatus = {
   FAILED: 'failed'
 };
 
+/**
+ * 设备尺寸配置
+ */
 export const DEVICE_SIZE_CONFIG = {
   core: { size: [3, 0.8, 2] },
   aggregation: { size: [2.5, 0.6, 1.8] },
@@ -46,6 +49,9 @@ export const DEVICE_SIZE_CONFIG = {
   pc: { size: [0.8, 0.6, 0.1] },
 };
 
+/**
+ * 设备基础颜色配置
+ */
 export const BASE_COLOR_BY_TYPE = {
   core: '#00ffff',
   aggregation: '#38bdf8',
@@ -57,6 +63,9 @@ export const BASE_COLOR_BY_TYPE = {
   unknown: '#64748b',
 };
 
+/**
+ * VLAN 颜色配置
+ */
 export const VLAN_PALETTE = [
   '#f472b6',
   '#22d3ee',

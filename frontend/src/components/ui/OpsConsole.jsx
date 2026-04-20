@@ -79,6 +79,31 @@ const OpsConsole = () => {
 
   const devices = useMemo(() => networkTopology?.devices || [], [networkTopology]);
   const links = useMemo(() => networkTopology?.links || [], [networkTopology]);
+  const deviceOptions = useMemo(
+    () => devices.map((d) => ({ value: d.id, label: d.name })),
+    [devices]
+  );
+  const devicesWithInterfaces = useMemo(
+    () => devices.filter((d) => d.interfaces && d.interfaces.length > 0),
+    [devices]
+  );
+  const devicesWithInterfacesOptions = useMemo(
+    () => devicesWithInterfaces.map((d) => ({ value: d.id, label: d.name })),
+    [devicesWithInterfaces]
+  );
+  const vlanSwitchOptions = useMemo(
+    () => devices.filter(isVlanCapableDevice).map((d) => ({ value: d.id, label: d.name })),
+    [devices]
+  );
+  const linkOptions = useMemo(
+    () =>
+      links.map((c) => {
+        const src = devices.find((d) => d.id === c.srcDevice)?.name || c.srcDevice;
+        const dst = devices.find((d) => d.id === c.dstDevice)?.name || c.dstDevice;
+        return { value: c.id, label: `${src} -> ${dst}` };
+      }),
+    [devices, links]
+  );
 
   // States (Ping/Trace)
   const [srcId, setSrcId] = useState('');
@@ -130,6 +155,11 @@ const OpsConsole = () => {
   const addLog = (type, messageText) => {
     addOpsLog({ type, message: messageText });
   };
+  const getLogTagColor = (type) => (
+    type === 'error' ? 'red' : type === 'warning' ? 'gold' : type === 'success' ? 'green' : 'blue'
+  );
+  const getInterfaceOptions = (id) =>
+    devices.find((d) => d.id === id)?.interfaces?.map((iface) => ({ value: iface.name, label: iface.name })) || [];
 
   const updateTopologyDevice = (id, patch) => {
     if (!networkTopology) return;
@@ -403,6 +433,23 @@ const OpsConsole = () => {
     }
   };
 
+  const handleVlanPortChange = (val) => {
+    setVlanPort(val);
+    const sw = devices.find((d) => d.id === vlanSwitchId);
+    const iface = sw?.interfaces?.find((i) => i.name === val);
+    if (iface?.mode) setVlanMode(iface.mode);
+    if (iface?.vlan) setVlanId(Number(iface.vlan));
+    if (Array.isArray(iface?.allowedVlans)) setVlanAllowedVlans(iface.allowedVlans.join(','));
+    else setVlanAllowedVlans('');
+
+    setVlanCurrentHint(formatVlanHint({
+      mode: iface?.mode || 'access',
+      vlan: iface?.vlan,
+      allowedVlans: Array.isArray(iface?.allowedVlans) ? iface.allowedVlans : undefined
+    }));
+    setVlanOriginalHint(formatVlanHint(vlanBaselineRef.current.get(`${vlanSwitchId}:${val}`)));
+  };
+
   const collapseItems = [
     {
       key: 'net-diag',
@@ -415,14 +462,14 @@ const OpsConsole = () => {
                     placeholder="源设备" 
                     value={srcId}
                     onChange={setSrcId}
-                    options={devices.map(d => ({ value: d.id, label: d.name }))}
+                    options={deviceOptions}
                 />
                 <Select 
                     style={{ width: '100%' }} 
                     placeholder="目标设备" 
                     value={dstId}
                     onChange={setDstId}
-                    options={devices.map(d => ({ value: d.id, label: d.name }))}
+                    options={deviceOptions}
                 />
             </Space>
             
@@ -454,14 +501,14 @@ const OpsConsole = () => {
               placeholder="源设备"
               value={smartSrcId}
               onChange={setSmartSrcId}
-              options={devices.map(d => ({ value: d.id, label: d.name }))}
+              options={deviceOptions}
             />
             <Select
               style={{ width: '100%' }}
               placeholder="目标设备"
               value={smartDstId}
               onChange={setSmartDstId}
-              options={devices.map(d => ({ value: d.id, label: d.name }))}
+              options={deviceOptions}
             />
           </Space>
           <Button block icon={<ApartmentOutlined />} loading={isSmartRouting} onClick={execSmartRoute}>
@@ -502,11 +549,7 @@ const OpsConsole = () => {
                 placeholder="选择链路" 
                 value={connId}
                 onChange={setConnId}
-                options={links.map(c => {
-                    const src = devices.find(d => d.id === c.srcDevice)?.name || c.srcDevice;
-                    const dst = devices.find(d => d.id === c.dstDevice)?.name || c.dstDevice;
-                    return { value: c.id, label: `${src} -> ${dst}` };
-                })}
+                options={linkOptions}
             />
             <Select 
                 style={{ width: '100%' }}
@@ -529,7 +572,7 @@ const OpsConsole = () => {
                 placeholder="选择设备" 
                 value={deviceId}
                 onChange={setDeviceId}
-                options={devices.map(d => ({ value: d.id, label: d.name }))}
+                options={deviceOptions}
             />
             <Select 
                 style={{ width: '100%' }}
@@ -552,7 +595,7 @@ const OpsConsole = () => {
                 placeholder="选择设备" 
                 value={ifaceDeviceId}
                 onChange={(val) => { setIfaceDeviceId(val); setIfaceName(''); }}
-                options={devices.filter(d => d.interfaces && d.interfaces.length > 0).map(d => ({ value: d.id, label: d.name }))}
+                options={devicesWithInterfacesOptions}
             />
             <Row gutter={8}>
                 <Col span={12}>
@@ -561,7 +604,7 @@ const OpsConsole = () => {
                         placeholder="接口" 
                         value={ifaceName}
                         onChange={setIfaceName}
-                        options={devices.find(d => d.id === ifaceDeviceId)?.interfaces?.map((iface) => ({ value: iface.name, label: iface.name })) || []}
+                        options={getInterfaceOptions(ifaceDeviceId)}
                     />
                 </Col>
                 <Col span={12}>
@@ -587,7 +630,7 @@ const OpsConsole = () => {
                 placeholder="选择交换机" 
                 value={vlanSwitchId}
                 onChange={(val) => { setVlanSwitchId(val); setVlanPort(''); }}
-                options={devices.filter(isVlanCapableDevice).map(d => ({ value: d.id, label: d.name }))}
+                options={vlanSwitchOptions}
             />
             {vlanSwitchId && (
                 <>
@@ -597,23 +640,8 @@ const OpsConsole = () => {
                                 style={{ width: '100%' }} 
                                 placeholder="端口" 
                                 value={vlanPort}
-                                onChange={(val) => {
-                                    setVlanPort(val);
-                                    const sw = devices.find(d => d.id === vlanSwitchId);
-                                    const iface = sw?.interfaces?.find(i => i.name === val);
-                                    if (iface?.mode) setVlanMode(iface.mode);
-                                    if (iface?.vlan) setVlanId(Number(iface.vlan));
-                                    if (Array.isArray(iface?.allowedVlans)) setVlanAllowedVlans(iface.allowedVlans.join(','));
-                                    else setVlanAllowedVlans('');
-                                    
-                                    setVlanCurrentHint(formatVlanHint({
-                                      mode: iface?.mode || 'access',
-                                      vlan: iface?.vlan,
-                                      allowedVlans: Array.isArray(iface?.allowedVlans) ? iface.allowedVlans : undefined
-                                    }));
-                                    setVlanOriginalHint(formatVlanHint(vlanBaselineRef.current.get(`${vlanSwitchId}:${val}`)));
-                                }}
-                                options={devices.find(d => d.id === vlanSwitchId)?.interfaces?.map((iface) => ({ value: iface.name, label: iface.name })) || []}
+                                onChange={handleVlanPortChange}
+                                options={getInterfaceOptions(vlanSwitchId)}
                             />
                         </Col>
                         <Col span={12}>
@@ -671,7 +699,7 @@ const OpsConsole = () => {
                 renderItem={log => (
                     <List.Item style={{ padding: '4px 8px', border: 'none', cursor: 'pointer' }} onClick={() => setLogsModalOpen(true)}>
                         <Text type="secondary" style={{ fontSize: 10, marginRight: 8 }}>{log.timestamp.toLocaleTimeString()}</Text>
-                        <Tag color={log.type === 'error' ? 'red' : log.type === 'warning' ? 'gold' : log.type === 'success' ? 'green' : 'blue'}>
+                        <Tag color={getLogTagColor(log.type)}>
                             {log.type.toUpperCase().slice(0,3)}
                         </Tag>
                         <Text ellipsis style={{ color: '#ccc', fontSize: 12 }}>{log.message}</Text>
@@ -695,7 +723,7 @@ const OpsConsole = () => {
             renderItem={log => (
                 <List.Item>
                     <List.Item.Meta
-                        avatar={<Tag color={log.type === 'error' ? 'red' : log.type === 'warning' ? 'gold' : log.type === 'success' ? 'green' : 'blue'}>{log.type.toUpperCase()}</Tag>}
+                        avatar={<Tag color={getLogTagColor(log.type)}>{log.type.toUpperCase()}</Tag>}
                         title={<Space><Text type="secondary">{log.timestamp.toLocaleString()}</Text><Text>{log.message}</Text></Space>}
                         description={<Text type="secondary" italic>{explainLog(log)}</Text>}
                     />

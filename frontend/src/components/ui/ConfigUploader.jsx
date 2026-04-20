@@ -12,38 +12,38 @@ const inferRole = (device) => {
 };
 
 const calculateLayout = (devices) => {
-  const core = [];
-  const agg = [];
-  const access = [];
-  const edge = [];
-  const terminal = [];
+  const grouped = {
+    core: [],
+    aggregation: [],
+    access: [],
+    edge: [],
+    terminal: [],
+  };
 
   devices.forEach((d) => {
     const role = inferRole(d);
-    if (role === 'core') core.push(d);
-    else if (role === 'aggregation') agg.push(d);
-    else if (role === 'access') access.push(d);
-    else if (role === 'edge') edge.push(d);
-    else terminal.push(d);
+    if (role === 'core') grouped.core.push(d);
+    else if (role === 'aggregation') grouped.aggregation.push(d);
+    else if (role === 'access') grouped.access.push(d);
+    else if (role === 'edge') grouped.edge.push(d);
+    else grouped.terminal.push(d);
   });
 
   const layout = {};
   const spacingX = 6;
-  const terminalSpacingX = spacingX / 2;
-  core.forEach((d, i) => {
-    layout[d.id] = { x: (i - (core.length - 1) / 2) * spacingX, y: 0, z: -5 };
-  });
-  agg.forEach((d, i) => {
-    layout[d.id] = { x: (i - (agg.length - 1) / 2) * spacingX, y: 0, z: 2 };
-  });
-  access.forEach((d, i) => {
-    layout[d.id] = { x: (i - (access.length - 1) / 2) * spacingX, y: 0, z: 9 };
-  });
-  edge.forEach((d, i) => {
-    layout[d.id] = { x: (i - (edge.length - 1) / 2) * spacingX, y: 0, z: 15 };
-  });
-  terminal.forEach((d, i) => {
-    layout[d.id] = { x: (i - (terminal.length - 1) / 2) * terminalSpacingX, y: 0, z: 21 };
+  const layers = [
+    { key: 'core', z: -5, spacing: spacingX },
+    { key: 'aggregation', z: 2, spacing: spacingX },
+    { key: 'access', z: 9, spacing: spacingX },
+    { key: 'edge', z: 15, spacing: spacingX },
+    { key: 'terminal', z: 21, spacing: spacingX / 2 },
+  ];
+
+  layers.forEach(({ key, z, spacing }) => {
+    const nodes = grouped[key] || [];
+    nodes.forEach((d, i) => {
+      layout[d.id] = { x: (i - (nodes.length - 1) / 2) * spacing, y: 0, z };
+    });
   });
   return layout;
 };

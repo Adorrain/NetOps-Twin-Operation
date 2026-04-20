@@ -17,10 +17,14 @@ listen_addresses = '*'
 vim /var/lib/pgsql/data/pg_hba.conf        
 host    netops    netops_user     0.0.0.0/0   md5
 
+# 查看用户
+\du
+
 # 增加数据库用户
 ALTER USER netops_user WITH SUPERUSER;
 
 #给予用户权限
+ALTER USER netops_user WITH SUPERUSER;
 ```
 
 关于数据库SQL语句的相关编写和基础语法可参考如下：

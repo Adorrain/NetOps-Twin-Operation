@@ -14,6 +14,15 @@ import { useAppActions, useAppState } from '../../utils/appStore';
 import { ConnectionStatus, DeviceStatus } from '../../types'
 import { isLinkActive } from '../../utils/utils'
 
+const STATUS_FILTER_OPTIONS = [
+  { value: 'all', label: '状态：全部' },
+  { value: DeviceStatus.ONLINE, label: '状态：在线' },
+  { value: DeviceStatus.WARNING, label: '状态：告警' },
+  { value: DeviceStatus.ERROR, label: '状态：故障' },
+  { value: DeviceStatus.MAINTENANCE, label: '状态：维护中' },
+  { value: DeviceStatus.OFFLINE, label: '状态：离线' },
+]
+
 const MonitoringPanel = () => {
   const { networkTopology, deviceStatuses } = useAppState()
   const { setSelectedDevice } = useAppActions()
@@ -51,12 +60,16 @@ const MonitoringPanel = () => {
 
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const getDeviceStatusValue = useCallback(
+    (device) => normalizeDeviceStatus(deviceStatuses.get(device.id) || device.status || DeviceStatus.OFFLINE),
+    [deviceStatuses, normalizeDeviceStatus]
+  )
 
   const deviceRows = useMemo(() => {
     const q = String(query || '').trim().toLowerCase()
     const filtered = statusFilter === 'all'
       ? devices
-      : devices.filter((d) => normalizeDeviceStatus(deviceStatuses.get(d.id) || d.status || DeviceStatus.OFFLINE) === statusFilter)
+      : devices.filter((d) => getDeviceStatusValue(d) === statusFilter)
 
     if (!q) return filtered
 
@@ -67,7 +80,7 @@ const MonitoringPanel = () => {
       const role = String(d.role ?? d.deviceType ?? '').toLowerCase()
       return name.includes(q) || id.includes(q) || ip.includes(q) || role.includes(q)
     })
-  }, [query, statusFilter, devices, deviceStatuses, normalizeDeviceStatus])
+  }, [query, statusFilter, devices, getDeviceStatusValue])
 
   const ospfAreaOf = useCallback((device) => {
     const ospf = device.ospf || device.configuration?.ospf
@@ -109,7 +122,7 @@ const MonitoringPanel = () => {
   const deviceAlarmItems = useMemo(() => {
     const items = []
     for (const d of devices) {
-      const status = normalizeDeviceStatus(deviceStatuses.get(d.id) || d.status || DeviceStatus.OFFLINE)
+      const status = getDeviceStatusValue(d)
       if (
         status !== DeviceStatus.WARNING &&
         status !== DeviceStatus.ERROR &&
@@ -138,7 +151,7 @@ const MonitoringPanel = () => {
       })
     }
     return items
-  }, [devices, deviceStatuses, normalizeDeviceStatus, ospfAreaOf])
+  }, [devices, getDeviceStatusValue, ospfAreaOf])
 
   const connectionAlarmItems = useMemo(() => {
     const items = []
@@ -268,7 +281,7 @@ const MonitoringPanel = () => {
 
   const tableData = useMemo(() => {
     return deviceRows.map((d) => {
-      const status = normalizeDeviceStatus(deviceStatuses.get(d.id) || d.status || DeviceStatus.OFFLINE)
+      const status = getDeviceStatusValue(d)
       const ospfArea = ospfAreaOf(d)
       const roleLabel = d.role || d.deviceType || 'unknown'
       const rawIp = d.ip ?? d.ipAddress ?? d.interfaces?.find((it) => it?.ip)?.ip
@@ -284,7 +297,7 @@ const MonitoringPanel = () => {
         ospfArea,
       }
     })
-  }, [deviceRows, deviceStatuses, normalizeDeviceStatus, ospfAreaOf])
+  }, [deviceRows, getDeviceStatusValue, ospfAreaOf])
 
   const alarmSeveritySummary = useMemo(() => {
     const warn = alarmItems.filter((i) => i.kind === 'device' && i.severity === DeviceStatus.WARNING).length
@@ -365,14 +378,7 @@ const MonitoringPanel = () => {
                   value={statusFilter}
                   onChange={setStatusFilter}
                   style={{ width: 180 }}
-                  options={[
-                    { value: 'all', label: '状态：全部' },
-                    { value: DeviceStatus.ONLINE, label: '状态：在线' },
-                    { value: DeviceStatus.WARNING, label: '状态：告警' },
-                    { value: DeviceStatus.ERROR, label: '状态：故障' },
-                    { value: DeviceStatus.MAINTENANCE, label: '状态：维护中' },
-                    { value: DeviceStatus.OFFLINE, label: '状态：离线' },
-                  ]}
+                  options={STATUS_FILTER_OPTIONS}
                 />
               </Space>
               <Tag>
