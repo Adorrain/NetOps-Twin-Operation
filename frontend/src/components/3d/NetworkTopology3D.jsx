@@ -11,102 +11,28 @@ import React, { Suspense, useMemo, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Grid, Text, RoundedBox, Line, Float } from '@react-three/drei';
 import * as THREE from 'three';
-import { BASE_COLOR_BY_TYPE, DEVICE_SIZE_CONFIG, VLAN_PALETTE } from '../../types';
-import { getDisplayVlanId } from '../../utils/utils';
-import { getDeviceStatusColor } from '../../utils/deviceUtils';
+import { DEVICE_SIZE_CONFIG, VLAN_PALETTE } from '../../types';
+import { getVlans } from '../../utils/utils';
 
-/**
- * 标准化拓扑数据结构，兼容不同字段命名与缺省情况。
- *
- */
-function normalizeTopology(raw) {
-  return {
-    devices: Array.isArray(raw?.devices) ? raw.devices : [],
-    links: Array.isArray(raw?.links) ? raw.links : [],
-    flows: Array.isArray(raw?.flows) ? raw.flows : [],
-    alerts: Array.isArray(raw?.alerts) ? raw.alerts : [],
-  };
-}
-
-/**
- * ===========================
- * 标准化：渲染常量与派生函数
- * ===========================
- * 先定义“数据/规则”，组件只负责渲染，避免阅读时在 JSX 前后跳来跳去。
- */
-/** 判断设备是否处于高负载状态。 */
-const isHighLoad = (metrics) => {
-  return Boolean(metrics && (metrics.cpuUsage > 90 || metrics.networkIn > 8000));
-};
-
-/** 提取并标准化设备类型相关字符串字段。 */
-const getDeviceTypeStrings = (device) => {
-  const name = device?.name || '';
-  const role = device?.role || '';
-  const deviceType = device?.deviceType || '';
-  return {
-    name: String(name),
-    role: String(role),
-    deviceType: String(deviceType),
-  };
-};
-
-/** 计算设备用于渲染分类的基础类型。 */
-const getDeviceRenderType = (device) => {
-  const { role, deviceType } = getDeviceTypeStrings(device);
-  return String(role || deviceType || 'access').toLowerCase();
-};
-
-/** 推断设备在配色/尺寸规则中的有效类型。 */
-const inferEffectiveDeviceType = (device) => {
-  const { name, deviceType } = getDeviceTypeStrings(device);
-  const renderType = getDeviceRenderType(device);
-
-  const lowerName = String(name || '').toLowerCase();
-  const lowerDeviceType = String(deviceType || '').toLowerCase();
-
-  if (lowerDeviceType.includes('router') || renderType.includes('router')) return 'router';
-  if (lowerName.includes('core')) return 'core';
-  if (lowerName.includes('agg')) return 'aggregation';
-  if (renderType.includes('edge')) return 'edge';
-  if (lowerDeviceType.includes('server') || renderType.includes('server')) return 'server';
-  if (renderType.includes('pc') || renderType.includes('terminal')) return 'pc';
-  if (renderType.includes('switch')) return 'access';
-  return renderType;
-};
-
-/** 解析设备尺寸映射所使用的类型键。 */
-const resolveSizeType = (device) => {
-  const renderType = getDeviceRenderType(device);
-  const effectiveType = inferEffectiveDeviceType(device);
-
-  if (effectiveType !== 'router') return effectiveType;
-
-  if (renderType.includes('core')) return 'core';
-  if (renderType.includes('aggregation') || renderType.includes('agg')) return 'aggregation';
-  if (renderType.includes('edge')) return 'edge';
+const getDeviceKind = (device) => {
+  const text = `${device?.name || ''} ${device?.role || ''} ${device?.deviceType || ''}`.toLowerCase();
+  if (text.includes('router')) return 'router';
+  if (text.includes('server')) return 'server';
+  if (text.includes('pc') || text.includes('terminal') || text.includes('host')) return 'pc';
+  if (text.includes('core')) return 'core';
+  if (text.includes('agg') || text.includes('aggregation')) return 'aggregation';
+  if (text.includes('edge')) return 'edge';
   return 'access';
 };
 
-/** 获取设备模型尺寸。 */
-const getDeviceSize = (device) => {
-  const sizeType = resolveSizeType(device);
-  return DEVICE_SIZE_CONFIG[sizeType]?.size || DEVICE_SIZE_CONFIG.access.size;
-};
-
-/** 获取设备基础颜色。 */
-const getDeviceBaseColor = (device) => {
-  const effectiveType = inferEffectiveDeviceType(device);
-  return BASE_COLOR_BY_TYPE[effectiveType] || BASE_COLOR_BY_TYPE.access;
-};
+const getDeviceSize = (kind) => DEVICE_SIZE_CONFIG[kind]?.size || DEVICE_SIZE_CONFIG.access.size;
 
 /** 获取设备底部环形指示器颜色。 */
-const getRingColor = (device, baseColor) => {
-  const vlanId = getDisplayVlanId(device);
-  return vlanId ? VLAN_PALETTE[parseInt(vlanId, 10) % VLAN_PALETTE.length] : baseColor;
+const getRingColor = (device) => {
+  const vlanId = getVlans(device)[0];
+  return vlanId ? VLAN_PALETTE[parseInt(vlanId, 10) % VLAN_PALETTE.length] : '#334155';
 };
 
-/** 宽松判断链路是否为活跃状态。 */
 const isLinkActiveLoose = (status) => {
   if (status == null || status === '') return true;
   const s = String(status || '').toLowerCase();
@@ -259,42 +185,31 @@ const TerminalDevice = ({ size }) => {
   );
 };
 
-/**
- * ===========================
- * 设备 Mesh（主入口）
- * ===========================
- */
-/** 渲染单个设备及其标签、状态光圈和交互效果。 */
 function DeviceMesh({ device, onClick }) {
-  const { position = { x: 0, y: 0, z: 0 }, name, status, metrics } = device;
-  const effectiveType = inferEffectiveDeviceType(device);
-  const modelType = String(effectiveType || 'access').toLowerCase();
+  const { position = { x: 0, y: 0, z: 0 }, name } = device;
+  const kind = getDeviceKind(device);
   const
-    size = getDeviceSize(device),
-    baseColor = getDeviceBaseColor(device),
-    vlanId = getDisplayVlanId(device),
-    ringColor = getRingColor(device, baseColor),
-    statusColor = getDeviceStatusColor(status),
-    highLoad = isHighLoad(metrics);
+    size = getDeviceSize(kind),
+    vlanId = getVlans(device)[0],
+    ringColor = getRingColor(device);
   const meshRef = useRef();
 
-  /** 按模型类型渲染对应设备外观。 */
   const renderModel = () => {
-    switch (modelType) {
+    switch (kind) {
       case 'core':
       case 'aggregation':
       case 'access':
       case 'edge':
       case 'switch':
-        return <SwitchDevice size={size} color={baseColor} statusColor={statusColor} />;
+        return <SwitchDevice size={size} />;
       case 'server':
-        return <ServerDevice size={size} color={baseColor} statusColor={statusColor} />;
+        return <ServerDevice size={size} />;
       case 'router':
-        return <RouterDevice size={size} color={baseColor} statusColor={statusColor} />;
+        return <RouterDevice size={size} />;
       case 'pc':
-        return <TerminalDevice size={size} color={baseColor} statusColor={statusColor} />;
+        return <TerminalDevice size={size} />;
       default:
-        return <ServerDevice size={size} color={baseColor} statusColor={statusColor} />;
+        return <ServerDevice size={size} />;
     }
   };
 
@@ -313,14 +228,13 @@ function DeviceMesh({ device, onClick }) {
       <Text
         position={[0, size[1] + 0.5, 0]}
         fontSize={0.4}
-        color={highLoad ? "#ef4444" : "white"}
+        color="white"
         anchorX="center"
         anchorY="middle"
         outlineWidth={0.02}
         outlineColor="#000000"
       >
         {name}
-        {highLoad && "\n⚠ HIGH LOAD"}
       </Text>
 
       {/* 底部环形指示器（含 VLAN 颜色语义） */}
@@ -357,69 +271,33 @@ function DeviceMesh({ device, onClick }) {
  * 链路（光束效果）
  * ===========================
  */
-/** 渲染设备之间的链路线与辉光层。 */
-function LinkLine({ link, devices }) {
+const getLinkEndpoints = (link, devices) => {
   const from = devices.find((d) => String(d.id) === String(link.srcDevice));
   const to = devices.find((d) => String(d.id) === String(link.dstDevice));
+  if (!from?.position || !to?.position) return null;
+  return {
+    from,
+    to,
+    points: [
+      [from.position.x, 0.5, from.position.z],
+      [to.position.x, 0.5, to.position.z],
+    ],
+  };
+};
 
-  if (!from || !to || !from.position || !to.position) return null;
-
-  const points = [
-    [from.position.x, 0.5, from.position.z],
-    [to.position.x, 0.5, to.position.z],
-  ];
-
-  const status = String(link.status || ''),
-    isDown = status.toLowerCase() === 'down',
-    isActive = isLinkActiveLoose(status),
-    utilization = Number(link.utilization ?? 0);
-  const isPeak = Boolean(link.is_peak) || utilization >= 0.75 || String(link.peak_level || '').toLowerCase() === 'high' || String(link.peak_level || '').toLowerCase() === 'critical';
-  const color = isActive ? '#3b82f6' : '#334155';
-
-  return (
-    <group>
-      {/* 核心光束 */}
-      <Line
-        points={points}
-        color={color}
-        lineWidth={2}
-        opacity={isPeak ? 0.9 : 0.6}
-        transparent
-      />
-      {/* 辉光层 (只在连接时显示) */}
-      {isActive && !isDown && (
-         <Line
-           points={points}
-           color={color}
-           lineWidth={5}
-           opacity={isPeak ? 0.18 : 0.1}
-           transparent
-         />
-      )}
-
-    </group>
-  );
-}
-
-/**
- * ===========================
- * 数据流粒子（脉冲）
- * ===========================
- */
-/** 渲染链路上的流动粒子脉冲效果。 */
-function FlowParticles({ link, devices }) {
-  const from = devices.find((d) => String(d.id) === String(link.srcDevice));
-  const to = devices.find((d) => String(d.id) === String(link.dstDevice));
-
-  // Hook 调用顺序必须稳定，避免条件调用导致规则破坏。
+function LinkEffects({ link, devices }) {
+  const endpoints = getLinkEndpoints(link, devices);
   const particlesRef = useRef();
-
-  // 粒子参数：统一蓝色脉冲。
-  const status = String(link.status || ''),
-    isActive = isLinkActiveLoose(status),
-    particleCount = 5,
-    speed = 1.0,
-    color = '#38bdf8';
+  const status = String(link.status || '').toLowerCase();
+  const isActive = isLinkActiveLoose(status);
+  const isDown = status === 'down';
+  const isPeak =
+    Boolean(link.is_peak) ||
+    Number(link.utilization ?? 0) >= 0.75 ||
+    ['high', 'critical'].includes(String(link.peak_level || '').toLowerCase());
+  const lineColor = isActive ? '#3b82f6' : '#334155';
+  const particleCount = 5;
+  const particleColor = '#38bdf8';
 
   const particlesGeometry = useMemo(() => {
     const geometry = new THREE.BufferGeometry();
@@ -429,15 +307,13 @@ function FlowParticles({ link, devices }) {
   }, [particleCount]);
 
   useFrame(({ clock }) => {
-    // 帧更新：沿链路方向推进粒子位置。
-    if (!particlesRef.current || !from || !to) return;
-    
-    const start = new THREE.Vector3(from.position.x, 0.5, from.position.z);
-    const end = new THREE.Vector3(to.position.x, 0.5, to.position.z);
-    const elapsed = clock.getElapsedTime() * speed;
-    
+    if (!particlesRef.current || !endpoints) return;
+
+    const start = new THREE.Vector3(endpoints.from.position.x, 0.5, endpoints.from.position.z);
+    const end = new THREE.Vector3(endpoints.to.position.x, 0.5, endpoints.to.position.z);
+    const elapsed = clock.getElapsedTime();
     const positions = particlesRef.current.geometry.attributes.position;
-    
+
     for (let i = 0; i < particleCount; i++) {
       const t = (elapsed + i / particleCount) % 1;
       const pos = new THREE.Vector3().lerpVectors(start, end, t);
@@ -446,27 +322,27 @@ function FlowParticles({ link, devices }) {
     positions.needsUpdate = true;
   });
 
-  // 在 Hook 调用后再做渲染短路，保证 Hook 规则正确。
-  if (!from || !to) return null;
-  if (!isActive) return null;
-
+  if (!endpoints) return null;
   return (
-    <points ref={particlesRef}>
-      <bufferGeometry attach="geometry" {...particlesGeometry} />
-      <pointsMaterial
-        color={color}
-        size={0.15}
-        transparent
-        opacity={1}
-        toneMapped={false}
-      />
-    </points>
+    <group>
+      <Line points={endpoints.points} color={lineColor} lineWidth={2} opacity={isPeak ? 0.9 : 0.6} transparent />
+      {isActive && !isDown && (
+        <>
+          <Line points={endpoints.points} color={lineColor} lineWidth={5} opacity={isPeak ? 0.18 : 0.1} transparent />
+          <points ref={particlesRef}>
+            <bufferGeometry attach="geometry" {...particlesGeometry} />
+            <pointsMaterial color={particleColor} size={0.15} transparent opacity={1} toneMapped={false} />
+          </points>
+        </>
+      )}
+    </group>
   );
 }
 
 /** 渲染拓扑场景中的网格、设备、链路与流粒子。 */
 function Scene({ topology, onDeviceClick }) {
-  const safe = normalizeTopology(topology);
+  const devices = topology?.devices || [];
+  const links = topology?.links || [];
 
   return (
     <>
@@ -481,15 +357,10 @@ function Scene({ topology, onDeviceClick }) {
         sectionColor="#334155"
       />
 
-      {safe.devices.map((device) => (
+      {devices.map((device) => (
         <DeviceMesh key={device.id} device={device} onClick={(e) => { e.stopPropagation(); onDeviceClick && onDeviceClick(device); }} />
       ))}
-      {safe.links.map((link) => (
-        <React.Fragment key={link.id}>
-            <LinkLine link={link} devices={safe.devices} />
-            <FlowParticles link={link} devices={safe.devices} />
-        </React.Fragment>
-      ))}
+      {links.map((link) => <LinkEffects key={link.id} link={link} devices={devices} />)}
     </>
   );
 }

@@ -19,7 +19,6 @@ class Device(BaseModel):
     netmask: Optional[str] = None
     status: str = "up"
     ospf: Optional[Dict[str, Any]] = None
-    configuration: Dict[str, Any] = Field(default_factory=dict)
     interfaces: List[Dict[str, Any]] = Field(default_factory=list)
     vlan: Optional[int] = None
 

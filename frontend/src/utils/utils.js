@@ -6,23 +6,55 @@
  */
 
 /**
- * 规范化设备类型字符串
- */
-export const normalizeDeviceType = (device) =>
-  String(device?.deviceType || device?.role || '').toLowerCase();
-
-/**
  * 判断链路状态是否为“可用/连通”
  */
 export const isLinkActive = (status) => {
-  const s = String(status || '').toLowerCase();
-  return s === 'up' || s === 'active';
+  const s = String(status).toLowerCase();
+  return s === 'up';
+};
+
+/**
+ * 计算拓扑健康统计（用于侧边栏/监控概览复用）
+ */
+export const getTopologyHealth = (networkTopology) => {
+  const devices = Array.isArray(networkTopology?.devices) ? networkTopology?.devices : [];
+  const links = Array.isArray(networkTopology?.links) ? networkTopology?.links : [];
+  const normalizeStatus = (status) => String(status).toLowerCase();
+  const activeDevices = devices.filter((device) => {
+    const s = normalizeStatus(device?.status);
+    return s !== 'offline' && s !== 'maintenance' && s !== 'error';
+  }).length;
+  const activeLinks = links.filter((link) => isLinkActive(link?.status)).length;
+  const issueDevices = devices.filter((device) => {
+    const s = normalizeStatus(device?.status);
+    return s === 'offline' || s === 'maintenance' || s === 'warning' || s === 'error';
+  }).length;
+  const issueLinks = links.filter((link) => {
+    const s = normalizeStatus(link?.status);
+    return s === 'inactive' || s === 'failed';
+  }).length;
+  const deviceTotal = devices.length;
+  const linkTotal = links.length;
+  const deviceHealth = deviceTotal ? Math.round((activeDevices / deviceTotal) * 100) : 0;
+  const linkHealth = linkTotal ? Math.round((activeLinks / linkTotal) * 100) : 0;
+  const healthScore = Math.round(deviceHealth * 0.65 + linkHealth * 0.35);
+  return {
+    deviceTotal,
+    linkTotal,
+    activeDevices,
+    activeLinks,
+    issueDevices,
+    issueLinks,
+    deviceHealth,
+    linkHealth,
+    healthScore,
+  };
 };
 
 /**
  * 汇总设备可推导出的所有 VLAN ID（去重、排序）
  */
-export const getAllVlans = (device) => {
+export const getVlans = (device) => {
   const vlans = new Set();
   if (device?.vlan != null) vlans.add(Number(device.vlan));
 
@@ -41,7 +73,7 @@ export const getAllVlans = (device) => {
  */
 export const isVlanCapableDevice = (device) => {
   if (!device) return false;
-  const type = normalizeDeviceType(device);
+  const type = String(device?.deviceType || '').toLowerCase();
   const name = String(device?.name || '').toLowerCase();
   const role = String(device?.role || '').toLowerCase();
   if (
@@ -57,33 +89,3 @@ export const isVlanCapableDevice = (device) => {
   return ifaces.some(it => it?.vlan != null || it?.mode || it?.allowedVlans);
 };
 
-/**
- * 判断设备是否为端点设备（PC/服务器/终端等）
- */
-export const isEndpointDevice = (device) => {
-  const t = normalizeDeviceType(device);
-  return t === 'pc' || t === 'server' || t === 'terminal' || t === 'host';
-};
-
-/**
- * 获取端点设备的 access VLAN（用于二层隔离判断）
- */
-export const getEndpointAccessVlan = (device) => {
-  if (!isEndpointDevice(device)) return null;
-  if (device?.vlan != null) return Number(device.vlan);
-  const ifaces = Array.isArray(device?.interfaces) ? device.interfaces : [];
-  for (const it of ifaces) {
-    const mode = String(it?.mode || 'access').toLowerCase();
-    if (mode !== 'trunk' && it?.vlan != null) return Number(it.vlan);
-  }
-  return null;
-};
-
-/**
- * 获取用于 UI 展示的 VLAN ID（优先使用显式字段，其次从集合推导）
- */
-export const getDisplayVlanId = (device) => {
-  if (device?.vlan != null) return Number(device.vlan);
-  const all = getAllVlans(device);
-  return all.length ? all[0] : null;
-};

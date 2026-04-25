@@ -17,12 +17,12 @@ const Header = () => {
         style={{
           height: '100%',
           display: 'flex',
-          alignItems: 'center',
+          marginTop: 18,
           justifyContent: 'center',
           width: '100%',
         }}
       >
-        <Text strong style={{ color: '#e5e7eb', fontSize: 30, textAlign: 'center' }}>
+        <Text strong style={{ color: '#e5e7eb', fontSize: 32, textAlign: 'center' }}>
           网络数字孪生实验平台
         </Text>
       </div>

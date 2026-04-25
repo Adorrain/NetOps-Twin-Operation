@@ -5,15 +5,6 @@
  * Date: 2026-01-30
  */
 
-/**
- * 网络设备类型枚举
- */
-export const DeviceType = {
-  PC: 'pc',
-  ROUTER: 'router',
-  SWITCH: 'switch',
-  SERVER: 'server',
-};
 
 /**
  * 设备状态枚举
@@ -45,23 +36,10 @@ export const DEVICE_SIZE_CONFIG = {
   access: { size: [2, 0.5, 1.5] },
   edge: { size: [2.3, 0.7, 1.7] },
   server: { size: [1.2, 2.5, 1.2] },
-  router: { size: [2, 0.5, 1.5] },
+  router: { size: [2.6, 0.8, 2.1] },
   pc: { size: [0.8, 0.6, 0.1] },
 };
 
-/**
- * 设备基础颜色配置
- */
-export const BASE_COLOR_BY_TYPE = {
-  core: '#00ffff',
-  aggregation: '#38bdf8',
-  access: '#3b82f6',
-  edge: '#f97316',
-  router: '#4ade80',
-  server: '#a855f7',
-  pc: '#94a3b8',
-  unknown: '#64748b',
-};
 
 /**
  * VLAN 颜色配置

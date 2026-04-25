@@ -18,6 +18,7 @@ class SimulationService:
         self.topologyData = topologyData
         self.db = db
         self.snapshot = snapshot
+        self._vlan_baseline = {}
 
     def _persist_snapshot(self, description, type=None, target=None):
         """持久化拓扑快照"""
@@ -495,17 +496,16 @@ class SimulationService:
 
     def _ensure_vlan_baseline(self, device):
         """确保设备 VLAN 基线配置"""
-        baselineConfig = device.configuration
-        if "vlanBaseline" not in baselineConfig:
-            baselineConfig["vlanBaseline"] = {}
-        return baselineConfig["vlanBaseline"]
+        device_id = getattr(device, "id", None)
+        if device_id not in self._vlan_baseline:
+            self._vlan_baseline[device_id] = {}
+        return self._vlan_baseline[device_id]
 
     def RecoverVlan(self, body):
         """恢复 VLAN 配置"""
         device = self._deviceMap().get(body.deviceId)
         iface = self._getInterfaceByName(device, body.port) if device else None
-        config = device.configuration if device else {}
-        vlan_baseline = config.get("vlanBaseline", {}) if isinstance(config, dict) else {}
+        vlan_baseline = self._vlan_baseline.get(body.deviceId, {})
         baseline = vlan_baseline.get(body.port)
         mode = (baseline or {}).get("mode", "access")
         baseline_vlan = (baseline or {}).get("vlan")

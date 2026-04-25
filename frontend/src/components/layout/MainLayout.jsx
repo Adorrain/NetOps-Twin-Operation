@@ -7,24 +7,11 @@ const { Content } = Layout
 
 const MainLayout = ({ children, networkTopology }) => {
   return (
-    <Layout style={{ minHeight: '100vh', height: '100vh', overflow: 'hidden', background: 'transparent' }}>
-
+    <Layout style={{ height: '100vh', overflow: 'hidden' }}>
       <Sidebar networkTopology={networkTopology} />
-
-      <Layout style={{ padding: 12, gap: 12, minHeight: 0, overflow: 'hidden', background: 'transparent' }}>
+      <Layout style={{ minHeight: 0, overflow: 'hidden' }}>
         <Header />
-
-        <Content
-          style={{
-            flex: 1,
-            minHeight: 0,
-            position: 'relative',
-            overflow: 'hidden',
-            background: '#0b1220',
-            borderRadius: 12,
-            boxShadow: 'none',
-          }}
-        >
+        <Content style={{ background: '#0b1220', minHeight: 0, overflow: 'hidden' }}>
           {children}
         </Content>
       </Layout>
