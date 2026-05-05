@@ -11,3 +11,72 @@ body {
   background: #0b1220;
   overflow: hidden;
 }
+.app-header {
+  height: 64px;
+  background: #0b1220;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+}
+
+.header-content {
+  width: 100%;
+  text-align: center;
+}
+
+.header-title {
+  font-size: 28px;
+  color: #e5e7eb;
+  font-weight: 600;
+}
+
+.app-layout {
+  height: 100vh;
+}
+
+.app-main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.app-content {
+  flex: 1;
+  background: #0b1220;
+  overflow: hidden; 
+}
+.app-sider {
+  height: 100vh;
+  background: #0b1220;
+}
+
+.sider-logo {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #e5e7eb;
+  font-size: 18px;
+  font-weight: 600;
+  margin-top: 50px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.app-menu {
+  margin-top: 60px;
+}
+
+.app-menu .ant-menu-item {
+  height: 56px;
+  line-height: 56px;
+  margin: 4px 8px; 
+  border-radius: 10px;
+}
+
+.app-menu .ant-menu-title-content {
+  font-size: 15px;
+}
+
+.app-menu .ant-menu-item .anticon {
+  font-size: 18px;
+}

@@ -8,6 +8,8 @@ https://cloud.tencent.com/developer/article/2242550
 
 官方文档：https://docs.pydantic.dev/latest/
 
-
 智能路由
 https://www.amazonaws.cn/what-is/intelligent-routing/
+
+dijkstra堆优化
+https://study.kamacoder.com/questions/502135

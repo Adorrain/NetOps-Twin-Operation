@@ -1,50 +1,26 @@
-/**
- * 3D 网络拓扑可视化组件。
- *
- * 基于 React Three Fiber 渲染设备、链路与标签，并提供交互（选择/悬停/轨道控制等）。
- *
- * 作者: Adorrain
- * 创建时间: 2026-01-30
- */
-
 import React, { Suspense, useMemo, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Grid, Text, RoundedBox, Line, Float } from '@react-three/drei';
 import * as THREE from 'three';
-import { DEVICE_SIZE_CONFIG, VLAN_PALETTE } from '../../types';
+import { DEVICE_SIZE, VLAN_COLOR } from '../../types';
 import { getVlans } from '../../utils/utils';
 
-const getDeviceKind = (device) => {
-  const text = `${device?.name || ''} ${device?.role || ''} ${device?.deviceType || ''}`.toLowerCase();
-  if (text.includes('router')) return 'router';
-  if (text.includes('server')) return 'server';
-  if (text.includes('pc') || text.includes('terminal') || text.includes('host')) return 'pc';
-  if (text.includes('core')) return 'core';
-  if (text.includes('agg') || text.includes('aggregation')) return 'aggregation';
-  if (text.includes('edge')) return 'edge';
-  return 'access';
+const getLinkpoints = (link, devices) => {
+  const src = devices.find((device) => String(device.id) === String(link.srcDevice));
+  const dst = devices.find((device) => String(device.id) === String(link.dstDevice));
+  if (!src?.position || !dst?.position) {
+    return null;
+  }
+  return {
+    src,
+    dst,
+    points: [
+      [src.position.x, 0.5, src.position.z],
+      [dst.position.x, 0.5, dst.position.z],
+    ],
+  };
 };
 
-const getDeviceSize = (kind) => DEVICE_SIZE_CONFIG[kind]?.size || DEVICE_SIZE_CONFIG.access.size;
-
-/** 获取设备底部环形指示器颜色。 */
-const getRingColor = (device) => {
-  const vlanId = getVlans(device)[0];
-  return vlanId ? VLAN_PALETTE[parseInt(vlanId, 10) % VLAN_PALETTE.length] : '#334155';
-};
-
-const isLinkActiveLoose = (status) => {
-  if (status == null || status === '') return true;
-  const s = String(status || '').toLowerCase();
-  return s === 'up' || s === 'active' || s === 'online';
-};
-
-/**
- * ===========================
- * 设备模型组件
- * ===========================
- */
-/** 渲染服务器设备模型。 */
 const ServerDevice = ({ size, statusColor = '#22c55e' }) => {
   return (
     <group>
@@ -74,7 +50,6 @@ const ServerDevice = ({ size, statusColor = '#22c55e' }) => {
   );
 };
 
-/** 渲染交换机设备模型 */
 const SwitchDevice = ({ size, color = '#38bdf8', statusColor = '#22c55e' }) => {
   return (
     <group position={[0, ((size[1] * 1.28) - size[1]) / 2, 0]}>
@@ -130,7 +105,6 @@ const SwitchDevice = ({ size, color = '#38bdf8', statusColor = '#22c55e' }) => {
   );
 };
 
-/** 渲染路由器设备模型。 */
 const RouterDevice = ({ size }) => {
   return (
     <group>
@@ -157,26 +131,21 @@ const RouterDevice = ({ size }) => {
     </group>
   );
 };
-/** 渲染终端/PC设备模型（显示器风格）。 */
+
 const TerminalDevice = ({ size }) => {
   return (
     <group scale={[1.35, 1.35, 1.35]}>
-      {/* 屏幕 */}
       <RoundedBox args={[size[0], size[1]*0.8, 0.1]} radius={0.05} position={[0, size[1]/2, 0]}>
         <meshPhysicalMaterial color="#475569" roughness={0.3} metalness={0.2} />
       </RoundedBox>
-      {/* 屏幕内容 */}
       <mesh position={[0, size[1]/2, 0.06]}>
         <planeGeometry args={[size[0], size[1]*0.8]} />
         <meshStandardMaterial color="#475569" roughness={0.35} metalness={0.05} opacity={0.8} transparent />
       </mesh>
-
-      {/* 支架 */}
       <mesh position={[0, 0, -0.2]}>
         <cylinderGeometry args={[0.05, 0.1, 0.5]} />
         <meshStandardMaterial color="#475569" />
       </mesh>
-      {/* 底座 */}
       <mesh position={[0, -0.25, -0.2]}>
         <boxGeometry args={[0.4, 0.05, 0.4]} />
         <meshStandardMaterial color="#475569" />
@@ -186,20 +155,12 @@ const TerminalDevice = ({ size }) => {
 };
 
 function DeviceMesh({ device, onClick }) {
-  const { position = { x: 0, y: 0, z: 0 }, name } = device;
-  const kind = getDeviceKind(device);
-  const
-    size = getDeviceSize(kind),
-    vlanId = getVlans(device)[0],
-    ringColor = getRingColor(device);
-  const meshRef = useRef();
-
+  const size = DEVICE_SIZE[device?.deviceType].size;
+  const vlanId = getVlans(device)[0];
+  const  vlanColor = vlanId ? VLAN_COLOR[vlanId % VLAN_COLOR.length]: '#334155';
+  console.log(vlanId, vlanColor);
   const renderModel = () => {
-    switch (kind) {
-      case 'core':
-      case 'aggregation':
-      case 'access':
-      case 'edge':
+    switch (device?.deviceType) {
       case 'switch':
         return <SwitchDevice size={size} />;
       case 'server':
@@ -214,135 +175,93 @@ function DeviceMesh({ device, onClick }) {
   };
 
   return (
-    <group 
-      ref={meshRef}
-      position={[position.x ?? 0, (position.y ?? 0) + size[1] / 2, position.z ?? 0]} 
-      onClick={(e) => { e.stopPropagation(); onClick && onClick(e); }}
+    <group
+      position={[device?.position?.x,device?.position?.y + size?.[1] / 2,device?.position?.z,]}
+      onClick={(e) => {e.stopPropagation();onClick?.(e);}}
     >
-      {/* 设备主体（悬浮动画容器） */}
       <Float speed={2} rotationIntensity={0.2} floatIntensity={0.2}>
         {renderModel()}
       </Float>
 
-      {/* 设备名称 (公告牌效果) */}
+    <Text
+      position={[0, size?.[1] + 0.5, 0]}
+      fontSize={0.4}
+      color="white"
+      outlineWidth={0.02}
+      outlineColor="#000"
+    >
+      {device?.name}
+    </Text>
+
+    <mesh
+      position={[0, -(size?.[1] / 2) + 0.02, 0]}
+      rotation={[-Math.PI / 2, 0, 0]}
+    >
+      <ringGeometry args={[size?.[0] / 2 || 1, (size?.[0] / 2 || 1) + 0.15, 32]} />
+      <meshBasicMaterial
+        color={vlanColor}
+        transparent
+        opacity={vlanId ? 0.6 : 0.3}
+        side={THREE.DoubleSide}
+      />
+    </mesh>
+
+    {vlanId && (
       <Text
-        position={[0, size[1] + 0.5, 0]}
-        fontSize={0.4}
-        color="white"
-        anchorX="center"
-        anchorY="middle"
-        outlineWidth={0.02}
-        outlineColor="#000000"
+        position={[0, -(size?.[1] / 2) + 0.02, (size?.[0] / 2) + 0.4]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        fontSize={0.25}
+        color={vlanColor}
       >
-        {name}
+        VLAN {vlanId}
       </Text>
+    )}
+  </group>
+)};
 
-      {/* 底部环形指示器（含 VLAN 颜色语义） */}
-      <mesh position={[0, -size[1]/2 + 0.02, 0]} rotation={[-Math.PI/2, 0, 0]}>
-        <ringGeometry args={[size[0]/2, size[0]/2 + 0.15, 32]} />
-        <meshBasicMaterial 
-            color={ringColor} 
-            opacity={vlanId ? 0.6 : 0.3}
-            transparent 
-            side={THREE.DoubleSide} 
-            toneMapped={false}
-        />
-      </mesh>
 
-      {/* 可选：VLAN 文字标签 (仅当有VLAN时显示在脚下) */}
-      {vlanId && (
-        <Text
-          position={[0, -size[1]/2 + 0.02, size[0]/2 + 0.4]}
-          rotation={[-Math.PI/2, 0, 0]}
-          fontSize={0.25}
-          color={ringColor}
-          anchorX="center"
-          anchorY="middle"
-        >
-          {`VLAN ${vlanId}`}
-        </Text>
-      )}
-    </group>
-  );
-}
 
-/**
- * ===========================
- * 链路（光束效果）
- * ===========================
- */
-const getLinkEndpoints = (link, devices) => {
-  const from = devices.find((d) => String(d.id) === String(link.srcDevice));
-  const to = devices.find((d) => String(d.id) === String(link.dstDevice));
-  if (!from?.position || !to?.position) return null;
-  return {
-    from,
-    to,
-    points: [
-      [from.position.x, 0.5, from.position.z],
-      [to.position.x, 0.5, to.position.z],
-    ],
-  };
-};
-
-function LinkEffects({ link, devices }) {
-  const endpoints = getLinkEndpoints(link, devices);
+function LinkMesh({ link, devices }) {
+  const endpoints = getLinkpoints(link, devices);
   const particlesRef = useRef();
-  const status = String(link.status || '').toLowerCase();
-  const isActive = isLinkActiveLoose(status);
-  const isDown = status === 'down';
-  const isPeak =
-    Boolean(link.is_peak) ||
-    Number(link.utilization ?? 0) >= 0.75 ||
-    ['high', 'critical'].includes(String(link.peak_level || '').toLowerCase());
-  const lineColor = isActive ? '#3b82f6' : '#334155';
-  const particleCount = 5;
-  const particleColor = '#38bdf8';
 
   const particlesGeometry = useMemo(() => {
-    const geometry = new THREE.BufferGeometry();
-    const positions = new Float32Array(particleCount * 3);
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    return geometry;
-  }, [particleCount]);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(5 * 3), 3));
+    return g;
+  }, []);
 
   useFrame(({ clock }) => {
-    if (!particlesRef.current || !endpoints) return;
+    if (!particlesRef.current || !endpoints?.src?.position || !endpoints?.dst?.position) return;
 
-    const start = new THREE.Vector3(endpoints.from.position.x, 0.5, endpoints.from.position.z);
-    const end = new THREE.Vector3(endpoints.to.position.x, 0.5, endpoints.to.position.z);
-    const elapsed = clock.getElapsedTime();
-    const positions = particlesRef.current.geometry.attributes.position;
+    const start = new THREE.Vector3(endpoints.src.position.x, 0.5, endpoints.src.position.z);
+    const end = new THREE.Vector3(endpoints.dst.position.x, 0.5, endpoints.dst.position.z);
 
-    for (let i = 0; i < particleCount; i++) {
-      const t = (elapsed + i / particleCount) % 1;
-      const pos = new THREE.Vector3().lerpVectors(start, end, t);
-      positions.setXYZ(i, pos.x, pos.y, pos.z);
+    const pos = particlesRef.current.geometry.attributes.position;
+
+    for (let i = 0; i < 5; i++) {
+      const p = new THREE.Vector3().lerpVectors(start, end, (clock.getElapsedTime() + i / 5) % 1);
+      pos.setXYZ(i, p.x, p.y, p.z);
     }
-    positions.needsUpdate = true;
+
+    pos.needsUpdate = true;
   });
 
-  if (!endpoints) return null;
   return (
     <group>
-      <Line points={endpoints.points} color={lineColor} lineWidth={2} opacity={isPeak ? 0.9 : 0.6} transparent />
-      {isActive && !isDown && (
-        <>
-          <Line points={endpoints.points} color={lineColor} lineWidth={5} opacity={isPeak ? 0.18 : 0.1} transparent />
-          <points ref={particlesRef}>
-            <bufferGeometry attach="geometry" {...particlesGeometry} />
-            <pointsMaterial color={particleColor} size={0.15} transparent opacity={1} toneMapped={false} />
-          </points>
-        </>
-      )}
+      <Line points={endpoints.points} color="#3b82f6" lineWidth={2} opacity={0.6} transparent />
+
+      <points ref={particlesRef}>
+        <bufferGeometry attach="geometry" {...particlesGeometry} />
+        <pointsMaterial color="#38bdf8" size={0.15} transparent opacity={1} />
+      </points>
     </group>
   );
 }
 
-/** 渲染拓扑场景中的网格、设备、链路与流粒子。 */
-function Scene({ topology, onDeviceClick }) {
-  const devices = topology?.devices || [];
-  const links = topology?.links || [];
+function Scene({ networkTopology, onDeviceClick }) {
+  const devices = networkTopology?.devices || [];
+  const links = networkTopology?.links || [];
 
   return (
     <>
@@ -358,41 +277,42 @@ function Scene({ topology, onDeviceClick }) {
       />
 
       {devices.map((device) => (
-        <DeviceMesh key={device.id} device={device} onClick={(e) => { e.stopPropagation(); onDeviceClick && onDeviceClick(device); }} />
+        <DeviceMesh
+          key={device.id}
+          device={device}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDeviceClick?.(device);
+          }}
+        />
       ))}
-      {links.map((link) => <LinkEffects key={link.id} link={link} devices={devices} />)}
+
+      {links.map((link) => (
+        <LinkMesh key={link.id} link={link} devices={devices} />
+      ))}
     </>
   );
 }
 
-/** 3D拓扑视图主组件，负责构建 Canvas 与相机/光照控制。 */
-export default function NetworkTopology3D({ topology, onDeviceClick }) {
+export default function NetworkTopology3D({ networkTopology, onDeviceClick }) {
   return (
     <div style={{ width: '100%', height: '100%', background: '#0b1220' }}>
-        <Canvas
-          shadows
-          camera={{ position: [15, 12, 15], fov: 45 }}
-          dpr={[1, 2]}
-        >
-          {/* 环境与光照 - 均衡亮度版 */}
-          <ambientLight intensity={1.5} />
-          <hemisphereLight intensity={1.0} groundColor="#1e293b" skyColor="#ffffff" />
-          <directionalLight position={[10, 10, 5]} intensity={2.5} castShadow />
-          <pointLight position={[-10, 10, -10]} intensity={2.0} />
-          {/* <Environment preset="city" /> */} 
+      <Canvas shadows camera={{ position: [15, 12, 15], fov: 45 }} dpr={[1, 2]}>
+        <ambientLight intensity={1.5} />
+        <hemisphereLight intensity={1} groundColor="#1e293b" skyColor="#fff" />
+        <directionalLight position={[10, 10, 5]} intensity={2.5} castShadow />
+        <pointLight position={[-10, 10, -10]} intensity={2} />
 
-          <Suspense fallback={null}>
-            <Scene topology={topology} onDeviceClick={onDeviceClick} />
-          </Suspense>
+        <Suspense fallback={null}>
+          <Scene networkTopology={networkTopology} onDeviceClick={onDeviceClick} />
+        </Suspense>
 
-          <OrbitControls 
-            minDistance={5} 
-            maxDistance={50} 
-            maxPolarAngle={Math.PI / 2.1} 
-            autoRotate={false}
-            autoRotateSpeed={0.5}
-          />
-        </Canvas>
+        <OrbitControls
+          minDistance={5}
+          maxDistance={50}
+          maxPolarAngle={Math.PI / 2.1}
+        />
+      </Canvas>
     </div>
   );
 }

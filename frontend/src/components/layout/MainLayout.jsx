@@ -5,18 +5,18 @@ import Sidebar from './Sidebar'
 
 const { Content } = Layout
 
-const MainLayout = ({ children, networkTopology }) => {
+export default function MainLayout({ children }) {
   return (
-    <Layout style={{ height: '100vh', overflow: 'hidden' }}>
-      <Sidebar networkTopology={networkTopology} />
-      <Layout style={{ minHeight: 0, overflow: 'hidden' }}>
+    <Layout className="app-layout">
+      <Sidebar />
+
+      <Layout className="app-main">
         <Header />
-        <Content style={{ background: '#0b1220', minHeight: 0, overflow: 'hidden' }}>
+
+        <Content className="app-content">
           {children}
         </Content>
       </Layout>
     </Layout>
   )
 }
-
-export default MainLayout

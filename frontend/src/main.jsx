@@ -1,7 +1,3 @@
-/**
- * 前端应用入口（简化版）
- */
-
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { ConfigProvider, theme } from 'antd'

@@ -1,5 +1,5 @@
- # 数据中心三层映射
- 
+# 数据中心三层映射
+
 ospfReferenceBandwidth: 10G
 
 devices:
@@ -25,12 +25,36 @@ devices:
     ospf: { routerId: 1.1.1.1, area: 0 }
     interfaces:
       - { name: g0/0, ip: 10.0.1.1, netmask: 255.255.255.252, status: up }
-      - { name: g0/1, ip: 10.0.1.5, netmask: 255.255.255.252, status: up }
-      - { name: g0/2, ip: 10.0.1.17, netmask: 255.255.255.252, status: up }
-      - { name: g0/3, ip: 10.0.1.13, netmask: 255.255.255.252, status: up }
+      - {
+          name: g0/1,
+          ip: 10.0.1.5,
+          netmask: 255.255.255.252,
+          status: up,
+          vlans: [10],
+        }
+      - {
+          name: g0/2,
+          ip: 10.0.1.17,
+          netmask: 255.255.255.252,
+          status: up,
+          vlans: [20],
+        }
+      - {
+          name: g0/3,
+          ip: 10.0.1.13,
+          netmask: 255.255.255.252,
+          status: up,
+          vlans: [30],
+        }
+      - {
+          name: g0/4,
+          ip: 10.0.1.5,
+          netmask: 255.255.255.252,
+          status: up,
+          vlans: [40],
+        }
 
   - id: spine-2
-    name: Spine交换机-2
     role: aggregation
     deviceType: switch
     ip: 10.0.0.2
@@ -42,6 +66,7 @@ devices:
       - { name: g0/1, ip: 10.0.2.5, netmask: 255.255.255.252, status: up }
       - { name: g0/2, ip: 10.0.2.17, netmask: 255.255.255.252, status: up }
       - { name: g0/3, ip: 10.0.2.13, netmask: 255.255.255.252, status: up }
+      - { name: g0/4, ip: 10.0.2.5, netmask: 255.255.255.252, status: up }
 
   - id: leaf-1
     name: Leaf交换机-1
@@ -51,13 +76,12 @@ devices:
     netmask: 255.255.255.0
     status: up
     ospf: { routerId: 11.11.11.11, area: 1 }
-    vlans: [{ vlanId: 10, name: 业务网-1 }]
     interfaces:
       - { name: g0/0, ip: 10.0.1.2, netmask: 255.255.255.252, status: up }
       - { name: g0/1, ip: 10.0.2.2, netmask: 255.255.255.252, status: up }
-      - { name: g1/0, mode: access, vlan: 10, status: up }
-      - { name: g1/1, mode: access, vlan: 10, status: up }
-      - { name: g1/2, mode: access, vlan: 10, status: up }
+      - { name: g1/0, mode: access, vlans: [10], status: up }
+      - { name: g1/1, mode: access, vlans: [10], status: up }
+      - { name: g1/2, mode: access, vlans: [10], status: up }
 
   - id: leaf-2
     name: Leaf交换机-2
@@ -67,13 +91,12 @@ devices:
     netmask: 255.255.255.0
     status: up
     ospf: { routerId: 12.12.12.12, area: 1 }
-    vlans: [{ vlanId: 20, name: 业务网-2 }]
     interfaces:
       - { name: g0/0, ip: 10.0.1.6, netmask: 255.255.255.252, status: up }
       - { name: g0/1, ip: 10.0.2.6, netmask: 255.255.255.252, status: up }
-      - { name: g1/0, mode: access, vlan: 20, status: up }
-      - { name: g1/1, mode: access, vlan: 20, status: up }
-      - { name: g1/2, mode: access, vlan: 20, status: up }
+      - { name: g1/0, mode: access, vlans: [20], status: up }
+      - { name: g1/1, mode: access, vlans: [20], status: up }
+      - { name: g1/2, mode: access, vlans: [20], status: up }
 
   - id: leaf-3
     name: Leaf交换机-3
@@ -83,13 +106,12 @@ devices:
     netmask: 255.255.255.0
     status: up
     ospf: { routerId: 13.13.13.13, area: 2 }
-    vlans: [{ vlanId: 30, name: 业务网-3 }]
     interfaces:
       - { name: g0/0, ip: 10.0.1.18, netmask: 255.255.255.252, status: up }
       - { name: g0/1, ip: 10.0.2.18, netmask: 255.255.255.252, status: up }
-      - { name: g1/0, mode: access, vlan: 30, status: up }
-      - { name: g1/1, mode: access, vlan: 30, status: up }
-      - { name: g1/2, mode: access, vlan: 30, status: up }
+      - { name: g1/0, mode: access, vlans: [30], status: up }
+      - { name: g1/1, mode: access, vlans: [30], status: up }
+      - { name: g1/2, mode: access, vlans: [30], status: up }
 
   - id: leaf-4
     name: Leaf交换机-4
@@ -99,13 +121,12 @@ devices:
     netmask: 255.255.255.0
     status: up
     ospf: { routerId: 14.14.14.14, area: 2 }
-    vlans: [{ vlanId: 40, name: 业务网-4 }]
     interfaces:
       - { name: g0/0, ip: 10.0.1.14, netmask: 255.255.255.252, status: up }
       - { name: g0/1, ip: 10.0.2.14, netmask: 255.255.255.252, status: up }
-      - { name: g1/0, mode: access, vlan: 40, status: up }
-      - { name: g1/1, mode: access, vlan: 40, status: up }
-      - { name: g1/2, mode: access, vlan: 40, status: up }
+      - { name: g1/0, mode: access, vlans: [40], status: up }
+      - { name: g1/1, mode: access, vlans: [40], status: up }
+      - { name: g1/2, mode: access, vlans: [40], status: up }
 
   - id: server-1
     name: 服务器-1
@@ -114,14 +135,13 @@ devices:
     ip: 192.168.10.10
     netmask: 255.255.255.0
     gateway: 192.168.10.1
-    vlan: 10
     status: up
     interfaces:
       - {
           name: eth0,
           ip: 192.168.10.10,
           netmask: 255.255.255.0,
-          vlan: 10,
+          vlans: [10],
           status: up,
         }
 
@@ -133,7 +153,6 @@ devices:
       ip: 192.168.10.11,
       netmask: 255.255.255.0,
       gateway: 192.168.10.1,
-      vlan: 10,
       status: up,
       interfaces:
         [
@@ -141,7 +160,7 @@ devices:
             name: eth0,
             ip: 192.168.10.11,
             netmask: 255.255.255.0,
-            vlan: 10,
+            vlans: [10],
             status: up,
           },
         ],
@@ -154,7 +173,6 @@ devices:
       ip: 192.168.10.12,
       netmask: 255.255.255.0,
       gateway: 192.168.10.1,
-      vlan: 10,
       status: up,
       interfaces:
         [
@@ -162,7 +180,7 @@ devices:
             name: eth0,
             ip: 192.168.10.12,
             netmask: 255.255.255.0,
-            vlan: 10,
+            vlans: [10],
             status: up,
           },
         ],
@@ -176,7 +194,6 @@ devices:
       ip: 192.168.20.10,
       netmask: 255.255.255.0,
       gateway: 192.168.20.1,
-      vlan: 20,
       status: up,
       interfaces:
         [
@@ -184,7 +201,7 @@ devices:
             name: eth0,
             ip: 192.168.20.10,
             netmask: 255.255.255.0,
-            vlan: 20,
+            vlans: [20],
             status: up,
           },
         ],
@@ -197,7 +214,6 @@ devices:
       ip: 192.168.20.11,
       netmask: 255.255.255.0,
       gateway: 192.168.20.1,
-      vlan: 20,
       status: up,
       interfaces:
         [
@@ -205,7 +221,7 @@ devices:
             name: eth0,
             ip: 192.168.20.11,
             netmask: 255.255.255.0,
-            vlan: 20,
+            vlans: [20],
             status: up,
           },
         ],
@@ -218,7 +234,6 @@ devices:
       ip: 192.168.20.12,
       netmask: 255.255.255.0,
       gateway: 192.168.20.1,
-      vlan: 20,
       status: up,
       interfaces:
         [
@@ -226,7 +241,7 @@ devices:
             name: eth0,
             ip: 192.168.20.12,
             netmask: 255.255.255.0,
-            vlan: 20,
+            vlans: [20],
             status: up,
           },
         ],
@@ -240,7 +255,6 @@ devices:
       ip: 192.168.30.10,
       netmask: 255.255.255.0,
       gateway: 192.168.30.1,
-      vlan: 30,
       status: up,
       interfaces:
         [
@@ -248,7 +262,7 @@ devices:
             name: eth0,
             ip: 192.168.30.10,
             netmask: 255.255.255.0,
-            vlan: 30,
+            vlans: [30],
             status: up,
           },
         ],
@@ -261,7 +275,6 @@ devices:
       ip: 192.168.30.11,
       netmask: 255.255.255.0,
       gateway: 192.168.30.1,
-      vlan: 30,
       status: up,
       interfaces:
         [
@@ -269,7 +282,7 @@ devices:
             name: eth0,
             ip: 192.168.30.11,
             netmask: 255.255.255.0,
-            vlan: 30,
+            vlans: [30],
             status: up,
           },
         ],
@@ -282,7 +295,6 @@ devices:
       ip: 192.168.30.12,
       netmask: 255.255.255.0,
       gateway: 192.168.30.1,
-      vlan: 30,
       status: up,
       interfaces:
         [
@@ -290,7 +302,7 @@ devices:
             name: eth0,
             ip: 192.168.30.12,
             netmask: 255.255.255.0,
-            vlan: 30,
+            vlans: [30],
             status: up,
           },
         ],
@@ -304,7 +316,6 @@ devices:
       ip: 192.168.40.10,
       netmask: 255.255.255.0,
       gateway: 192.168.40.1,
-      vlan: 40,
       status: up,
       interfaces:
         [
@@ -312,7 +323,7 @@ devices:
             name: eth0,
             ip: 192.168.40.10,
             netmask: 255.255.255.0,
-            vlan: 40,
+            vlans: [40],
             status: up,
           },
         ],
@@ -325,7 +336,6 @@ devices:
       ip: 192.168.40.11,
       netmask: 255.255.255.0,
       gateway: 192.168.40.1,
-      vlan: 40,
       status: up,
       interfaces:
         [
@@ -333,7 +343,7 @@ devices:
             name: eth0,
             ip: 192.168.40.11,
             netmask: 255.255.255.0,
-            vlan: 40,
+            vlans: [40],
             status: up,
           },
         ],
@@ -346,7 +356,6 @@ devices:
       ip: 192.168.40.12,
       netmask: 255.255.255.0,
       gateway: 192.168.40.1,
-      vlan: 40,
       status: up,
       interfaces:
         [
@@ -354,7 +363,7 @@ devices:
             name: eth0,
             ip: 192.168.40.12,
             netmask: 255.255.255.0,
-            vlan: 40,
+            vlans: [40],
             status: up,
           },
         ],
@@ -364,7 +373,7 @@ links:
   - {
       id: l1,
       srcDevice: spine-1,
-      srcInterface: g0/0,
+      srcInterface: g0/1,
       dstDevice: leaf-1,
       dstInterface: g0/0,
       bandwidth: 10G,
@@ -383,7 +392,7 @@ links:
   - {
       id: l3,
       srcDevice: spine-1,
-      srcInterface: g0/1,
+      srcInterface: g0/2,
       dstDevice: leaf-2,
       dstInterface: g0/0,
       bandwidth: 10G,
@@ -402,7 +411,7 @@ links:
   - {
       id: l5,
       srcDevice: spine-1,
-      srcInterface: g0/2,
+      srcInterface: g0/3,
       dstDevice: leaf-3,
       dstInterface: g0/0,
       bandwidth: 10G,
@@ -421,7 +430,7 @@ links:
   - {
       id: l7,
       srcDevice: spine-1,
-      srcInterface: g0/3,
+      srcInterface: g0/4,
       dstDevice: leaf-4,
       dstInterface: g0/0,
       bandwidth: 10G,

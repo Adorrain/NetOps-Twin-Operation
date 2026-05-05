@@ -16,7 +16,7 @@ const projectRoot = path.resolve(__dirname, '..')
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, projectRoot, '')
   const backendUrl =
-    env.BACKEND_URL?.trim() || 'http://127.0.0.1:8000'
+    env.BACKEND_URL?.trim() || 'http://127.0.0.1:8080'
 
   return {
     plugins: [react()],
