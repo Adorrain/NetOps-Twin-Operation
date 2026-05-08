@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import ConfigUploader from '../components/ui/ConfigUploader';
-import { useTopology } from '../utils/TopologyContext';
+import { useTopology } from '../utils/topologyContext';
 
 export default function UploadPage() {
   const navigate = useNavigate();

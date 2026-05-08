@@ -11,7 +11,6 @@ func SetupRouter(r *gin.Engine) {
 	{
 		topology.POST("/topology/upload", controller.UploadTopology)
 	}
-
 	simulation := r.Group("/api/ops")
 	{
 		simulation.POST("/ping", controller.Ping)

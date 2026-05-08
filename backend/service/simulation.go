@@ -23,6 +23,18 @@ func getLatestTopology() (*model.TopologyData, error) {
 	return &topology, nil
 }
 
+func GetLogs() model.ApiResponse {
+	log, err := repository.GetLatestLog()
+	if err != nil {
+		return utils.ServerError(err.Error())
+	}
+	return utils.Success("success", map[string]interface{}{
+		"operationType": log.OperationType,
+		"details":       log.Details,
+		"createdAt":     log.CreatedAt,
+	})
+}
+
 func updateDataBase(topology *model.TopologyData, logType, target, message, detail string) model.ApiResponse {
 	data, _ := json.Marshal(topology)
 	err := repository.CreateSnapshot(string(data))
@@ -255,30 +267,17 @@ func PeakTraffic(body *model.PeakTrafficBody) model.ApiResponse {
 }
 
 func SmartRoute(body *model.SmartRouteBody) model.ApiResponse {
-	topology, err := getLatestTopology()
-	if err != nil {
-		return utils.ServerError(err.Error())
-	}
-	graph := BuildForwardingGraph(topology)
-	path, cost := dijkstraEcmp(graph, body.SourceId, body.TargetId)
+	nsga2Response := NSGA2Service(body)
 
-	if path == nil {
-		return utils.NotFound("路径不可达")
+	if nsga2Response.Code != 200 {
+		return nsga2Response
+	}
+
+	solutions, ok := nsga2Response.Data.(map[string]interface{})["solutions"].([]map[string]interface{})
+	if !ok || len(solutions) == 0 {
+		return utils.NotFound("未能找到 NSGA-II 算法的解决方案")
 	}
 	return utils.Success("success", map[string]interface{}{
-		"path": path,
-		"cost": cost,
-	})
-}
-
-func GetLogs() model.ApiResponse {
-	log, err := repository.GetLatestLog()
-	if err != nil {
-		return utils.ServerError(err.Error())
-	}
-	return utils.Success("success", map[string]interface{}{
-		"operationType": log.OperationType,
-		"details":       log.Details,
-		"createdAt":     log.CreatedAt,
+		"solutions": solutions,
 	})
 }

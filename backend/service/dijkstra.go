@@ -38,22 +38,17 @@ func dijkstra(graph map[string]map[string]int, start, end string) ([]string, int
 	if _, ok := graph[start]; !ok {
 		return nil, -1
 	}
-
 	dist := make(map[string]int)
 	prev := make(map[string]string)
 	visited := make(map[string]bool)
-
 	for node := range graph {
 		dist[node] = math.MaxInt
 	}
-
 	pq := &PriorityQueue{{node: start, dist: 0}}
 	dist[start] = 0
-
 	for pq.Len() > 0 {
 		cur := heap.Pop(pq).(*Item)
 		u := cur.node
-
 		if visited[u] {
 			continue
 		}
@@ -82,6 +77,5 @@ func dijkstra(graph map[string]map[string]int, start, end string) ([]string, int
 	for i, j := 0, len(path)-1; i < j; i, j = i+1, j-1 {
 		path[i], path[j] = path[j], path[i]
 	}
-
 	return path, dist[end]
 }
