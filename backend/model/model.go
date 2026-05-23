@@ -13,6 +13,7 @@ type TracerouteBody struct {
 type SmartRouteBody struct {
 	SourceId string `json:"sourceId" binding:"required"`
 	TargetId string `json:"targetId" binding:"required"`
+	Scene    string `json:"scene"`
 }
 
 type DeviceStatusBody struct {
@@ -47,10 +48,10 @@ type OspfCostBody struct {
 	Cost   int    `json:"cost" binding:"required"`
 }
 
-type PeakTrafficBody struct {
-	SourceIds    []string `json:"sourceIds" binding:"required"`
-	TargetId     string   `json:"targetId" binding:"required"`
-	TotalTraffic float64  `json:"totalTraffic" binding:"required"`
+type PeakTrafficStartBody struct {
+	SourceId         string  `json:"sourceId" binding:"required"`
+	TargetId         string  `json:"targetId" binding:"required"`
+	TrafficIntensity float64 `json:"trafficIntensity" binding:"required"`
 }
 
 type Log struct {
@@ -84,7 +85,6 @@ type Link struct {
 
 type TopologyData struct {
 	OspfReferenceBandwidth string   `json:"ospfReferenceBandwidth" yaml:"ospfReferenceBandwidth"`
-	MaxCapacity            float64  `json:"maxCapacity" yaml:"maxCapacity"`
 	Devices                []Device `json:"devices" yaml:"devices"`
 	Links                  []Link   `json:"links" yaml:"links"`
 }

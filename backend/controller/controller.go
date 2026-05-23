@@ -120,15 +120,23 @@ func UpdateOspfCost(c *gin.Context) {
 	c.JSON(http.StatusOK, utils.Success(result.Message, result.Data))
 }
 
-func PeakTraffic(c *gin.Context) {
-	var body model.PeakTrafficBody
-
+func PeakTrafficStart(c *gin.Context) {
+	var body model.PeakTrafficStartBody
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, utils.BadRequest("参数错误"))
 		return
 	}
+	result := service.PeakTrafficStart(&body)
+	c.JSON(http.StatusOK, utils.Success(result.Message, result.Data))
+}
 
-	result := service.PeakTraffic(&body)
+func PeakTrafficStop(c *gin.Context) {
+	result := service.PeakTrafficStop()
+	c.JSON(http.StatusOK, utils.Success(result.Message, result.Data))
+}
+
+func PeakTrafficData(c *gin.Context) {
+	result := service.PeakTrafficData()
 	c.JSON(http.StatusOK, utils.Success(result.Message, result.Data))
 }
 

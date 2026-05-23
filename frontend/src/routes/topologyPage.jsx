@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Layout, Typography, Empty, Button, Modal } from 'antd';
 import NetworkTopology3D from '../components/3d/NetworkTopology3D';
 import DevicePanel from '../components/ui/DevicePanel';
-import OpsConsole from '../components/ui/OpsConsole';
+import { OpsConsole } from '../components/ui/OpsConsole';
 import MonitoringPanel from '../components/ui/MonitoringPanel';
 import { useTopology } from '../utils/topologyContext';
 

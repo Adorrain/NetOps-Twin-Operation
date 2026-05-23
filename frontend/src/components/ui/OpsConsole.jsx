@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Select, Button, Modal, Tag, message, Collapse,
   Space, Typography, Row, Col, Divider, List, Empty,
@@ -17,6 +17,7 @@ const OpsConsole = () => {
   const [targetId, setTargetId] = useState('');
   const [pingResult, setPingResult] = useState('');
   const [traceResult, setTraceResult] = useState([]);
+  const [traceUtilization, setTraceUtilization] = useState('');
   const [deviceStatus, setDeviceStatus] = useState('');
   const [linkId, setLinkId] = useState('');
   const [linkStatus, setLinkStatus] = useState('');
@@ -29,11 +30,21 @@ const OpsConsole = () => {
   const [ecmpTargetId, setEcmpTargetId] = useState('');
   const [ecmpLinkId, setEcmpLinkId] = useState('');
   const [ecmpCost, setEcmpCost] = useState(0);
+  const [ecmpResult, setEcmpResult] = useState([]);
+  const [ecmpResultCost, setEcmpResultCost] = useState(null);
   const [smartDeviceId, setSmartDeviceId] = useState('');
   const [smartTargetDeviceId, setSmartTargetDeviceId] = useState('');
-  const [peakSourceIds, setPeakSourceIds] = useState([]);
+  const [smartScene, setSmartScene] = useState('');
+  const [smartSolutions, setSmartSolutions] = useState([]);
+  const [smartSolutionIndex, setSmartSolutionIndex] = useState(0);
+  const [smartRouteSummary, setSmartRouteSummary] = useState('');
+  const [smartRouteResult, setSmartRouteResult] = useState([]);
+  const [peakSourceId, setPeakSourceId] = useState('');
   const [peakTargetId, setPeakTargetId] = useState('');
-  const [peakTotalTraffic, setPeakTotalTraffic] = useState(0);
+  const [peakTrafficIntensity, setPeakTrafficIntensity] = useState(0);
+  const [peakRunning, setPeakRunning] = useState(false);
+  const [peakData, setPeakData] = useState(null);
+  const peakTimerRef = useRef(null);
 
    const [logs, setLogs] = useState([]);
   const [logsOpen, setLogsOpen] = useState(false);
@@ -52,6 +63,62 @@ const OpsConsole = () => {
       if (res.code === 200) setLogs(prev => [...prev, res.data]);
     } catch {
       message.error('获取日志失败');
+    }
+  };
+
+  const stopPeakPolling = () => {
+    if (peakTimerRef.current) {
+      clearInterval(peakTimerRef.current);
+      peakTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      stopPeakPolling();
+    };
+  }, []);
+
+  const setPeakDataOnTopology = (data) => {
+    const linkData = Array.isArray(data?.links) ? data.links : [];
+    const m = new Map(linkData.map(item => [String(item.linkId), item]));
+
+    setNetworkTopology(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        links: (prev.links || []).map(link => {
+          const Data = m.get(String(link.id));
+          if (!Data) {
+            return {
+              ...link,
+              utilization: undefined,
+              capacity: undefined,
+              linkDelay: undefined,
+            };
+          }
+          return {
+            ...link,
+            utilization: Data.utilization,
+            capacity: Data.capacity,
+            linkDelay: Data.linkDelay,
+          };
+        }),
+      };
+    });
+  };
+
+  const fetchPeakData = async () => {
+    try {
+      const res = await opsApi.getPeakTrafficData();
+      if (res.code === 200) {
+        const running = Boolean(res.data?.running);
+        setPeakRunning(running);
+        setPeakData(res.data);
+        setPeakDataOnTopology(running ? res.data : null);
+      }
+    } catch {
+      message.error('获取峰值流量指标失败');
     }
   };
 
@@ -89,14 +156,19 @@ const OpsConsole = () => {
       if (res.code === 200) {
         const data = res.data;
         setTraceResult((data.path || []).map((n, i) => `${i + 1}. ${n} (${data.ip?.[i] ?? '-'})`));
+        setTraceUtilization(
+          typeof data.utilization === 'number' ? `链路利用率: ${data.utilization.toFixed(2)}%` : ''
+        );
         message.success('路由追踪完成');
       } else {
         message.warning(res.message || '操作失败');
         setTraceResult(['追踪失败']);
+        setTraceUtilization('');
       }
     } catch {
       message.error('系统错误');
       setTraceResult(['系统错误']);
+      setTraceUtilization('');
     } finally {
       fetchLogs();
     }
@@ -178,7 +250,7 @@ const OpsConsole = () => {
     try {
       const res = await opsApi.configureVlan(deviceId,interfaceId,mode,vlans);
       if (res.code === 200) {
-        message.success('状态更新成功');
+        message.success('VLAN更新成功');
         setNetworkTopology(prev => ({
           ...prev,
           devices: prev.devices.map(device =>
@@ -202,20 +274,33 @@ const OpsConsole = () => {
     }
     fetchLogs();
   };
-  const displayEcmp = async () => {
+  const ecmp = async () => {
     if (!ecmpSourceId || !ecmpTargetId ) {
       message.warning('请选择源设备、目标设备');
       return;
     }
     try {
+      setEcmpResult([]);
+      setEcmpResultCost(null);
       const res = await opsApi.ospfLoadBalance(ecmpSourceId, ecmpTargetId);
       if (res.code === 200) {
-        message.success('状态更新成功');
+        const cost = res.data?.cost;
+        const raw = res.data?.path;
+        let paths = raw;
+        if (Array.isArray(paths) && paths.length > 0 && typeof paths[0] === 'string') {
+          paths = [paths];
+        }
+        if (!Array.isArray(paths)) paths = [];
+        setEcmpResultCost(typeof cost === 'number' ? cost : null);
+        setEcmpResult(paths.map((p, idx) => `${idx + 1}. ${(p || []).join(' -> ')}`));
+        message.success('更新成功');
       } else {
         message.warning(res.message || '操作失败');
+        setEcmpResult(['操作失败']);
       }
     } catch {
       message.error('系统错误');
+      setEcmpResult(['系统错误']);
     }
     fetchLogs();
   };
@@ -227,7 +312,7 @@ const OpsConsole = () => {
     try {
       const res = await opsApi.updateOspfCost(ecmpLinkId, ecmpCost);
       if (res.code === 200) {
-        message.success('状态更新成功');
+        message.success('更新成功');
         setNetworkTopology(prev => ({ ...prev, links: links.map(link => (link.id === ecmpLinkId ? { ...link, cost: ecmpCost } : link)) }));
       } else {
         message.warning(res.message || '操作失败');
@@ -243,9 +328,67 @@ const OpsConsole = () => {
       return;
     }
     try {
-      const res = await opsApi.traceSmartRoute(smartDeviceId, smartTargetDeviceId);
+      const applySolution = (solutions, idx) => {
+        const safeSolutions = Array.isArray(solutions) ? solutions : [];
+        const safeIdx = Math.min(Math.max(Number(idx) || 0, 0), Math.max(safeSolutions.length - 1, 0));
+        const chosen = safeSolutions[safeIdx] || {};
+        const path = Array.isArray(chosen?.path) ? chosen.path : [];
+        const delay = chosen?.delay;
+        const cost = chosen?.cost;
+        const utilization = chosen?.utilization;
+
+        if (!path.length) {
+          setSmartRouteSummary('');
+          setSmartRouteResult(['未找到路径']);
+          return;
+        }
+
+        const delayText = typeof delay === 'number' ? `${delay} ms` : '-';
+        const costText = typeof cost === 'number' ? `${cost}` : '-';
+        const utilText = typeof utilization === 'number' ? `${utilization.toFixed(2)}%` : '-';
+
+        setSmartRouteSummary(`Delay: ${delayText} | Utilization: ${utilText} | Cost: ${costText}`);
+        setSmartRouteResult(path.map((n, i) => `${i + 1}. ${n}`));
+      };
+
+      const res = await opsApi.traceSmartRoute(smartDeviceId, smartTargetDeviceId, smartScene);
       if (res.code === 200) {
-        message.success('状态更新成功');
+        const solutions = Array.isArray(res.data?.solutions) ? res.data.solutions : [];
+        setSmartSolutions(solutions);
+        setSmartSolutionIndex(0);
+        applySolution(solutions, 0);
+        message.success('路由更新成功');
+      } else {
+        message.warning(res.message || '操作失败');
+        setSmartSolutions([]);
+        setSmartSolutionIndex(0);
+        setSmartRouteSummary('');
+        setSmartRouteResult(['操作失败']);
+      }
+    } catch {
+      message.error('系统错误');
+      setSmartSolutions([]);
+      setSmartSolutionIndex(0);
+      setSmartRouteSummary('');
+      setSmartRouteResult(['系统错误']);
+    }
+    fetchLogs();
+  };
+  const startPeakTraffic = async () => {
+    if (!peakSourceId || !peakTargetId || !peakTrafficIntensity) {
+      message.warning('请选择源设备、目标设备和流量强度');
+      return;
+    }
+    stopPeakPolling();
+    setPeakDataOnTopology(null);
+    try {
+      const res = await opsApi.startPeakTraffic(peakSourceId, peakTargetId, peakTrafficIntensity);
+      if (res.code === 200) {
+        message.success('高峰流量模拟已开启');
+        setPeakRunning(true);
+        setPeakData(res.data);
+        setPeakDataOnTopology(res.data);
+        peakTimerRef.current = setInterval(fetchPeakData, 5000);
       } else {
         message.warning(res.message || '操作失败');
       }
@@ -254,15 +397,16 @@ const OpsConsole = () => {
     }
     fetchLogs();
   };
-  const peakTraffic = async () => {
-    if (!peakSourceIds.length || !peakTargetId || !peakTotalTraffic) {
-      message.warning('请选择源设备、目标设备和流量强度');
-      return;
-    }
+
+  const stopPeakTraffic = async () => {
+    stopPeakPolling();
     try {
-      const res = await opsApi.displayPeakTraffic(peakSourceIds, peakTargetId, peakTotalTraffic);
+      const res = await opsApi.stopPeakTraffic();
       if (res.code === 200) {
-        message.success('状态更新成功');
+        message.success('高峰流量模拟已关闭');
+        setPeakRunning(false);
+        setPeakData(null);
+        setPeakDataOnTopology(null);
       } else {
         message.warning(res.message || '操作失败');
       }
@@ -308,6 +452,11 @@ const OpsConsole = () => {
                 {pingResult && <Alert message={pingResult} showIcon />}
                 {traceResult.length > 0 && (
                   <div>
+                    {traceUtilization && (
+                      <div style={{ fontSize: 12 }}>
+                        {traceUtilization}
+                      </div>
+                    )}
                     {traceResult.map((t, i) => (
                       <div key={i} style={{ fontSize: 12 }}>{t}</div>
                     ))}
@@ -423,7 +572,7 @@ const OpsConsole = () => {
                     <Select value={ecmpTargetId} onChange={setEcmpTargetId}
                       options={devices.map(device => ({ label: device.name, value: device.id }))} />
                   </Form.Item>
-                  <Button type="primary" block onClick={displayEcmp}>展示ECMP路径</Button>
+                  <Button type="primary" block onClick={ecmp}>展示ECMP路径</Button>
                   <Form.Item label="链路" style={{ marginTop: 8 }}>
                     <Select value={ecmpLinkId} onChange={setEcmpLinkId}
                       options={links.map(link => ({ label: `${link.srcDevice+'->'+link.dstDevice}` , value:link.id }))} />
@@ -433,6 +582,14 @@ const OpsConsole = () => {
                   </Form.Item>
                 </Form>
                 <Button type="primary" block onClick={updateCost}>手动更新Cost</Button>
+                {ecmpResultCost !== null && <Alert showIcon message={`Cost: ${ecmpResultCost}`} type="info" />}
+                {ecmpResult.length > 0 && (
+                  <div>
+                    {ecmpResult.map((t, i) => (
+                      <div key={i} style={{ fontSize: 12 }}>{t}</div>
+                    ))}
+                  </div>
+                )}
               </Space>
             )
           },
@@ -450,8 +607,70 @@ const OpsConsole = () => {
                     <Select value={smartTargetDeviceId} onChange={setSmartTargetDeviceId}
                       options={devices.map(device => ({ label: device.name, value: device.id }))} />
                   </Form.Item>
+                  <Form.Item label="场景">
+                    <Select
+                      value={smartScene}
+                      onChange={setSmartScene}
+                      options={[
+                        { label: '默认', value: '' },
+                        { label: '时延', value: 'delay' },
+                        { label: 'Cost', value: 'cost' },
+                        { label: '链路利用率', value: 'utilization' },
+                      ]}
+                    />
+                  </Form.Item>
                 </Form>
                 <Button type="primary" block onClick={traceSmartRoute}>智能路由</Button>   
+                {smartRouteResult.length > 0 && (
+                  <div>
+                    {smartSolutions.length > 1 && (
+                      <div style={{ marginBottom: 8 }}>
+                        <Select
+                          value={smartSolutionIndex}
+                          onChange={(v) => {
+                            const idx = Number(v) || 0;
+                            const safeIdx = Math.min(Math.max(idx, 0), smartSolutions.length - 1);
+                            setSmartSolutionIndex(safeIdx);
+
+                            const chosen = smartSolutions[safeIdx] || {};
+                            const path = Array.isArray(chosen?.path) ? chosen.path : [];
+                            const delay = chosen?.delay;
+                            const cost = chosen?.cost;
+                            const utilization = chosen?.utilization;
+
+                            if (!path.length) {
+                              setSmartRouteSummary('');
+                              setSmartRouteResult(['未找到路径']);
+                              return;
+                            }
+
+                            const delayText = typeof delay === 'number' ? `${delay} ms` : '-';
+                            const costText = typeof cost === 'number' ? `${cost}` : '-';
+                            const utilText = typeof utilization === 'number' ? `${utilization.toFixed(2)}%` : '-';
+
+                            setSmartRouteSummary(`Delay: ${delayText} | Utilization: ${utilText} | Cost: ${costText}`);
+                            setSmartRouteResult(path.map((n, i) => `${i + 1}. ${n}`));
+                          }}
+                          style={{ width: '100%' }}
+                          options={smartSolutions.map((_, idx) => ({
+                            label: `方案 ${idx + 1}`,
+                            value: idx,
+                          }))}
+                        />
+                      </div>
+                    )}
+                    {smartRouteSummary && (
+                      <div style={{ fontSize: 12, wordBreak: 'break-word' }}>
+                        {smartRouteSummary}
+                      </div>
+                    )}
+                    <div style={{ maxHeight: 180, overflowY: 'auto' }}>
+                      {smartRouteResult.map((t, i) => (
+                        <div key={i} style={{ fontSize: 12 }}>{t}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </Space>
             )
           },
@@ -461,19 +680,54 @@ const OpsConsole = () => {
             children: (
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Form layout="vertical">
-                  <Form.Item label="源设备组">
-                    <Select mode="multiple" value={peakSourceIds} onChange={setPeakSourceIds}
+                  <Form.Item label="源设备">
+                    <Select value={peakSourceId} onChange={setPeakSourceId}
                       options={devices.map(device => ({ label: device.name, value: device.id }))} />
                   </Form.Item>
                   <Form.Item label="目的设备">
                     <Select value={peakTargetId} onChange={setPeakTargetId}
                       options={devices.map(device => ({ label: device.name, value: device.id }))} />
                   </Form.Item>
-                  <Form.Item label={`流量强度（支持的最大流量强度为${networkTopology?.maxCapacity}Mbps）`}>
-                    <InputNumber value={peakTotalTraffic} onChange={setPeakTotalTraffic} style={{width: '100%'}}/>
+                  <Form.Item label="流量强度（Mbps）">
+                    <InputNumber value={peakTrafficIntensity} onChange={setPeakTrafficIntensity} style={{width: '100%'}}/>
                   </Form.Item>
                 </Form>
-                <Button type="primary" block onClick={peakTraffic}>高峰流量模拟</Button>   
+                <Row gutter={8}>
+                  <Col span={12}>
+                    <Button type="primary" block onClick={startPeakTraffic}>开启</Button>
+                  </Col>
+                  <Col span={12}>
+                    <Button danger block onClick={stopPeakTraffic} disabled={!peakRunning}>关闭</Button>
+                  </Col>
+                </Row>
+
+                <Space>
+                  <Tag color={peakRunning ? 'green' : 'default'}>
+                    {peakRunning ? '运行中' : '已停止'}
+                  </Tag>
+                  {typeof peakData?.utilization === 'number' && (
+                    <Tag
+                      color={
+                        peakData.utilization >= 0.8 ? 'red' : peakData.utilization >= 0.5 ? 'gold' : 'green'
+                      }
+                    >
+                      ρ={peakData.utilization.toFixed(2)}
+                    </Tag>
+                  )}
+                </Space>
+
+                {peakRunning && peakData && (
+                  <Alert
+                    message={
+                      <Space wrap>
+                        <Text>Capacity: {peakData.capacity ?? '-'} Mbps</Text>
+                        <Text>Utilization: {typeof peakData.utilization === 'number' ? `${(peakData.utilization * 100).toFixed(1)}%` : '-'}</Text>
+                        <Text>链路时延: {typeof peakData.linkDelay === 'number' ? `${peakData.linkDelay.toFixed(2)} ms` : '-'}</Text>
+                      </Space>
+                    }
+                    type={peakData.utilization >= 0.8 ? 'error' : peakData.utilization >= 0.5 ? 'warning' : 'success'}
+                  />
+                )}
               </Space>
             )
           },
@@ -533,3 +787,4 @@ const OpsConsole = () => {
 };
 
 export default OpsConsole;
+export { OpsConsole };

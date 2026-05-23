@@ -21,7 +21,9 @@ func SetupRouter(r *gin.Engine) {
 		simulation.POST("/vlan/configure", controller.ConfigureVlan)
 		simulation.POST("/ospf/loadbalance", controller.LoadBalance)
 		simulation.POST("/cost/update", controller.UpdateOspfCost)
-		simulation.POST("/peak", controller.PeakTraffic)
+		simulation.POST("/peak/start", controller.PeakTrafficStart)
+		simulation.POST("/peak/stop", controller.PeakTrafficStop)
+		simulation.GET("/peak/data", controller.PeakTrafficData)
 		simulation.POST("/smart/route", controller.SmartRoute)
 		simulation.GET("/logs", controller.GetLogs)
 	}

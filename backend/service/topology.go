@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	"mime/multipart"
 
 	"gopkg.in/yaml.v3"
@@ -21,19 +20,6 @@ func replenishOspfCost(topology *model.TopologyData) {
 			link.OspfCost = &cost
 		}
 	}
-}
-func calculateMaxCapacity(topology *model.TopologyData) float64 {
-	globalMinBW := math.MaxFloat64
-	for _, link := range topology.Links {
-		bw := utils.ParseBandwidth(link.Bandwidth)
-		if bw > 0 && bw < globalMinBW {
-			globalMinBW = bw
-		}
-	}
-	if globalMinBW == math.MaxFloat64 {
-		globalMinBW = 1.0
-	}
-	return globalMinBW * 0.9
 }
 func UploadTopology(fileHeader *multipart.FileHeader) (*model.TopologyData, error) {
 	file, err := fileHeader.Open()
@@ -57,8 +43,6 @@ func UploadTopology(fileHeader *multipart.FileHeader) (*model.TopologyData, erro
 	}
 
 	replenishOspfCost(&topology)
-
-	topology.MaxCapacity = calculateMaxCapacity(&topology)
 
 	data, _ := json.Marshal(topology)
 	_ = repository.CreateSnapshot(string(data))

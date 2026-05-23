@@ -80,3 +80,83 @@ func CalculateCost(referenceBandwidth string, linkBandwidth string) int {
 	}
 	return cost
 }
+
+func LinkVlanCompatible(topology *model.TopologyData, a, b string) bool {
+	var ifaceAName, ifaceBName string
+	for i := range topology.Links {
+		l := topology.Links[i]
+		if l.SrcDevice == a && l.DstDevice == b {
+			ifaceAName = l.SrcInterface
+			ifaceBName = l.DstInterface
+			break
+		}
+		if l.SrcDevice == b && l.DstDevice == a {
+			ifaceAName = l.DstInterface
+			ifaceBName = l.SrcInterface
+			break
+		}
+	}
+
+	var ifaceA map[string]any
+	var ifaceB map[string]any
+	for _, d := range topology.Devices {
+		if d.Id == a {
+			for _, iface := range d.Interfaces {
+				if iface["name"] == ifaceAName {
+					ifaceA = iface
+					break
+				}
+			}
+		}
+		if d.Id == b {
+			for _, iface := range d.Interfaces {
+				if iface["name"] == ifaceBName {
+					ifaceB = iface
+					break
+				}
+			}
+		}
+	}
+
+	allowedVlans := func(iface map[string]any) []int {
+		if iface == nil {
+			return nil
+		}
+		modeVal, _ := iface["mode"].(string)
+		mode := strings.ToLower(strings.TrimSpace(modeVal))
+		vlans, _ := iface["vlans"].([]int)
+		if mode == "access" {
+			if len(vlans) > 0 {
+				return vlans[:1]
+			}
+			return nil
+		}
+		return vlans
+	}
+
+	aVlans := allowedVlans(ifaceA)
+	bVlans := allowedVlans(ifaceB)
+	if len(aVlans) == 0 || len(bVlans) == 0 {
+		return true
+	}
+	if len(aVlans) > len(bVlans) {
+		aVlans, bVlans = bVlans, aVlans
+	}
+	for _, v := range aVlans {
+		for _, w := range bVlans {
+			if v == w {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func PathVlanCompatible(topology *model.TopologyData, path []string) bool {
+	for i := 0; i < len(path)-1; i++ {
+		if !LinkVlanCompatible(topology, path[i], path[i+1]) {
+			return false
+		}
+	}
+	return true
+}

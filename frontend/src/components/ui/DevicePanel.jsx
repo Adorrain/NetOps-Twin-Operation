@@ -11,12 +11,10 @@ import {
 } from 'antd';
 import {
   ClusterOutlined,
-  PartitionOutlined,
   CloseOutlined,
   ApiOutlined,
 } from '@ant-design/icons';
 import {
-  getVlans,
   judgeDeviceStatus,
   getDeviceStatusLabel,
   getDeviceTypeLabel,
@@ -80,44 +78,6 @@ const DevicePanel = ({ selectDeviceId, setSelectDevice }) => {
             </Descriptions.Item>
           )}
         </Descriptions>
-
-        <Card
-          type="inner"
-          title={
-            <Space>
-              <PartitionOutlined />
-              VLAN 配置
-            </Space>
-          }
-          style={{ marginBottom: 16 }}
-        >
-          <Space wrap>
-            {[...new Set(getVlans(device))]
-              .filter(v => Number(v) > 0)
-              .map(v => (
-                <Tag key={v} color="blue">
-                  VLAN {v}
-                </Tag>
-              ))}
-          </Space>
-        </Card>
-
-        {device.ospf && (
-          <Card
-            type="inner"
-            title="OSPF 协议"
-            style={{ marginBottom: 16 }}
-          >
-            <Descriptions size="small" column={2}>
-              <Descriptions.Item label="路由器 ID">
-                {device.ospf.routerId || '-'}
-              </Descriptions.Item>
-              <Descriptions.Item label="区域">
-                {device.ospf.area ?? '-'}
-              </Descriptions.Item>
-            </Descriptions>
-          </Card>
-        )}
 
         <Card
           type="inner"

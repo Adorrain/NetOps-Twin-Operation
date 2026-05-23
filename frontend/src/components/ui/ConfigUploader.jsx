@@ -56,7 +56,6 @@ const buildTopologyData = (cfg) => {
   }));
   return {
     ospfReferenceBandwidth: cfg?.ospfReferenceBandwidth,
-    maxCapacity: cfg?.maxCapacity,
     devices: Devices,
     links: Links,
   };

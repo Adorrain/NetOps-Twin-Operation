@@ -224,6 +224,7 @@ function DeviceMesh({ device, onClick }) {
 function LinkMesh({ link, devices }) {
   const endpoints = getLinkpoints(link, devices);
   const particlesRef = useRef();
+  const linkEnabled = link?.status !== 'inactive' && link?.status !== 'failed';
 
   const particlesGeometry = useMemo(() => {
     const g = new THREE.BufferGeometry();
@@ -232,6 +233,7 @@ function LinkMesh({ link, devices }) {
   }, []);
 
   useFrame(({ clock }) => {
+    if (!linkEnabled || !endpoints?.src?.position || !endpoints?.dst?.position) return;
     if (!particlesRef.current || !endpoints?.src?.position || !endpoints?.dst?.position) return;
 
     const start = new THREE.Vector3(endpoints.src.position.x, 0.5, endpoints.src.position.z);
@@ -247,14 +249,27 @@ function LinkMesh({ link, devices }) {
     pos.needsUpdate = true;
   });
 
+  const utils = typeof link?.utilization === 'number' ? link.utilization : null;
+  const linkColor = !linkEnabled
+    ? '#6b7280'
+    : utils === null
+      ? '#3b82f6'
+      : utils >= 0.8
+        ? '#ef4444'
+        : utils >= 0.5
+          ? '#f59e0b'
+          : '#22c55e';
+
   return (
     <group>
-      <Line points={endpoints.points} color="#3b82f6" lineWidth={2} opacity={0.6} transparent />
+      <Line points={endpoints.points} color={linkColor} opacity={0.7} transparent />
 
-      <points ref={particlesRef}>
-        <bufferGeometry attach="geometry" {...particlesGeometry} />
-        <pointsMaterial color="#38bdf8" size={0.15} transparent opacity={1} />
-      </points>
+      {linkEnabled && (
+        <points ref={particlesRef}>
+          <bufferGeometry attach="geometry" {...particlesGeometry} />
+          <pointsMaterial color={linkColor} size={0.15} transparent opacity={1} />
+        </points>
+      )}
     </group>
   );
 }

@@ -6,11 +6,15 @@ const ping = (sourceId, targetId) => postJson('/ops/ping', { sourceId, targetId 
 
 const traceroute = (sourceId, targetId) => postJson('/ops/traceroute', { sourceId, targetId });
 
-const smartRoute = (sourceId, targetId) => postJson('/ops/smart/route', { sourceId, targetId });
+const traceSmartRoute = (sourceId, targetId, scene) => postJson('/ops/smart/route', scene ? { sourceId, targetId, scene } : { sourceId, targetId });
 
 const ospfLoadBalance = (sourceId, targetId) => postJson('/ops/ospf/loadbalance', { sourceId, targetId });
 
-const peakTraffic = (sourceIds, targetId, totalTraffic) => postJson('/ops/peak', { sourceIds, targetId, totalTraffic });
+const startPeakTraffic = (sourceId, targetId, trafficIntensity) => postJson('/ops/peak/start', { sourceId, targetId, trafficIntensity });
+
+const stopPeakTraffic = () => postJson('/ops/peak/stop', {});
+
+const getPeakTrafficData = () => getJson('/ops/peak/data');
 
 const updateDeviceStatus = (deviceId, status) => postJson('/ops/device/status', { deviceId, status });
 
@@ -29,9 +33,12 @@ export const opsApi = {
   uploadTopologyFile,
   ping,
   traceroute,
-  smartRoute,
+  smartRoute: traceSmartRoute,
+  traceSmartRoute,
   ospfLoadBalance,
-  peakTraffic,
+  startPeakTraffic,
+  stopPeakTraffic,
+  getPeakTrafficData,
   updateDeviceStatus,
   updateLinkStatus,
   updateInterfaceStatus,

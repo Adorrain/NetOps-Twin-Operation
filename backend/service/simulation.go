@@ -6,8 +6,6 @@ import (
 	"backend/utils"
 	"encoding/json"
 	"fmt"
-	"math"
-	"math/rand/v2"
 )
 
 func getLatestTopology() (*model.TopologyData, error) {
@@ -63,8 +61,10 @@ func Ping(body *model.PingBody) model.ApiResponse {
 	if path == nil {
 		return utils.NotFound("路径不可达")
 	}
-	hops := len(path) - 1
-	rtt := math.Round((float64(hops)*0.2+0.5+rand.Float64()*0.4+0.1)*2*100) / 100
+	if !utils.PathVlanCompatible(topology, path) {
+		return utils.NotFound("VLAN 不通")
+	}
+	rtt := calculatePathDelay(path)
 	_ = updateDataBase(topology, "ping", body.TargetId, "Ping 测试", fmt.Sprintf("Ping 测试: %s -> %s", body.SourceId, body.TargetId))
 	return utils.Success("success", map[string]interface{}{
 		"rtt": rtt,
@@ -81,19 +81,24 @@ func Traceroute(body *model.TracerouteBody) model.ApiResponse {
 	if path == nil {
 		return utils.NotFound("路径不可达")
 	}
+	if !utils.PathVlanCompatible(topology, path) {
+		return utils.NotFound("VLAN 不通")
+	}
 	deviceMap := getDeviceMap(topology.Devices)
 	ip := []string{}
 	for _, id := range path {
 		ip = append(ip, deviceMap[id].Ip)
 	}
 	hops := len(path) - 1
+	utilization := calculatePathUtilization(path, topology)
 	_ = updateDataBase(topology, "traceroute", body.TargetId, "Traceroute 测试", fmt.Sprintf("Traceroute 测试: %s -> %s", body.SourceId, body.TargetId))
 	return utils.Success("success", map[string]interface{}{
-		"sourceId": body.SourceId,
-		"targetId": body.TargetId,
-		"ip":       ip,
-		"path":     path,
-		"hops":     hops,
+		"sourceId":    body.SourceId,
+		"targetId":    body.TargetId,
+		"ip":          ip,
+		"path":        path,
+		"hops":        hops,
+		"utilization": utilization,
 	})
 }
 
@@ -166,7 +171,7 @@ func ConfigureVlan(body *model.VlanBody) model.ApiResponse {
 				interfaceConfig["vlans"] = body.Vlans[0]
 			}
 			if body.Mode == "trunk" {
-				interfaceConfig["Vlans"] = body.Vlans
+				interfaceConfig["vlans"] = body.Vlans
 			}
 			return updateDataBase(topology, "vlan_configure", body.DeviceId, "VLAN 配置成功", "VLAN 已更新")
 		}
@@ -185,8 +190,17 @@ func LoadBalance(body *model.LoadBalanceBody) model.ApiResponse {
 	if path == nil {
 		return utils.NotFound("路径不可达")
 	}
+	filtered := make([][]string, 0, len(path))
+	for _, p := range path {
+		if utils.PathVlanCompatible(topology, p) {
+			filtered = append(filtered, p)
+		}
+	}
+	if len(filtered) == 0 {
+		return utils.NotFound("VLAN 不通")
+	}
 	return utils.Success("success", map[string]interface{}{
-		"path": path,
+		"path": filtered,
 		"cost": cost,
 	})
 }
@@ -206,64 +220,54 @@ func UpdateOspfCost(body *model.OspfCostBody) model.ApiResponse {
 	}
 	return utils.NotFound(fmt.Sprintf("链路不存在: %s", body.LinkId))
 }
-func PeakTraffic(body *model.PeakTrafficBody) model.ApiResponse {
+
+func PeakTrafficStart(body *model.PeakTrafficStartBody) model.ApiResponse {
 	topology, err := getLatestTopology()
 	if err != nil {
 		return utils.ServerError(err.Error())
 	}
-	graph := BuildForwardingGraph(topology)
-	src := body.SourceIds[0]
-	access := src
-	for _, link := range topology.Links {
-		if link.SrcDevice == src {
-			access = link.DstDevice
-			break
-		}
-		if link.DstDevice == src {
-			access = link.SrcDevice
-			break
-		}
+	peakSim.stop()
+
+	intensityMbps := body.TrafficIntensity
+	if intensityMbps <= 0 {
+		intensityMbps = 1000
 	}
-	path, _ := dijkstra(graph, access, body.TargetId)
+
+	graph := BuildForwardingGraph(topology)
+	path, _ := dijkstra(graph, body.SourceId, body.TargetId)
 	if path == nil {
 		return utils.NotFound("路径不可达")
 	}
-	requestFlow := body.TotalTraffic
-	if requestFlow <= 0 {
-		requestFlow = 1000
+	if !utils.PathVlanCompatible(topology, path) {
+		return utils.NotFound("VLAN 不通")
 	}
-	resultLinks := []map[string]interface{}{}
 
-	for i := 0; i < len(path)-1; i++ {
-		linkID := ""
-		bw := 0.0
+	linkStates, err := buildPeakLinkStates(topology, path)
+	if err != nil {
+		return utils.ServerError(err.Error())
+	}
 
-		for _, link := range topology.Links {
-			if (link.SrcDevice == path[i] && link.DstDevice == path[i+1]) ||
-				(link.SrcDevice == path[i+1] && link.DstDevice == path[i]) {
-				linkID = link.Id
-				bw = utils.ParseBandwidth(link.Bandwidth)
-				break
-			}
-		}
+	peakSim.start(body.SourceId, body.TargetId, intensityMbps, path, linkStates)
+	_ = repository.CreateLog("peak_start", body.SourceId, fmt.Sprintf("高峰流量模拟开启: %s -> %s, 强度 %.2f Mbps", body.SourceId, body.TargetId, intensityMbps))
 
-		if bw <= 0 {
-			continue
-		}
+	return PeakTrafficData()
+}
 
-		noise := 0.95 + rand.Float64()*0.1
-		util := (requestFlow / bw) * noise
-
-		resultLinks = append(resultLinks, map[string]interface{}{
-			"linkId":      linkID,
-			"utilization": util * 100,
+func PeakTrafficStop() model.ApiResponse {
+	if !peakSim.stop() {
+		return utils.Success("success", map[string]interface{}{
+			"running": false,
 		})
 	}
-
+	_ = repository.CreateLog("peak_stop", "-", "高峰流量模拟关闭")
 	return utils.Success("success", map[string]interface{}{
-		"path":  path,
-		"links": resultLinks,
+		"running": false,
 	})
+}
+
+func PeakTrafficData() model.ApiResponse {
+	data := peakSim.Data()
+	return utils.Success("success", data)
 }
 
 func SmartRoute(body *model.SmartRouteBody) model.ApiResponse {

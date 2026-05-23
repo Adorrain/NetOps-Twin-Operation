@@ -1,0 +1,434 @@
+ospfReferenceBandwidth: 100G
+
+devices:
+  - id: s1
+    name: s1
+    role: core
+    deviceType: router
+    ip: 202.16.1.1
+    netmask: 255.255.255.255
+    status: up
+    interfaces:
+      - { name: g0/0, ip: 10.0.0.1, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.0.5, netmask: 255.255.255.252, status: up }
+      - { name: g0/2, ip: 10.0.0.9, netmask: 255.255.255.252, status: up }
+      - { name: g0/3, ip: 10.0.0.13, netmask: 255.255.255.252, status: up }
+
+  - id: s2
+    name: s2
+    role: core
+    deviceType: router
+    ip: 202.16.2.1
+    netmask: 255.255.255.255
+    status: up
+    interfaces:
+      - { name: g0/0, ip: 10.0.0.10, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.0.14, netmask: 255.255.255.252, status: up }
+      - { name: g0/2, ip: 10.0.0.18, netmask: 255.255.255.252, status: up }
+      - { name: g0/3, ip: 10.0.0.22, netmask: 255.255.255.252, status: up }
+
+  - id: s3
+    name: s3
+    role: aggregation
+    deviceType: router
+    ip: 202.16.3.1
+    netmask: 255.255.255.255
+    status: up
+    interfaces:
+      - { name: g0/0, ip: 10.0.0.23, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.0.27, netmask: 255.255.255.252, status: up }
+      - { name: g0/2, ip: 10.0.0.31, netmask: 255.255.255.252, status: up }
+      - { name: g0/3, ip: 10.0.0.35, netmask: 255.255.255.252, status: up }
+
+  - id: s4
+    name: s4
+    role: aggregation
+    deviceType: router
+    ip: 202.16.3.2
+    netmask: 255.255.255.255
+    status: up
+    interfaces:
+      - { name: g0/0, ip: 10.0.0.37, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.0.41, netmask: 255.255.255.252, status: up }
+      - { name: g0/2, ip: 10.0.0.45, netmask: 255.255.255.252, status: up }
+      - { name: g0/3, ip: 10.0.0.49, netmask: 255.255.255.252, status: up }
+
+  - id: s5
+    name: s5
+    role: aggregation
+    deviceType: router
+    ip: 202.16.3.3
+    netmask: 255.255.255.255
+    status: up
+    interfaces:
+      - { name: g0/0, ip: 10.0.0.53, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.0.57, netmask: 255.255.255.252, status: up }
+      - { name: g0/2, ip: 10.0.0.61, netmask: 255.255.255.252, status: up }
+      - { name: g0/3, ip: 10.0.0.65, netmask: 255.255.255.252, status: up }
+
+  - id: s6
+    name: s6
+    role: aggregation
+    deviceType: router
+    ip: 202.16.3.4
+    netmask: 255.255.255.255
+    status: up
+    interfaces:
+      - { name: g0/0, ip: 10.0.0.73, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.0.77, netmask: 255.255.255.252, status: up }
+      - { name: g0/2, ip: 10.0.0.81, netmask: 255.255.255.252, status: up }
+      - { name: g0/3, ip: 10.0.0.85, netmask: 255.255.255.252, status: up }
+
+  - id: s7
+    name: s7
+    role: access
+    deviceType: router
+    ip: 202.16.3.5
+    netmask: 255.255.255.255
+    status: up
+    interfaces:
+      - { name: g0/0, ip: 10.0.1.2, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.1.3, netmask: 255.255.255.252, status: up }
+      - { name: g0/2, ip: 10.0.1.4, netmask: 255.255.255.252, status: up }
+      - { name: g0/3, ip: 10.0.1.5, netmask: 255.255.255.252, status: up }
+
+  - id: s8
+    name: s8
+    role: access
+    deviceType: router
+    ip: 202.16.3.6
+    netmask: 255.255.255.255
+    status: up
+    interfaces:
+      - { name: g0/0, ip: 10.0.1.6, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.1.7, netmask: 255.255.255.252, status: up }
+      - { name: g0/2, ip: 10.0.1.8, netmask: 255.255.255.252, status: up }
+      - { name: g0/3, ip: 10.0.1.9, netmask: 255.255.255.252, status: up }
+
+  - id: s9
+    name: s9
+    role: access
+    deviceType: router
+    ip: 202.16.3.7
+    netmask: 255.255.255.255
+    status: up
+    interfaces:
+      - { name: g0/0, ip: 10.0.1.10, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.1.11, netmask: 255.255.255.252, status: up }
+      - { name: g0/2, ip: 10.0.1.12, netmask: 255.255.255.252, status: up }
+      - { name: g0/3, ip: 10.0.1.13, netmask: 255.255.255.252, status: up }
+
+  - id: s10
+    name: s10
+    role: access
+    deviceType: router
+    ip: 202.16.3.8
+    netmask: 255.255.255.255
+    status: up
+    interfaces:
+      - { name: g0/0, ip: 10.0.1.14, netmask: 255.255.255.252, status: up }
+      - { name: g0/1, ip: 10.0.1.15, netmask: 255.255.255.252, status: up }
+      - { name: g0/2, ip: 10.0.1.16, netmask: 255.255.255.252, status: up }
+      - { name: g0/3, ip: 10.0.1.17, netmask: 255.255.255.252, status: up }
+
+  - id: h1
+    name: h1
+    role: server
+    deviceType: server
+    ip: 10.0.1.10
+    netmask: 255.255.255.255
+    status: up
+    interfaces:
+      - { name: eth0, ip: 10.0.1.10, netmask: 255.255.255.252, status: up }
+
+  - id: h2
+    name: h2
+    role: server
+    deviceType: server
+    ip: 10.0.1.11
+    netmask: 255.255.255.255
+    status: up
+    interfaces:
+      - { name: eth0, ip: 10.0.1.11, netmask: 255.255.255.252, status: up }
+
+  - id: h3
+    name: h3
+    role: server
+    deviceType: server
+    ip: 10.0.1.12
+    netmask: 255.255.255.255
+    status: up
+    interfaces:
+      - { name: eth0, ip: 10.0.1.12, netmask: 255.255.255.252, status: up }
+
+  - id: h4
+    name: h4
+    role: server
+    deviceType: server
+    ip: 10.0.1.13
+    netmask: 255.255.255.255
+    status: up
+    interfaces:
+      - { name: eth0, ip: 10.0.1.13, netmask: 255.255.255.252, status: up }
+
+  - id: h5
+    name: h5
+    role: server
+    deviceType: server
+    ip: 10.0.1.14
+    netmask: 255.255.255.255
+    status: up
+    interfaces:
+      - { name: eth0, ip: 10.0.1.14, netmask: 255.255.255.252, status: up }
+
+  - id: h6
+    name: h6
+    role: server
+    deviceType: server
+    ip: 10.0.1.15
+    netmask: 255.255.255.255
+    status: up
+    interfaces:
+      - { name: eth0, ip: 10.0.1.15, netmask: 255.255.255.252, status: up }
+
+  - id: h7
+    name: h7
+    role: server
+    deviceType: server
+    ip: 10.0.1.16
+    netmask: 255.255.255.255
+    status: up
+    interfaces:
+      - { name: eth0, ip: 10.0.1.16, netmask: 255.255.255.252, status: up }
+
+  - id: h8
+    name: h8
+    role: server
+    deviceType: server
+    ip: 10.0.1.17
+    netmask: 255.255.255.255
+    status: up
+    interfaces:
+      - { name: eth0, ip: 10.0.1.17, netmask: 255.255.255.252, status: up }
+
+links:
+  - {
+      id: l1,
+      srcDevice: s1,
+      srcInterface: g0/0,
+      dstDevice: s3,
+      dstInterface: g0/0,
+      status: up,
+      bandwidth: 20G,
+    }
+  - {
+      id: l2,
+      srcDevice: s1,
+      srcInterface: g0/1,
+      dstDevice: s4,
+      dstInterface: g0/0,
+      status: up,
+      bandwidth: 20G,
+    }
+  - {
+      id: l3,
+      srcDevice: s1,
+      srcInterface: g0/2,
+      dstDevice: s5,
+      dstInterface: g0/0,
+      status: up,
+      bandwidth: 20G,
+    }
+  - {
+      id: l4,
+      srcDevice: s1,
+      srcInterface: g0/3,
+      dstDevice: s6,
+      dstInterface: g0/0,
+      status: up,
+      bandwidth: 20G,
+    }
+
+  - {
+      id: l5,
+      srcDevice: s2,
+      srcInterface: g0/1,
+      dstDevice: s3,
+      dstInterface: g0/1,
+      status: up,
+      bandwidth: 20G,
+    }
+  - {
+      id: l6,
+      srcDevice: s2,
+      srcInterface: g0/2,
+      dstDevice: s4,
+      dstInterface: g0/1,
+      status: up,
+      bandwidth: 20G,
+    }
+  - {
+      id: l7,
+      srcDevice: s2,
+      srcInterface: g0/3,
+      dstDevice: s5,
+      dstInterface: g0/1,
+      status: up,
+      bandwidth: 20G,
+    }
+  - {
+      id: l8,
+      srcDevice: s2,
+      srcInterface: g0/4,
+      dstDevice: s6,
+      dstInterface: g0/1,
+      status: up,
+      bandwidth: 20G,
+    }
+
+  - {
+      id: l9,
+      srcDevice: s3,
+      srcInterface: g0/2,
+      dstDevice: s7,
+      dstInterface: g0/0,
+      status: up,
+      bandwidth: 10G,
+    }
+  - {
+      id: l10,
+      srcDevice: s3,
+      srcInterface: g0/3,
+      dstDevice: s8,
+      dstInterface: g0/0,
+      status: up,
+      bandwidth: 10G,
+    }
+  - {
+      id: l11,
+      srcDevice: s4,
+      srcInterface: g0/2,
+      dstDevice: s7,
+      dstInterface: g0/1,
+      status: up,
+      bandwidth: 10G,
+    }
+  - {
+      id: l12,
+      srcDevice: s4,
+      srcInterface: g0/3,
+      dstDevice: s8,
+      dstInterface: g0/1,
+      status: up,
+      bandwidth: 10G,
+    }
+
+  - {
+      id: l13,
+      srcDevice: s5,
+      srcInterface: g0/2,
+      dstDevice: s9,
+      dstInterface: g0/0,
+      status: up,
+      bandwidth: 10G,
+    }
+  - {
+      id: l14,
+      srcDevice: s5,
+      srcInterface: g0/3,
+      dstDevice: s10,
+      dstInterface: g0/0,
+      status: up,
+      bandwidth: 10G,
+    }
+  - {
+      id: l15,
+      srcDevice: s6,
+      srcInterface: g0/2,
+      dstDevice: s9,
+      dstInterface: g0/1,
+      status: up,
+      bandwidth: 10G,
+    }
+  - {
+      id: l16,
+      srcDevice: s6,
+      srcInterface: g0/3,
+      dstDevice: s10,
+      dstInterface: g0/1,
+      status: up,
+      bandwidth: 10G,
+    }
+
+  - {
+      id: l17,
+      srcDevice: s7,
+      srcInterface: g0/2,
+      dstDevice: h1,
+      dstInterface: eth0,
+      status: up,
+      bandwidth: 10G,
+    }
+  - {
+      id: l18,
+      srcDevice: s7,
+      srcInterface: g0/3,
+      dstDevice: h2,
+      dstInterface: eth0,
+      status: up,
+      bandwidth: 1G,
+    }
+  - {
+      id: l19,
+      srcDevice: s8,
+      srcInterface: g0/2,
+      dstDevice: h3,
+      dstInterface: eth0,
+      status: up,
+      bandwidth: 1G,
+    }
+  - {
+      id: l20,
+      srcDevice: s8,
+      srcInterface: g0/3,
+      dstDevice: h4,
+      dstInterface: eth0,
+      status: up,
+      bandwidth: 1G,
+    }
+  - {
+      id: l21,
+      srcDevice: s9,
+      srcInterface: g0/2,
+      dstDevice: h5,
+      dstInterface: eth0,
+      status: up,
+      bandwidth: 1G,
+    }
+  - {
+      id: l22,
+      srcDevice: s9,
+      srcInterface: g0/3,
+      dstDevice: h6,
+      dstInterface: eth0,
+      status: up,
+      bandwidth: 1G,
+    }
+  - {
+      id: l23,
+      srcDevice: s10,
+      srcInterface: g0/3,
+      dstDevice: h7,
+      dstInterface: eth0,
+      status: up,
+      bandwidth: 1G,
+    }
+  - {
+      id: l24,
+      srcDevice: s10,
+      srcInterface: g0/4,
+      dstDevice: h8,
+      dstInterface: eth0,
+      status: up,
+      bandwidth: 1G,
+    }
