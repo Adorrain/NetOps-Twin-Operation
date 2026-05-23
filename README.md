@@ -6,7 +6,7 @@
   <p>
     <a href="https://github.com/Adorrain/NetOps-Twin-Operation"><img src="https://img.shields.io/badge/GitHub-Repo-blue?style=for-the-badge&logo=github" alt="GitHub Repo" /></a>
     <a href="https://github.com/Adorrain/NetOps-Twin-Operation/tags"><img src="https://img.shields.io/badge/version-v1.5.0-2ea44f?style=for-the-badge" alt="version" /></a>
-    <a href="./backend"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+" /></a>
+    <a href="./backend"><img src="https://img.shields.io/badge/Go-1.24%2B-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go 1.24+" /></a>
     <a href="./frontend"><img src="https://img.shields.io/badge/React-18%2B-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React" /></a>
     <a href="./frontend"><img src="https://img.shields.io/badge/Three.js-3D-000000?style=for-the-badge&logo=threedotjs&logoColor=white" alt="Three.js" /></a>
     <a href="./frontend"><img src="https://img.shields.io/badge/Ant%20Design-UI-0170FE?style=for-the-badge&logo=ant-design&logoColor=white" alt="Ant Design" /></a>
@@ -19,14 +19,16 @@
 
 ## 文档
 
-[Docker 部署文档](docs/Docker部署.md) | [数据配置说明](docs/dataConfig.md) | [参考资料](docs/reference.md)
+<div align="center">
+  <a href="docs/Docker部署.md">Docker 部署文档</a> | <a href="docs/dataConfig.md">数据配置说明</a> | <a href="docs/reference.md">参考资料</a>
+</div>
 
 ## 快速开始
 
 ### 环境准备
 
 - Node.js 18+（安装地址：https://nodejs.org/en/download）
-- Python 3.10+（安装地址：https://www.python.org/downloads/）
+- Go 1.24+（安装地址：https://go.dev/dl/）
 
 ### 安装依赖
 
@@ -37,7 +39,7 @@ npm install
 
 # 安装后端依赖
 cd ../backend
-pip install -r requirements.txt
+go mod tidy
 ```
 
 ### 开发环境启动
@@ -45,7 +47,7 @@ pip install -r requirements.txt
 ```bash
 # 启动后端服务
 cd backend
-python main.py
+go run main.go
 
 # 启动前端服务
 cd frontend
