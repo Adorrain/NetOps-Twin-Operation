@@ -1,9 +1,9 @@
 import React from 'react';
-import { Upload, message } from 'antd';
-import { InboxOutlined } from '@ant-design/icons';
+import { Upload, message,Empty,Typography } from 'antd';
 import { opsApi } from '../../api/api';
 
 const { Dragger } = Upload;
+const { Title, Text } = Typography;
 
 const buildTopologyData = (cfg) => {
   const devices = cfg?.devices;
@@ -43,17 +43,8 @@ const buildTopologyData = (cfg) => {
     });
   });
 
-  const Devices = devices.map((device) => ({
-    ...device,
-    id: String(device.id),
-    position: layout[device.id] || { x: 0, y: 0, z: 0 },
-  }));
-  const Links = links.map((link) => ({
-    ...link,
-    id: String(link.id),
-    srcDevice: String(link.srcDevice),
-    dstDevice: String(link.dstDevice),
-  }));
+  const Devices = devices.map((device) => ({...device, id: String(device.id), position: layout[device.id] || { x: 0, y: 0, z: 0 },}));
+  const Links = links.map((link) => ({...link, id: String(link.id), srcDevice: String(link.srcDevice), dstDevice: String(link.dstDevice),}));
   return {
     ospfReferenceBandwidth: cfg?.ospfReferenceBandwidth,
     devices: Devices,
@@ -90,13 +81,14 @@ const ConfigUploader = ({ onConfigLoaded, setNetworkTopology }) => {
           showUploadList={false}
           style={{ padding: 40, height: '100%', minHeight: 360 }}
         >
-            <p className="ant-upload-drag-icon">
-              <InboxOutlined/>
-            </p>
-            <p>点击或拖拽文件到此处上传</p>
-            <p style={{ fontSize: 12, color: '#999' }}>
-              仅支持 YAML (.yaml / .yml)
-            </p>
+            <Empty
+              description={
+                <>
+                <Title level={4}>暂无配置文件</Title>
+                <Text type="secondary">点击或拖拽文件到此处上传（仅支持.yaml文件）</Text>
+                </>
+              }
+            />
         </Dragger>
       </div>
     </div>

@@ -61,10 +61,10 @@ func Ping(body *model.PingBody) model.ApiResponse {
 	if path == nil {
 		return utils.NotFound("路径不可达")
 	}
-	if !utils.PathVlanCompatible(topology, path) {
+	if !utils.PathSupportsVlan(topology, path) {
 		return utils.NotFound("VLAN 不通")
 	}
-	rtt := calculatePathDelay(path)
+	rtt := calculatePathDelay(path, topology) * 2
 	_ = updateDataBase(topology, "ping", body.TargetId, "Ping 测试", fmt.Sprintf("Ping 测试: %s -> %s", body.SourceId, body.TargetId))
 	return utils.Success("success", map[string]interface{}{
 		"rtt": rtt,
@@ -81,7 +81,7 @@ func Traceroute(body *model.TracerouteBody) model.ApiResponse {
 	if path == nil {
 		return utils.NotFound("路径不可达")
 	}
-	if !utils.PathVlanCompatible(topology, path) {
+	if !utils.PathSupportsVlan(topology, path) {
 		return utils.NotFound("VLAN 不通")
 	}
 	deviceMap := getDeviceMap(topology.Devices)
@@ -192,7 +192,7 @@ func LoadBalance(body *model.LoadBalanceBody) model.ApiResponse {
 	}
 	filtered := make([][]string, 0, len(path))
 	for _, p := range path {
-		if utils.PathVlanCompatible(topology, p) {
+		if utils.PathSupportsVlan(topology, p) {
 			filtered = append(filtered, p)
 		}
 	}
@@ -226,9 +226,7 @@ func PeakTrafficStart(body *model.PeakTrafficStartBody) model.ApiResponse {
 	if err != nil {
 		return utils.ServerError(err.Error())
 	}
-	peakSim.stop()
-
-	intensityMbps := body.TrafficIntensity
+	intensityMbps := body.FlowIntensity
 	if intensityMbps <= 0 {
 		intensityMbps = 1000
 	}
@@ -238,27 +236,17 @@ func PeakTrafficStart(body *model.PeakTrafficStartBody) model.ApiResponse {
 	if path == nil {
 		return utils.NotFound("路径不可达")
 	}
-	if !utils.PathVlanCompatible(topology, path) {
+	if !utils.PathSupportsVlan(topology, path) {
 		return utils.NotFound("VLAN 不通")
 	}
-
-	linkStates, err := buildPeakLinkStates(topology, path)
-	if err != nil {
-		return utils.ServerError(err.Error())
-	}
-
-	peakSim.start(body.SourceId, body.TargetId, intensityMbps, path, linkStates)
+	StartPeakTraffic(body.SourceId, body.TargetId, intensityMbps, path)
 	_ = repository.CreateLog("peak_start", body.SourceId, fmt.Sprintf("高峰流量模拟开启: %s -> %s, 强度 %.2f Mbps", body.SourceId, body.TargetId, intensityMbps))
 
 	return PeakTrafficData()
 }
 
 func PeakTrafficStop() model.ApiResponse {
-	if !peakSim.stop() {
-		return utils.Success("success", map[string]interface{}{
-			"running": false,
-		})
-	}
+	StopPeakTraffic()
 	_ = repository.CreateLog("peak_stop", "-", "高峰流量模拟关闭")
 	return utils.Success("success", map[string]interface{}{
 		"running": false,
@@ -266,8 +254,9 @@ func PeakTrafficStop() model.ApiResponse {
 }
 
 func PeakTrafficData() model.ApiResponse {
-	data := peakSim.Data()
-	return utils.Success("success", data)
+	topology, _ := getLatestTopology()
+	updatePeakTrafficMetrics(topology)
+	return utils.Success("success", peakTraffic)
 }
 
 func SmartRoute(body *model.SmartRouteBody) model.ApiResponse {
@@ -281,6 +270,7 @@ func SmartRoute(body *model.SmartRouteBody) model.ApiResponse {
 	if !ok || len(solutions) == 0 {
 		return utils.NotFound("未能找到 NSGA-II 算法的解决方案")
 	}
+	_ = repository.CreateLog("smart_route", "-", fmt.Sprintf("NSGA-II 算法路由完成: %s -> %s", body.SourceId, body.TargetId))
 	return utils.Success("success", map[string]interface{}{
 		"solutions": solutions,
 	})

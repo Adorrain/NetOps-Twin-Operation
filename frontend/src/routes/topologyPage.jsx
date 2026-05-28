@@ -19,7 +19,7 @@ export default function TopologyPage() {
   return (
     <Layout style={{ height: '100%', overflow: 'hidden' }}>
  
-      <Content style={{ position: 'relative', background: '#0b1220' }}>
+      <Content style={{ position: 'relative', background: '#111217' }}>
         {networkTopology ? (
           <NetworkTopology3D
             networkTopology={networkTopology}
@@ -55,7 +55,7 @@ export default function TopologyPage() {
       <Sider
         width={400}
         style={{
-          background: '#0b1220',
+          background: '#111217',
           display: 'flex',
           overflowY: 'auto',
           flexDirection: 'column',

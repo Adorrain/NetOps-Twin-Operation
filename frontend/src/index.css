@@ -3,17 +3,17 @@ html, body, #root {
 }
 
 html {
-  background: #0b1220;
+  background: #111217;
 }
 
 body {
   margin: 0;
-  background: #0b1220;
+  background: #111217;
   overflow: hidden;
 }
 .app-header {
   height: 64px;
-  background: #0b1220;
+  background: #111217;
   padding: 0 16px;
   display: flex;
   align-items: center;
@@ -37,17 +37,16 @@ body {
 .app-main {
   display: flex;
   flex-direction: column;
-  min-height: 0;
 }
 
 .app-content {
   flex: 1;
-  background: #0b1220;
+  background: #111217;
   overflow: hidden; 
 }
 .app-sider {
   height: 100vh;
-  background: #0b1220;
+  background: #111217;
 }
 
 .sider-logo {
@@ -64,6 +63,7 @@ body {
 
 .app-menu {
   margin-top: 60px;
+  background: #111217;
 }
 
 .app-menu .ant-menu-item {
@@ -71,6 +71,15 @@ body {
   line-height: 56px;
   margin: 4px 8px; 
   border-radius: 10px;
+  background: #14161d;
+}
+
+.app-menu .ant-menu-item:hover {
+  background: #1a1d25 !important;
+}
+
+.app-menu .ant-menu-item-selected {
+  background: #20242d !important;
 }
 
 .app-menu .ant-menu-title-content {

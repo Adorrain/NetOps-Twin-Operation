@@ -1,19 +1,19 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import {
-  Table,
-  Button,
   Card,
-  ConfigProvider,
   Descriptions,
-  Space,
+  Table,
   Tag,
-  Typography,
+  Button,
+  Space,
 } from 'antd';
+
 import {
   ClusterOutlined,
-  CloseOutlined,
   ApiOutlined,
+  CloseOutlined,
 } from '@ant-design/icons';
+
 import {
   judgeDeviceStatus,
   getDeviceStatusLabel,
@@ -25,15 +25,38 @@ import { useTopology } from '../../utils/topologyContext';
 const DevicePanel = ({ selectDeviceId, setSelectDevice }) => {
   const { networkTopology } = useTopology();
 
-  const device = useMemo(() => {
-    return networkTopology?.devices?.find(device => device.id === selectDeviceId);
-  }, [selectDeviceId, networkTopology?.devices]);
+  const device = networkTopology?.devices?.find(d => d.id === selectDeviceId);
 
-  if (!selectDeviceId || !device) return null;
+  if (!device) return null;
 
-  const onClose = () => setSelectDevice?.(null);
+  const up = judgeDeviceStatus(device.status);
 
-  const deviceStatus = judgeDeviceStatus(device.status);
+  const columns = [
+    {
+      title: '接口名',
+      dataIndex: 'name',
+    },
+    {
+      title: 'IP 地址',
+      dataIndex: 'ip',
+    },
+    {
+      title: '子网掩码',
+      dataIndex: 'netmask',
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      render: status => {
+        const up = !status || String(status).toLowerCase() === 'up';
+        return (
+          <Tag color={up ? 'green' : 'red'}>
+            {up ? 'UP' : 'DOWN'}
+          </Tag>
+        );
+      },
+    },
+  ];
 
   return (
     <div
@@ -42,32 +65,46 @@ const DevicePanel = ({ selectDeviceId, setSelectDevice }) => {
         top: 24,
         left: '50%',
         transform: 'translateX(-50%)',
+        width: 720,
         zIndex: 1000,
-        width: 760,
-        maxHeight: '85vh',
-        overflowY: 'auto',
       }}
     >
       <Card
-        style={{ background: '#0f172a', borderColor: '#334155' }}
         title={
           <Space>
-            <ClusterOutlined style={{ fontSize: 24, color: '#fff' }} />
+            <ClusterOutlined />
+            {device.name}
 
-            <Typography.Text strong style={{ color: '#e2e8f0' }}>
-              {device.name}
-            </Typography.Text>
+            <Tag>
+              {getDeviceTypeLabel(device.deviceType)}
+            </Tag>
 
-            <Tag color="blue">{getDeviceTypeLabel(device.deviceType)}</Tag>
-            <Tag>{getDeviceStatusLabel(deviceStatus)}</Tag>
+            <Tag color={up ? 'green' : 'red'}>
+              {getDeviceStatusLabel(up)}
+            </Tag>
           </Space>
         }
-        extra={<Button type="text" icon={<CloseOutlined />} onClick={onClose} />}
+        extra={
+          <Button
+            type="text"
+            icon={<CloseOutlined />}
+            onClick={() => setSelectDevice(null)}
+          />
+        }
       >
-        <Descriptions bordered size="small" column={2} style={{ marginBottom: 16 }}>
-          <Descriptions.Item label="IP 地址">{device.ip || '-'}</Descriptions.Item>
-          <Descriptions.Item label="子网掩码">{device.netmask || '-'}</Descriptions.Item>
-          <Descriptions.Item label="角色">{device.role}</Descriptions.Item>
+        <Descriptions bordered size="small" column={2}>
+          <Descriptions.Item label="IP 地址">
+            {device.ip || '-'}
+          </Descriptions.Item>
+
+          <Descriptions.Item label="子网掩码">
+            {device.netmask || '-'}
+          </Descriptions.Item>
+
+          <Descriptions.Item label="角色">
+            {device.role || '-'}
+          </Descriptions.Item>
+
           <Descriptions.Item label="设备类型">
             {getDeviceTypeLabel(device.deviceType)}
           </Descriptions.Item>
@@ -80,51 +117,22 @@ const DevicePanel = ({ selectDeviceId, setSelectDevice }) => {
         </Descriptions>
 
         <Card
-          type="inner"
+          size="small"
           title={
             <Space>
               <ApiOutlined />
-              接口列表 ({device.interfaces?.length || 0})
+              接口列表
             </Space>
           }
-          styles={{
-            body: { background: '#0b1220' },
-            header: { background: '#0f172a', color: '#cbd5e1' },
-          }}
+          style={{ marginTop: 16 }}
         >
-          <ConfigProvider
-            theme={{
-              components: {
-                Table: {
-                  headerBg: '#0f172a',
-                  headerColor: '#cbd5e1',
-                  borderColor: '#334155',
-                  rowHoverBg: 'rgba(59,130,246,0.08)',
-                },
-              },
-            }}
-          >
-            <Table
-              dataSource={device.interfaces}
-              pagination={false}
-              size="small"
-              rowKey="name"
-              locale={{ emptyText: '暂无接口信息' }}
-              style={{ background: '#0b1220' }}
-            >
-              <Table.Column title="接口名" dataIndex="name" />
-              <Table.Column title="IP 地址" dataIndex="ip" />
-              <Table.Column title="子网掩码" dataIndex="netmask" />
-              <Table.Column
-                title="状态"
-                dataIndex="status"
-                render={(s) => {
-                  const ok = (s || '').toLowerCase() === 'up' || !s;
-                  return <Tag color={ok ? 'green' : 'red'}>{ok ? 'UP' : 'DOWN'}</Tag>;
-                }}
-              />
-            </Table>
-          </ConfigProvider>
+          <Table
+            rowKey="name"
+            size="small"
+            pagination={false}
+            columns={columns}
+            dataSource={device.interfaces }
+          />
         </Card>
       </Card>
     </div>

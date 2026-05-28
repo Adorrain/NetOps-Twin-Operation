@@ -221,10 +221,22 @@ function DeviceMesh({ device, onClick }) {
 
 
 
-function LinkMesh({ link, devices }) {
+function LinkMesh({ link, devices, ecmpPaths = [] }) {
   const endpoints = getLinkpoints(link, devices);
   const particlesRef = useRef();
   const linkEnabled = link?.status !== 'inactive' && link?.status !== 'failed';
+  const ecmpHighlight = ecmpPaths.some((path) =>
+    Array.isArray(path) &&
+    path.some((nodeId, index) => {
+      if (index >= path.length - 1) return false;
+      const current = String(nodeId);
+      const next = String(path[index + 1]);
+      return (
+        (String(link?.srcDevice) === current && String(link?.dstDevice) === next) ||
+        (String(link?.srcDevice) === next && String(link?.dstDevice) === current)
+      );
+    })
+  );
 
   const particlesGeometry = useMemo(() => {
     const g = new THREE.BufferGeometry();
@@ -252,6 +264,8 @@ function LinkMesh({ link, devices }) {
   const utils = typeof link?.utilization === 'number' ? link.utilization : null;
   const linkColor = !linkEnabled
     ? '#6b7280'
+    : ecmpHighlight
+      ? '#f97316'
     : utils === null
       ? '#3b82f6'
       : utils >= 0.8
@@ -262,7 +276,7 @@ function LinkMesh({ link, devices }) {
 
   return (
     <group>
-      <Line points={endpoints.points} color={linkColor} opacity={0.7} transparent />
+      <Line points={endpoints.points} color={linkColor} opacity={ecmpHighlight ? 1 : 0.7} transparent lineWidth={ecmpHighlight ? 4 : 1} />
 
       {linkEnabled && (
         <points ref={particlesRef}>
@@ -277,6 +291,7 @@ function LinkMesh({ link, devices }) {
 function Scene({ networkTopology, onDeviceClick }) {
   const devices = networkTopology?.devices || [];
   const links = networkTopology?.links || [];
+  const ecmpPaths = networkTopology?.ecmpPaths || [];
 
   return (
     <>
@@ -303,7 +318,7 @@ function Scene({ networkTopology, onDeviceClick }) {
       ))}
 
       {links.map((link) => (
-        <LinkMesh key={link.id} link={link} devices={devices} />
+        <LinkMesh key={link.id} link={link} devices={devices} ecmpPaths={ecmpPaths} />
       ))}
     </>
   );
@@ -311,7 +326,7 @@ function Scene({ networkTopology, onDeviceClick }) {
 
 export default function NetworkTopology3D({ networkTopology, onDeviceClick }) {
   return (
-    <div style={{ width: '100%', height: '100%', background: '#0b1220' }}>
+    <div style={{ width: '100%', height: '100%', background: '#111217' }}>
       <Canvas shadows camera={{ position: [15, 12, 15], fov: 45 }} dpr={[1, 2]}>
         <ambientLight intensity={1.5} />
         <hemisphereLight intensity={1} groundColor="#1e293b" skyColor="#fff" />

@@ -10,7 +10,7 @@ const traceSmartRoute = (sourceId, targetId, scene) => postJson('/ops/smart/rout
 
 const ospfLoadBalance = (sourceId, targetId) => postJson('/ops/ospf/loadbalance', { sourceId, targetId });
 
-const startPeakTraffic = (sourceId, targetId, trafficIntensity) => postJson('/ops/peak/start', { sourceId, targetId, trafficIntensity });
+const startPeakTraffic = (sourceId, targetId, flowIntensity) => postJson('/ops/peak/start', { sourceId, targetId, flowIntensity });
 
 const stopPeakTraffic = () => postJson('/ops/peak/stop', {});
 
@@ -33,7 +33,6 @@ export const opsApi = {
   uploadTopologyFile,
   ping,
   traceroute,
-  smartRoute: traceSmartRoute,
   traceSmartRoute,
   ospfLoadBalance,
   startPeakTraffic,

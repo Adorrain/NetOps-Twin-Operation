@@ -3,7 +3,6 @@ package service
 import (
 	"backend/model"
 	"backend/utils"
-	"math"
 	"math/rand"
 	"sort"
 	"strings"
@@ -38,25 +37,18 @@ const (
 	utilSceneUtilWeight  = 0.5
 )
 
-// =========================
-// 主函数
-// =========================
-
 func NSGA2Service(body *model.SmartRouteBody) model.ApiResponse {
-
 	topology, err := getLatestTopology()
 	if err != nil {
 		return utils.ServerError(err.Error())
 	}
-
 	routingGraph := BuildForwardingGraph(topology)
-
 	delayWeight := defaultDelayWeight
 	costWeight := defaultCostWeight
 	utilWeight := defaultUtilWeight
 
 	switch strings.ToLower(strings.TrimSpace(body.Scene)) {
-	case "delay", "latency":
+	case "delay":
 		delayWeight = delaySceneDelayWeight
 		costWeight = delaySceneCostWeight
 		utilWeight = delaySceneUtilWeight
@@ -64,7 +56,7 @@ func NSGA2Service(body *model.SmartRouteBody) model.ApiResponse {
 		delayWeight = costSceneDelayWeight
 		costWeight = costSceneCostWeight
 		utilWeight = costSceneUtilWeight
-	case "utilization", "load":
+	case "utilization":
 		delayWeight = utilSceneDelayWeight
 		costWeight = utilSceneCostWeight
 		utilWeight = utilSceneUtilWeight
@@ -73,89 +65,59 @@ func NSGA2Service(body *model.SmartRouteBody) model.ApiResponse {
 	const populationSize = 100
 	const generations = 50
 	const mutationRate = 0.1
-
-	population := generateInitialPopulation(populationSize, body.SourceId, body.TargetId, topology, routingGraph)
-
+	population := generatePopulation(populationSize, body.SourceId, body.TargetId, topology, routingGraph)
 	if len(population) == 0 {
 		return utils.NotFound("无法生成初始种群")
 	}
 
 	for gen := 0; gen < generations; gen++ {
-
 		fronts := fastNonDominatedSort(population)
-
 		for _, front := range fronts {
 			crowdingCalculation(front, delayWeight, costWeight, utilWeight)
 		}
-
 		offspring := make(Population, 0, populationSize)
-
 		for len(offspring) < populationSize {
-
 			parents := selection(population, 2)
-
 			c1, c2 := crossover(parents[0], parents[1])
-
 			mutate(c1, topology, routingGraph, mutationRate)
 			mutate(c2, topology, routingGraph, mutationRate)
-
 			calculateObjective(c1, topology)
 			calculateObjective(c2, topology)
-
 			offspring = append(offspring, c1)
-
 			if len(offspring) < populationSize {
 				offspring = append(offspring, c2)
 			}
 		}
-
 		combined := append(population, offspring...)
-
 		fronts = fastNonDominatedSort(combined)
-
 		for _, front := range fronts {
 			crowdingCalculation(front, delayWeight, costWeight, utilWeight)
 		}
-
 		newPop := make(Population, 0, populationSize)
-
 		for _, front := range fronts {
-
 			if len(newPop)+len(front) <= populationSize {
 				newPop = append(newPop, front...)
-			} else {
-
-				sort.Slice(front, func(i, j int) bool {
-					return front[i].CrowdingDistance > front[j].CrowdingDistance
-				})
-
-				remain := populationSize - len(newPop)
-				newPop = append(newPop, front[:remain]...)
-				break
 			}
+			sort.Slice(front, func(i, j int) bool { return front[i].CrowdingDistance > front[j].CrowdingDistance })
+			remain := populationSize - len(newPop)
+			newPop = append(newPop, front[:remain]...)
+			break
 		}
-
 		population = newPop
 	}
-
 	finalFronts := fastNonDominatedSort(population)
 	if len(finalFronts) == 0 {
 		return utils.NotFound("无结果")
 	}
-
 	finalFront := finalFronts[0]
-
 	seen := map[string]bool{}
 	result := []map[string]interface{}{}
-
 	for _, ind := range finalFront {
-
 		key := strings.Join(ind.Path, "->")
 		if seen[key] {
 			continue
 		}
 		seen[key] = true
-
 		result = append(result, map[string]interface{}{
 			"path":        ind.Path,
 			"delay":       ind.Delay,
@@ -169,42 +131,22 @@ func NSGA2Service(body *model.SmartRouteBody) model.ApiResponse {
 	})
 }
 
-// =========================
-// 支配关系
-// =========================
-
 func (a *Individual) Dominates(b *Individual) bool {
-	flag := false
 	if a.Delay > b.Delay || a.Cost > b.Cost || a.Utilization > b.Utilization {
 		return false
 	}
-
-	if a.Delay < b.Delay {
-		flag = true
-	}
-	if a.Cost < b.Cost {
-		flag = true
-	}
-	if a.Utilization < b.Utilization {
-		flag = true
-	}
-
-	return flag
+	return a.Delay < b.Delay || a.Cost < b.Cost || a.Utilization < b.Utilization
 }
 
-// =========================
-// 初始化种群（极简版）
-// =========================
-
-func generateInitialPopulation(size int, start, end string, topology *model.TopologyData, routingGraph map[string]map[string]int) Population {
-	paths := collectPathsDFS(routingGraph, start, end, size*6)
+func generatePopulation(size int, start, end string, topology *model.TopologyData, routingGraph map[string]map[string]int) Population {
+	paths := PathDFS(routingGraph, start, end, size*6)
 	rand.Shuffle(len(paths), func(i, j int) {
 		paths[i], paths[j] = paths[j], paths[i]
 	})
 
 	pop := make(Population, 0, size)
 	for _, path := range paths {
-		if !utils.PathVlanCompatible(topology, path) {
+		if !utils.PathSupportsVlan(topology, path) {
 			continue
 		}
 		ind := &Individual{Path: path}
@@ -217,19 +159,11 @@ func generateInitialPopulation(size int, start, end string, topology *model.Topo
 	return pop
 }
 
-// =========================
-// 选择
-// =========================
-
 func selection(pop Population, k int) Population {
-
 	res := make(Population, k)
-
 	for i := 0; i < k; i++ {
-
 		a := pop[rand.Intn(len(pop))]
 		b := pop[rand.Intn(len(pop))]
-
 		if a.Rank < b.Rank {
 			res[i] = a
 		} else if b.Rank < a.Rank {
@@ -240,72 +174,48 @@ func selection(pop Population, k int) Population {
 			res[i] = b
 		}
 	}
-
 	return res
 }
 
-// =========================
-// crossover（已简化）
-// =========================
-
 func crossover(p1, p2 *Individual) (*Individual, *Individual) {
-
 	common := map[string]bool{}
-
 	for i := 1; i < len(p1.Path)-1; i++ {
 		common[p1.Path[i]] = true
 	}
-
 	var nodes []string
-
 	for i := 1; i < len(p2.Path)-1; i++ {
 		if common[p2.Path[i]] {
 			nodes = append(nodes, p2.Path[i])
 		}
 	}
-
 	if len(nodes) == 0 {
-		return &Individual{Path: append([]string{}, p1.Path...)},
-			&Individual{Path: append([]string{}, p2.Path...)}
+		return &Individual{Path: append([]string{}, p1.Path...)}, &Individual{Path: append([]string{}, p2.Path...)}
 	}
-
 	node := nodes[rand.Intn(len(nodes))]
-
 	i1, i2 := 0, 0
-
 	for i, n := range p1.Path {
 		if n == node {
 			i1 = i
 			break
 		}
 	}
-
 	for i, n := range p2.Path {
 		if n == node {
 			i2 = i
 			break
 		}
 	}
-
 	c1 := append(append([]string{}, p1.Path[:i1+1]...), p2.Path[i2+1:]...)
 	c2 := append(append([]string{}, p2.Path[:i2+1]...), p1.Path[i1+1:]...)
-
 	return &Individual{Path: c1}, &Individual{Path: c2}
 }
 
-// =========================
-// mutate（极简版）
-// =========================
-
 func mutate(ind *Individual, topology *model.TopologyData, graph map[string]map[string]int, rate float64) {
-
 	if rand.Float64() > rate || len(ind.Path) < 4 {
 		return
 	}
-
 	i1 := rand.Intn(len(ind.Path)-2) + 1
 	i2 := rand.Intn(len(ind.Path)-2) + 1
-
 	if i1 > i2 {
 		i1, i2 = i2, i1
 	}
@@ -313,101 +223,50 @@ func mutate(ind *Individual, topology *model.TopologyData, graph map[string]map[
 	if i1 == i2 {
 		return
 	}
-
-	oldSub := append([]string{}, ind.Path[i1:i2+1]...)
-	subPaths := collectPathsDFS(graph, ind.Path[i1], ind.Path[i2], 12)
-	if len(subPaths) == 0 {
+	alternativePaths := PathDFS(graph, ind.Path[i1], ind.Path[i2], 12)
+	if len(alternativePaths) == 0 {
 		return
 	}
-
-	rand.Shuffle(len(subPaths), func(i, j int) {
-		subPaths[i], subPaths[j] = subPaths[j], subPaths[i]
+	rand.Shuffle(len(alternativePaths), func(i, j int) {
+		alternativePaths[i], alternativePaths[j] = alternativePaths[j], alternativePaths[i]
 	})
-
-	for _, sub := range subPaths {
-		if samePath(sub, oldSub) {
-			continue
-		}
-
+	for _, sub := range alternativePaths {
 		newPath := append(append([]string{}, ind.Path[:i1]...), sub...)
 		newPath = append(newPath, ind.Path[i2+1:]...)
-
-		if utils.PathVlanCompatible(topology, newPath) && isSimplePath(newPath) {
+		if utils.PathSupportsVlan(topology, newPath) && isSimplePath(newPath) {
 			ind.Path = newPath
 			return
 		}
 	}
 }
 
-func collectPathsDFS(graph map[string]map[string]int, start, end string, limit int) [][]string {
+func PathDFS(graph map[string]map[string]int, start string, end string, limit int) [][]string {
 	var paths [][]string
-	type state struct {
-		node    string
-		path    []string
-		visited map[string]bool
-	}
-
-	stack := []state{
-		{
-			node:    start,
-			path:    []string{start},
-			visited: map[string]bool{start: true},
-		},
-	}
-
-	for len(stack) > 0 && len(paths) < limit {
-		cur := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-
-		if cur.node == end {
-			paths = append(paths, cur.path)
-			continue
+	var dfs func(node string, path []string, visited map[string]bool)
+	dfs = func(node string, path []string, visited map[string]bool) {
+		if len(paths) >= limit {
+			return
 		}
-
-		next := sortedNeighbors(graph, cur.node)
-		for i := len(next) - 1; i >= 0; i-- {
-			neighbor := next[i]
-			if cur.visited[neighbor] {
+		if node == end {
+			paths = append(paths, append([]string{}, path...))
+			return
+		}
+		visited[node] = true
+		neighbors := make([]string, 0, len(graph[node]))
+		for next := range graph[node] {
+			neighbors = append(neighbors, next)
+		}
+		sort.Strings(neighbors)
+		for _, next := range neighbors {
+			if visited[next] {
 				continue
 			}
-
-			nextPath := append(append([]string{}, cur.path...), neighbor)
-			nextVisited := make(map[string]bool, len(cur.visited)+1)
-			for node := range cur.visited {
-				nextVisited[node] = true
-			}
-			nextVisited[neighbor] = true
-
-			stack = append(stack, state{
-				node:    neighbor,
-				path:    nextPath,
-				visited: nextVisited,
-			})
+			dfs(next, append(path, next), visited)
 		}
+		visited[node] = false
 	}
-
+	dfs(start, []string{start}, map[string]bool{})
 	return paths
-}
-
-func sortedNeighbors(graph map[string]map[string]int, node string) []string {
-	neighbors := make([]string, 0, len(graph[node]))
-	for neighbor := range graph[node] {
-		neighbors = append(neighbors, neighbor)
-	}
-	sort.Strings(neighbors)
-	return neighbors
-}
-
-func samePath(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
 
 func isSimplePath(path []string) bool {
@@ -421,113 +280,76 @@ func isSimplePath(path []string) bool {
 	return true
 }
 
-// =========================
-// 非支配排序（不变）
-// =========================
-
 func fastNonDominatedSort(pop Population) []Population {
-
-	indMap := map[*Individual]int{}
-
-	for i, v := range pop {
-		indMap[v] = i
-	}
-
 	var fronts []Population
-	dom := make([]int, len(pop))
-	dominated := make([][]int, len(pop))
-
-	for i := range pop {
-		for j := i + 1; j < len(pop); j++ {
-
-			if pop[i].Dominates(pop[j]) {
-				dominated[i] = append(dominated[i], j)
-				dom[j]++
-			} else if pop[j].Dominates(pop[i]) {
-				dominated[j] = append(dominated[j], i)
-				dom[i]++
+	// 支配集合 Sp
+	sp := make(map[*Individual]Population)
+	// 被支配数量 np
+	np := make(map[*Individual]int)
+	var firstFront Population
+	// 第一阶段：计算支配关系
+	for _, p := range pop {
+		sp[p] = Population{}
+		np[p] = 0
+		for _, q := range pop {
+			if p == q {
+				continue
+			}
+			if p.Dominates(q) {
+				sp[p] = append(sp[p], q)
+			} else if q.Dominates(p) {
+				np[p]++
 			}
 		}
-
-		if dom[i] == 0 {
-			pop[i].Rank = 0
-			if len(fronts) == 0 {
-				fronts = append(fronts, Population{})
-			}
-			fronts[0] = append(fronts[0], pop[i])
+		// 不被任何个体支配
+		if np[p] == 0 {
+			p.Rank = 0
+			firstFront = append(firstFront, p)
 		}
 	}
-
-	k := 0
-
-	for k < len(fronts) {
-
-		var next Population
-
-		for _, p := range fronts[k] {
-
-			pIdx := indMap[p]
-
-			for _, q := range dominated[pIdx] {
-
-				dom[q]--
-
-				if dom[q] == 0 {
-					pop[q].Rank = k + 1
-					next = append(next, pop[q])
+	fronts = append(fronts, firstFront)
+	// 第二阶段：生成后续 Pareto Front
+	i := 0
+	for i < len(fronts) {
+		var nextFront Population
+		for _, p := range fronts[i] {
+			for _, q := range sp[p] {
+				np[q]--
+				if np[q] == 0 {
+					q.Rank = i + 1
+					nextFront = append(nextFront, q)
 				}
 			}
 		}
-
-		if len(next) > 0 {
-			fronts = append(fronts, next)
+		if len(nextFront) > 0 {
+			fronts = append(fronts, nextFront)
 		}
-
-		k++
+		i++
 	}
-
 	return fronts
 }
 
-// =========================
-// 拥挤度（简化版）
-// =========================
-
 func crowdingCalculation(front Population, w1, w2, w3 float64) {
-
-	if len(front) <= 2 {
-		for _, i := range front {
-			i.CrowdingDistance = math.Inf(1)
-		}
-		return
-	}
 
 	for _, i := range front {
 		i.CrowdingDistance = 0
 	}
-
 	sort.Slice(front, func(i, j int) bool { return front[i].Delay < front[j].Delay })
 	for i := 1; i < len(front)-1; i++ {
 		front[i].CrowdingDistance += w1 * (front[i+1].Delay - front[i-1].Delay)
 	}
-
 	sort.Slice(front, func(i, j int) bool { return front[i].Cost < front[j].Cost })
 	for i := 1; i < len(front)-1; i++ {
 		front[i].CrowdingDistance += w2 * (front[i+1].Cost - front[i-1].Cost)
 	}
-
 	sort.Slice(front, func(i, j int) bool { return front[i].Utilization < front[j].Utilization })
 	for i := 1; i < len(front)-1; i++ {
 		front[i].CrowdingDistance += w3 * (front[i+1].Utilization - front[i-1].Utilization)
 	}
 }
 
-// =========================
-// 目标函数
-// =========================
-
 func calculateObjective(ind *Individual, topology *model.TopologyData) {
-	ind.Delay = calculatePathDelay(ind.Path)
+	ind.Delay = calculatePathDelay(ind.Path, topology)
 	ind.Cost = calculatePathCost(ind.Path, topology)
 	ind.Utilization = calculatePathUtilization(ind.Path, topology)
 }

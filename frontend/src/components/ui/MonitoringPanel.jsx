@@ -75,13 +75,9 @@ export default function MonitoringPanel() {
             </div>
           )}
         />
-
         <Column title="IP" dataIndex="ip" />
-
         <Column title="子网" dataIndex="netmask" />
-
         <Column title="角色" dataIndex="role" />
-
         <Column
           title="状态"
           dataIndex="status"
@@ -95,7 +91,6 @@ export default function MonitoringPanel() {
           onFilter={(v, r) => r.status === v}
           render={(s) => <Tag color={getColor(s)}>{getDeviceStatusLabel(s)}</Tag>}
         />
-
         <Column
           title="OSPF"
           dataIndex="ospf"

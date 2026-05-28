@@ -30,7 +30,6 @@ const OpsConsole = () => {
   const [ecmpTargetId, setEcmpTargetId] = useState('');
   const [ecmpLinkId, setEcmpLinkId] = useState('');
   const [ecmpCost, setEcmpCost] = useState(0);
-  const [ecmpResult, setEcmpResult] = useState([]);
   const [ecmpResultCost, setEcmpResultCost] = useState(null);
   const [smartDeviceId, setSmartDeviceId] = useState('');
   const [smartTargetDeviceId, setSmartTargetDeviceId] = useState('');
@@ -41,12 +40,11 @@ const OpsConsole = () => {
   const [smartRouteResult, setSmartRouteResult] = useState([]);
   const [peakSourceId, setPeakSourceId] = useState('');
   const [peakTargetId, setPeakTargetId] = useState('');
-  const [peakTrafficIntensity, setPeakTrafficIntensity] = useState(0);
+  const [peakFlowIntensity, setPeakFlowIntensity] = useState(0);
   const [peakRunning, setPeakRunning] = useState(false);
   const [peakData, setPeakData] = useState(null);
   const peakTimerRef = useRef(null);
-
-   const [logs, setLogs] = useState([]);
+  const [logs, setLogs] = useState([]);
   const [logsOpen, setLogsOpen] = useState(false);
 
   const devices = useMemo(() => networkTopology?.devices || [], [networkTopology]);
@@ -280,7 +278,6 @@ const OpsConsole = () => {
       return;
     }
     try {
-      setEcmpResult([]);
       setEcmpResultCost(null);
       const res = await opsApi.ospfLoadBalance(ecmpSourceId, ecmpTargetId);
       if (res.code === 200) {
@@ -292,15 +289,15 @@ const OpsConsole = () => {
         }
         if (!Array.isArray(paths)) paths = [];
         setEcmpResultCost(typeof cost === 'number' ? cost : null);
-        setEcmpResult(paths.map((p, idx) => `${idx + 1}. ${(p || []).join(' -> ')}`));
+        setNetworkTopology(prev => ({ ...prev, ecmpPaths: paths }));
         message.success('更新成功');
       } else {
         message.warning(res.message || '操作失败');
-        setEcmpResult(['操作失败']);
+        setNetworkTopology(prev => ({ ...prev, ecmpPaths: [] }));
       }
     } catch {
       message.error('系统错误');
-      setEcmpResult(['系统错误']);
+      setNetworkTopology(prev => ({ ...prev, ecmpPaths: [] }));
     }
     fetchLogs();
   };
@@ -375,14 +372,14 @@ const OpsConsole = () => {
     fetchLogs();
   };
   const startPeakTraffic = async () => {
-    if (!peakSourceId || !peakTargetId || !peakTrafficIntensity) {
+    if (!peakSourceId || !peakTargetId || !peakFlowIntensity) {
       message.warning('请选择源设备、目标设备和流量强度');
       return;
     }
     stopPeakPolling();
     setPeakDataOnTopology(null);
     try {
-      const res = await opsApi.startPeakTraffic(peakSourceId, peakTargetId, peakTrafficIntensity);
+      const res = await opsApi.startPeakTraffic(peakSourceId, peakTargetId, peakFlowIntensity);
       if (res.code === 200) {
         message.success('高峰流量模拟已开启');
         setPeakRunning(true);
@@ -573,6 +570,14 @@ const OpsConsole = () => {
                       options={devices.map(device => ({ label: device.name, value: device.id }))} />
                   </Form.Item>
                   <Button type="primary" block onClick={ecmp}>展示ECMP路径</Button>
+                  <Button
+                    block
+                    style={{ marginTop: 8 }}
+                    disabled={!networkTopology?.ecmpPaths?.length}
+                    onClick={() => setNetworkTopology(prev => ({ ...prev, ecmpPaths: [] }))}
+                  >
+                    取消显示路径
+                  </Button>
                   <Form.Item label="链路" style={{ marginTop: 8 }}>
                     <Select value={ecmpLinkId} onChange={setEcmpLinkId}
                       options={links.map(link => ({ label: `${link.srcDevice+'->'+link.dstDevice}` , value:link.id }))} />
@@ -583,13 +588,6 @@ const OpsConsole = () => {
                 </Form>
                 <Button type="primary" block onClick={updateCost}>手动更新Cost</Button>
                 {ecmpResultCost !== null && <Alert showIcon message={`Cost: ${ecmpResultCost}`} type="info" />}
-                {ecmpResult.length > 0 && (
-                  <div>
-                    {ecmpResult.map((t, i) => (
-                      <div key={i} style={{ fontSize: 12 }}>{t}</div>
-                    ))}
-                  </div>
-                )}
               </Space>
             )
           },
@@ -689,7 +687,7 @@ const OpsConsole = () => {
                       options={devices.map(device => ({ label: device.name, value: device.id }))} />
                   </Form.Item>
                   <Form.Item label="流量强度（Mbps）">
-                    <InputNumber value={peakTrafficIntensity} onChange={setPeakTrafficIntensity} style={{width: '100%'}}/>
+                    <InputNumber value={peakFlowIntensity} onChange={setPeakFlowIntensity} style={{width: '100%'}}/>
                   </Form.Item>
                 </Form>
                 <Row gutter={8}>

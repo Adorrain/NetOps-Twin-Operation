@@ -49,9 +49,9 @@ type OspfCostBody struct {
 }
 
 type PeakTrafficStartBody struct {
-	SourceId         string  `json:"sourceId" binding:"required"`
-	TargetId         string  `json:"targetId" binding:"required"`
-	TrafficIntensity float64 `json:"trafficIntensity" binding:"required"`
+	SourceId      string  `json:"sourceId" binding:"required"`
+	TargetId      string  `json:"targetId" binding:"required"`
+	FlowIntensity float64 `json:"flowIntensity" binding:"required"`
 }
 
 type Log struct {
@@ -93,4 +93,16 @@ type ApiResponse struct {
 	Code    int    `json:"code"`
 	Data    any    `json:"data"`
 	Message string `json:"message"`
+}
+
+type PeakTrafficState struct {
+	Running     bool             `json:"running"`
+	SourceId    string           `json:"sourceId"`
+	TargetId    string           `json:"targetId"`
+	Intensity   float64          `json:"intensity"`
+	Path        []string         `json:"path"`
+	Capacity    float64          `json:"capacity"`
+	Utilization float64          `json:"utilization"`
+	LinkDelay   float64          `json:"linkDelay"`
+	Links       []map[string]any `json:"links"`
 }

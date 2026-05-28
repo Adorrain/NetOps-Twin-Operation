@@ -30,8 +30,8 @@ export const getDeviceTypeLabel = (deviceType) => {
 };
 
 export const countDeviceStatus = (networkTopology) => {
-  const devices = networkTopology?.devices;
-  const links = networkTopology?.links;
+  const devices = networkTopology?.devices || [];
+  const links = networkTopology?.links || [];
   const deviceTotal = devices.length;
   const linkTotal = links.length;
   const activeDevices = devices.filter((device) => {return device?.status ==='up' || device?.status === 'online';}).length;
