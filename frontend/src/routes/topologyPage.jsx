@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Layout, Typography, Empty, Button, Modal } from 'antd';
 import NetworkTopology3D from '../components/3d/NetworkTopology3D';
 import DevicePanel from '../components/ui/DevicePanel';
-import { OpsConsole } from '../components/ui/OpsConsole';
+import OpsConsole from '../components/ui/OpsConsole';
 import MonitoringPanel from '../components/ui/MonitoringPanel';
 import { useTopology } from '../utils/topologyContext';
 
@@ -13,14 +13,13 @@ export default function TopologyPage() {
   const { networkTopology } = useTopology();
 
   const [selectedId, setSelectedId] = useState(null);
-  const [logs, setLogs] = useState([]);
   const [open, setOpen] = useState(false);
 
   return (
     <Layout style={{ height: '100%', overflow: 'hidden' }}>
  
       <Content style={{ position: 'relative', background: '#111217' }}>
-        {networkTopology ? (
+        {networkTopology ? ( 
           <NetworkTopology3D
             networkTopology={networkTopology}
             onDeviceClick={(d) => setSelectedId(d?.id)}
@@ -93,7 +92,7 @@ export default function TopologyPage() {
             padding: 12,
           }}
         >
-          <OpsConsole  logs={logs} setOpsLogs={setLogs} />
+          <OpsConsole />
         </div>
       </Sider>
 
@@ -104,7 +103,7 @@ export default function TopologyPage() {
         onCancel={() => setOpen(false)}
         width="80%"
       >
-        <MonitoringPanel networkTopology={networkTopology}/>
+        <MonitoringPanel />
       </Modal>
     </Layout>
   );

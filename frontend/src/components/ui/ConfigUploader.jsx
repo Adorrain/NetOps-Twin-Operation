@@ -1,4 +1,3 @@
-import React from 'react';
 import { Upload, message,Empty,Typography } from 'antd';
 import { opsApi } from '../../api/api';
 
@@ -52,7 +51,7 @@ const buildTopologyData = (cfg) => {
   };
 };
 
-const ConfigUploader = ({ onConfigLoaded, setNetworkTopology }) => {
+const ConfigUploader = ({ onConfigLoaded }) => {
   const handleUpload = async (file) => {
     if (!file.name.endsWith('.yaml') && !file.name.endsWith('.yml')) {
       message.error('请上传 YAML 文件');
@@ -63,9 +62,7 @@ const ConfigUploader = ({ onConfigLoaded, setNetworkTopology }) => {
       const res = await opsApi.uploadTopologyFile(file);
       const topology = buildTopologyData(res);
 
-      setNetworkTopology(topology);
       onConfigLoaded?.(topology);
-      // console.log(topology);
       message.success('配置加载成功');
     } catch (e) {
       message.error(`配置加载失败: ${e.message}`);

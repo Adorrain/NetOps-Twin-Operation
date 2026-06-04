@@ -90,7 +90,7 @@ func Traceroute(body *model.TracerouteBody) model.ApiResponse {
 		ip = append(ip, deviceMap[id].Ip)
 	}
 	hops := len(path) - 1
-	utilization := calculatePathUtilization(path, topology)
+	utilization := calculatePathUtilization(path)
 	_ = updateDataBase(topology, "traceroute", body.TargetId, "Traceroute 测试", fmt.Sprintf("Traceroute 测试: %s -> %s", body.SourceId, body.TargetId))
 	return utils.Success("success", map[string]interface{}{
 		"sourceId":    body.SourceId,

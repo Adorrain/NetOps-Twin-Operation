@@ -168,3 +168,31 @@ func PathSupportsVlan(topology *model.TopologyData, path []string) bool {
 	}
 	return true
 }
+
+func GetLinkBandwidth(src string, dst string, topology *model.TopologyData) float64 {
+	for _, link := range topology.Links {
+		if (link.SrcDevice == src && link.DstDevice == dst) || (link.SrcDevice == dst && link.DstDevice == src) {
+			bw := ParseBandwidth(link.Bandwidth)
+			if bw > 0 {
+				return bw
+			}
+			break
+		}
+	}
+	return 0
+}
+func GetLinkCost(topology *model.TopologyData, src string, dst string) int {
+	bw := GetLinkBandwidth(src, dst, topology)
+	if bw <= 0 {
+		return 0
+	}
+	reference := ParseBandwidth(topology.OspfReferenceBandwidth)
+	if reference <= 0 {
+		return 1
+	}
+	cost := int(reference / bw)
+	if cost < 1 {
+		return 1
+	}
+	return cost
+}

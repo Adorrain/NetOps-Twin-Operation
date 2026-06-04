@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Select, Button, Modal, Tag, message, Collapse,
   Space, Typography, Row, Col, Divider, List, Empty,
@@ -34,8 +34,6 @@ const OpsConsole = () => {
   const [smartDeviceId, setSmartDeviceId] = useState('');
   const [smartTargetDeviceId, setSmartTargetDeviceId] = useState('');
   const [smartScene, setSmartScene] = useState('');
-  const [smartSolutions, setSmartSolutions] = useState([]);
-  const [smartSolutionIndex, setSmartSolutionIndex] = useState(0);
   const [smartRouteSummary, setSmartRouteSummary] = useState('');
   const [smartRouteResult, setSmartRouteResult] = useState([]);
   const [peakSourceId, setPeakSourceId] = useState('');
@@ -77,7 +75,7 @@ const OpsConsole = () => {
     };
   }, []);
 
-  const setPeakDataOnTopology = (data) => {
+  const applyPeakMetricsToLinks = (data) => {
     const linkData = Array.isArray(data?.links) ? data.links : [];
     const m = new Map(linkData.map(item => [String(item.linkId), item]));
 
@@ -113,7 +111,7 @@ const OpsConsole = () => {
         const running = Boolean(res.data?.running);
         setPeakRunning(running);
         setPeakData(res.data);
-        setPeakDataOnTopology(running ? res.data : null);
+        applyPeakMetricsToLinks(running ? res.data : null);
       }
     } catch {
       message.error('获取峰值流量指标失败');
@@ -186,7 +184,7 @@ const OpsConsole = () => {
         message.warning(res.message || '操作失败');
       }
     } catch {
-      message.error('系统错误');
+      message.error('更新失败');
     }
     fetchLogs();
   };
@@ -204,7 +202,7 @@ const OpsConsole = () => {
         message.warning(res.message || '操作失败');
       }
     } catch {
-      message.error('系统错误');
+      message.error('更新失败');
     }
     fetchLogs();
   };
@@ -236,7 +234,7 @@ const OpsConsole = () => {
         message.warning(res.message || '操作失败');
       }
     } catch {
-      message.error('系统错误');
+      message.error('更新失败');
     }
     fetchLogs();
   };
@@ -268,7 +266,7 @@ const OpsConsole = () => {
         message.warning(res.message || '操作失败');
       }
     } catch {
-      message.error('系统错误');
+      message.error('更新失败');
     }
     fetchLogs();
   };
@@ -315,7 +313,7 @@ const OpsConsole = () => {
         message.warning(res.message || '操作失败');
       }
     } catch {
-      message.error('系统错误');
+      message.error('更新失败');
     }
     fetchLogs();
   };
@@ -324,50 +322,24 @@ const OpsConsole = () => {
       message.warning('请选择源设备、目标设备');
       return;
     }
+    const resetResult = (msg) => { setSmartRouteSummary(''); setSmartRouteResult([msg]); };
     try {
-      const applySolution = (solutions, idx) => {
-        const safeSolutions = Array.isArray(solutions) ? solutions : [];
-        const safeIdx = Math.min(Math.max(Number(idx) || 0, 0), Math.max(safeSolutions.length - 1, 0));
-        const chosen = safeSolutions[safeIdx] || {};
-        const path = Array.isArray(chosen?.path) ? chosen.path : [];
-        const delay = chosen?.delay;
-        const cost = chosen?.cost;
-        const utilization = chosen?.utilization;
-
-        if (!path.length) {
-          setSmartRouteSummary('');
-          setSmartRouteResult(['未找到路径']);
-          return;
-        }
-
-        const delayText = typeof delay === 'number' ? `${delay} ms` : '-';
-        const costText = typeof cost === 'number' ? `${cost}` : '-';
-        const utilText = typeof utilization === 'number' ? `${utilization.toFixed(2)}%` : '-';
-
-        setSmartRouteSummary(`Delay: ${delayText} | Utilization: ${utilText} | Cost: ${costText}`);
-        setSmartRouteResult(path.map((n, i) => `${i + 1}. ${n}`));
-      };
-
       const res = await opsApi.traceSmartRoute(smartDeviceId, smartTargetDeviceId, smartScene);
-      if (res.code === 200) {
-        const solutions = Array.isArray(res.data?.solutions) ? res.data.solutions : [];
-        setSmartSolutions(solutions);
-        setSmartSolutionIndex(0);
-        applySolution(solutions, 0);
-        message.success('路由更新成功');
-      } else {
+      if (res.code !== 200) {
         message.warning(res.message || '操作失败');
-        setSmartSolutions([]);
-        setSmartSolutionIndex(0);
-        setSmartRouteSummary('');
-        setSmartRouteResult(['操作失败']);
+        resetResult('操作失败');
+        return;
       }
+      const chosen = res.data?.solutions?.[0] || {};
+      const path = Array.isArray(chosen.path) ? chosen.path : [];
+      if (!path.length) { resetResult('未找到路径'); return; }
+      const fmt = (v, s) => typeof v === 'number' ? `${v}${s}` : '-';
+      setSmartRouteSummary(`Delay: ${fmt(chosen.delay, ' ms')} | Utilization: ${fmt(chosen.utilization?.toFixed?.(2), '%')} | Cost: ${fmt(chosen.cost, '')}`);
+      setSmartRouteResult(path.map((n, i) => `${i + 1}. ${n}`));
+      message.success('路由更新成功');
     } catch {
       message.error('系统错误');
-      setSmartSolutions([]);
-      setSmartSolutionIndex(0);
-      setSmartRouteSummary('');
-      setSmartRouteResult(['系统错误']);
+      resetResult('系统错误');
     }
     fetchLogs();
   };
@@ -377,14 +349,14 @@ const OpsConsole = () => {
       return;
     }
     stopPeakPolling();
-    setPeakDataOnTopology(null);
+    applyPeakMetricsToLinks(null);
     try {
       const res = await opsApi.startPeakTraffic(peakSourceId, peakTargetId, peakFlowIntensity);
       if (res.code === 200) {
         message.success('高峰流量模拟已开启');
         setPeakRunning(true);
         setPeakData(res.data);
-        setPeakDataOnTopology(res.data);
+        applyPeakMetricsToLinks(res.data);
         peakTimerRef.current = setInterval(fetchPeakData, 5000);
       } else {
         message.warning(res.message || '操作失败');
@@ -403,7 +375,7 @@ const OpsConsole = () => {
         message.success('高峰流量模拟已关闭');
         setPeakRunning(false);
         setPeakData(null);
-        setPeakDataOnTopology(null);
+        applyPeakMetricsToLinks(null);
       } else {
         message.warning(res.message || '操作失败');
       }
@@ -621,42 +593,6 @@ const OpsConsole = () => {
                 <Button type="primary" block onClick={traceSmartRoute}>智能路由</Button>   
                 {smartRouteResult.length > 0 && (
                   <div>
-                    {smartSolutions.length > 1 && (
-                      <div style={{ marginBottom: 8 }}>
-                        <Select
-                          value={smartSolutionIndex}
-                          onChange={(v) => {
-                            const idx = Number(v) || 0;
-                            const safeIdx = Math.min(Math.max(idx, 0), smartSolutions.length - 1);
-                            setSmartSolutionIndex(safeIdx);
-
-                            const chosen = smartSolutions[safeIdx] || {};
-                            const path = Array.isArray(chosen?.path) ? chosen.path : [];
-                            const delay = chosen?.delay;
-                            const cost = chosen?.cost;
-                            const utilization = chosen?.utilization;
-
-                            if (!path.length) {
-                              setSmartRouteSummary('');
-                              setSmartRouteResult(['未找到路径']);
-                              return;
-                            }
-
-                            const delayText = typeof delay === 'number' ? `${delay} ms` : '-';
-                            const costText = typeof cost === 'number' ? `${cost}` : '-';
-                            const utilText = typeof utilization === 'number' ? `${utilization.toFixed(2)}%` : '-';
-
-                            setSmartRouteSummary(`Delay: ${delayText} | Utilization: ${utilText} | Cost: ${costText}`);
-                            setSmartRouteResult(path.map((n, i) => `${i + 1}. ${n}`));
-                          }}
-                          style={{ width: '100%' }}
-                          options={smartSolutions.map((_, idx) => ({
-                            label: `方案 ${idx + 1}`,
-                            value: idx,
-                          }))}
-                        />
-                      </div>
-                    )}
                     {smartRouteSummary && (
                       <div style={{ fontSize: 12, wordBreak: 'break-word' }}>
                         {smartRouteSummary}
@@ -785,4 +721,3 @@ const OpsConsole = () => {
 };
 
 export default OpsConsole;
-export { OpsConsole };

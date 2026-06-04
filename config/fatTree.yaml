@@ -367,7 +367,7 @@ links:
       dstDevice: h1,
       dstInterface: eth0,
       status: up,
-      bandwidth: 10G,
+      bandwidth: 1G,
     }
   - {
       id: l18,

@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   Card,
   Descriptions,
@@ -101,12 +100,8 @@ const DevicePanel = ({ selectDeviceId, setSelectDevice }) => {
             {device.netmask || '-'}
           </Descriptions.Item>
 
-          <Descriptions.Item label="角色">
+          <Descriptions.Item label="角色" span={2}>
             {device.role || '-'}
-          </Descriptions.Item>
-
-          <Descriptions.Item label="设备类型">
-            {getDeviceTypeLabel(device.deviceType)}
           </Descriptions.Item>
 
           {device.description && (

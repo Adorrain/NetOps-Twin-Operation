@@ -1,4 +1,3 @@
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import ConfigUploader from '../components/ui/ConfigUploader';
 import { useTopology } from '../utils/topologyContext';
@@ -14,7 +13,7 @@ export default function UploadPage() {
 
   return (
     <div style={{ height: '100%', overflowY: 'auto' }}>
-      <ConfigUploader onConfigLoaded={handleSuccess} setNetworkTopology={setNetworkTopology} />
+      <ConfigUploader onConfigLoaded={handleSuccess} />
     </div>
   );
 }

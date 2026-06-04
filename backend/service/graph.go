@@ -51,7 +51,12 @@ func BuildForwardingGraph(topology *model.TopologyData) map[string]map[string]in
 		if !srcInterfaceUp || !dstInterfaceUp {
 			continue
 		}
-		weight := utils.CalculateCost(topology.OspfReferenceBandwidth, link.Bandwidth)
+		weight := 0
+		if link.OspfCost != nil && *link.OspfCost > 0 {
+			weight = *link.OspfCost
+		} else {
+			weight = utils.CalculateCost(topology.OspfReferenceBandwidth, link.Bandwidth)
+		}
 		if weight <= 0 {
 			continue
 		}

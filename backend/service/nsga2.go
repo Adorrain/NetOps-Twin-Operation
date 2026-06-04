@@ -3,6 +3,7 @@ package service
 import (
 	"backend/model"
 	"backend/utils"
+	"math"
 	"math/rand"
 	"sort"
 	"strings"
@@ -19,48 +20,12 @@ type Individual struct {
 
 type Population []*Individual
 
-const (
-	defaultDelayWeight = 0.33
-	defaultCostWeight  = 0.33
-	defaultUtilWeight  = 0.33
-
-	delaySceneDelayWeight = 0.5
-	delaySceneCostWeight  = 0.25
-	delaySceneUtilWeight  = 0.25
-
-	costSceneDelayWeight = 0.25
-	costSceneCostWeight  = 0.5
-	costSceneUtilWeight  = 0.25
-
-	utilSceneDelayWeight = 0.25
-	utilSceneCostWeight  = 0.25
-	utilSceneUtilWeight  = 0.5
-)
-
 func NSGA2Service(body *model.SmartRouteBody) model.ApiResponse {
 	topology, err := getLatestTopology()
 	if err != nil {
 		return utils.ServerError(err.Error())
 	}
 	routingGraph := BuildForwardingGraph(topology)
-	delayWeight := defaultDelayWeight
-	costWeight := defaultCostWeight
-	utilWeight := defaultUtilWeight
-
-	switch strings.ToLower(strings.TrimSpace(body.Scene)) {
-	case "delay":
-		delayWeight = delaySceneDelayWeight
-		costWeight = delaySceneCostWeight
-		utilWeight = delaySceneUtilWeight
-	case "cost":
-		delayWeight = costSceneDelayWeight
-		costWeight = costSceneCostWeight
-		utilWeight = costSceneUtilWeight
-	case "utilization":
-		delayWeight = utilSceneDelayWeight
-		costWeight = utilSceneCostWeight
-		utilWeight = utilSceneUtilWeight
-	}
 
 	const populationSize = 100
 	const generations = 50
@@ -73,7 +38,7 @@ func NSGA2Service(body *model.SmartRouteBody) model.ApiResponse {
 	for gen := 0; gen < generations; gen++ {
 		fronts := fastNonDominatedSort(population)
 		for _, front := range fronts {
-			crowdingCalculation(front, delayWeight, costWeight, utilWeight)
+			crowdingCalculation(front)
 		}
 		offspring := make(Population, 0, populationSize)
 		for len(offspring) < populationSize {
@@ -91,17 +56,22 @@ func NSGA2Service(body *model.SmartRouteBody) model.ApiResponse {
 		combined := append(population, offspring...)
 		fronts = fastNonDominatedSort(combined)
 		for _, front := range fronts {
-			crowdingCalculation(front, delayWeight, costWeight, utilWeight)
+			crowdingCalculation(front)
 		}
 		newPop := make(Population, 0, populationSize)
 		for _, front := range fronts {
 			if len(newPop)+len(front) <= populationSize {
 				newPop = append(newPop, front...)
+			} else {
+				sort.Slice(front, func(i, j int) bool {
+					return front[i].CrowdingDistance >
+						front[j].CrowdingDistance
+				})
+
+				remain := populationSize - len(newPop)
+				newPop = append(newPop, front[:remain]...)
+				break
 			}
-			sort.Slice(front, func(i, j int) bool { return front[i].CrowdingDistance > front[j].CrowdingDistance })
-			remain := populationSize - len(newPop)
-			newPop = append(newPop, front[:remain]...)
-			break
 		}
 		population = newPop
 	}
@@ -124,6 +94,39 @@ func NSGA2Service(body *model.SmartRouteBody) model.ApiResponse {
 			"cost":        ind.Cost,
 			"utilization": ind.Utilization,
 		})
+	}
+
+	scene := strings.ToLower(strings.TrimSpace(body.Scene))
+	if scene != "" && len(result) > 0 {
+		best := result[0]
+		bestVal := math.Inf(1)
+		getVal := func(item map[string]interface{}) float64 {
+			switch scene {
+			case "delay":
+				if v, ok := item["delay"].(float64); ok {
+					return v
+				}
+			case "cost":
+				if v, ok := item["cost"].(float64); ok {
+					return v
+				}
+			case "utilization":
+				if v, ok := item["utilization"].(float64); ok {
+					return v
+				}
+			}
+			return math.Inf(1)
+		}
+		for _, item := range result {
+			v := getVal(item)
+			if v < bestVal {
+				bestVal = v
+				best = item
+			}
+		}
+		if bestVal != math.Inf(1) {
+			result = []map[string]interface{}{best}
+		}
 	}
 
 	return utils.Success("OK", map[string]interface{}{
@@ -282,12 +285,9 @@ func isSimplePath(path []string) bool {
 
 func fastNonDominatedSort(pop Population) []Population {
 	var fronts []Population
-	// 支配集合 Sp
 	sp := make(map[*Individual]Population)
-	// 被支配数量 np
 	np := make(map[*Individual]int)
 	var firstFront Population
-	// 第一阶段：计算支配关系
 	for _, p := range pop {
 		sp[p] = Population{}
 		np[p] = 0
@@ -301,14 +301,12 @@ func fastNonDominatedSort(pop Population) []Population {
 				np[p]++
 			}
 		}
-		// 不被任何个体支配
 		if np[p] == 0 {
 			p.Rank = 0
 			firstFront = append(firstFront, p)
 		}
 	}
 	fronts = append(fronts, firstFront)
-	// 第二阶段：生成后续 Pareto Front
 	i := 0
 	for i < len(fronts) {
 		var nextFront Population
@@ -329,51 +327,57 @@ func fastNonDominatedSort(pop Population) []Population {
 	return fronts
 }
 
-func crowdingCalculation(front Population, w1, w2, w3 float64) {
+func crowdingCalculation(front Population) {
+	n := len(front)
+	for _, ind := range front {
+		ind.CrowdingDistance = 0
+	}
 
-	for _, i := range front {
-		i.CrowdingDistance = 0
-	}
 	sort.Slice(front, func(i, j int) bool { return front[i].Delay < front[j].Delay })
-	for i := 1; i < len(front)-1; i++ {
-		front[i].CrowdingDistance += w1 * (front[i+1].Delay - front[i-1].Delay)
+	delayMin := front[0].Delay
+	delayMax := front[n-1].Delay
+	front[0].CrowdingDistance = math.Inf(1)
+	front[n-1].CrowdingDistance = math.Inf(1)
+	if delayMax > delayMin {
+		for i := 1; i < n-1; i++ {
+			front[i].CrowdingDistance += (front[i+1].Delay - front[i-1].Delay) / (delayMax - delayMin)
+		}
 	}
+
 	sort.Slice(front, func(i, j int) bool { return front[i].Cost < front[j].Cost })
-	for i := 1; i < len(front)-1; i++ {
-		front[i].CrowdingDistance += w2 * (front[i+1].Cost - front[i-1].Cost)
+	costMin := front[0].Cost
+	costMax := front[n-1].Cost
+	front[0].CrowdingDistance = math.Inf(1)
+	front[n-1].CrowdingDistance = math.Inf(1)
+	if costMax > costMin {
+		for i := 1; i < n-1; i++ {
+			front[i].CrowdingDistance += (front[i+1].Cost - front[i-1].Cost) / (costMax - costMin)
+		}
 	}
+
 	sort.Slice(front, func(i, j int) bool { return front[i].Utilization < front[j].Utilization })
-	for i := 1; i < len(front)-1; i++ {
-		front[i].CrowdingDistance += w3 * (front[i+1].Utilization - front[i-1].Utilization)
+	utilMin := front[0].Utilization
+	utilMax := front[n-1].Utilization
+	front[0].CrowdingDistance = math.Inf(1)
+	front[n-1].CrowdingDistance = math.Inf(1)
+
+	if utilMax > utilMin {
+		for i := 1; i < n-1; i++ {
+			front[i].CrowdingDistance += (front[i+1].Utilization - front[i-1].Utilization) / (utilMax - utilMin)
+		}
 	}
 }
 
 func calculateObjective(ind *Individual, topology *model.TopologyData) {
 	ind.Delay = calculatePathDelay(ind.Path, topology)
 	ind.Cost = calculatePathCost(ind.Path, topology)
-	ind.Utilization = calculatePathUtilization(ind.Path, topology)
+	ind.Utilization = calculatePathUtilization(ind.Path)
 }
 
 func calculatePathCost(path []string, topology *model.TopologyData) float64 {
 	sum := 0.0
 	for i := 0; i < len(path)-1; i++ {
-		sum += float64(getLinkCost(topology, path[i], path[i+1]))
+		sum += float64(utils.GetLinkCost(topology, path[i], path[i+1]))
 	}
 	return sum
-}
-
-func getLinkCost(topology *model.TopologyData, from, to string) int {
-	for i := range topology.Links {
-		link := topology.Links[i]
-		if link.Status != "up" && link.Status != "active" {
-			continue
-		}
-		if (link.SrcDevice == from && link.DstDevice == to) || (link.SrcDevice == to && link.DstDevice == from) {
-			if link.OspfCost != nil {
-				return *link.OspfCost
-			}
-			return utils.CalculateCost(topology.OspfReferenceBandwidth, link.Bandwidth)
-		}
-	}
-	return 0
 }

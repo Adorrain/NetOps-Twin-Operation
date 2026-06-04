@@ -1,4 +1,4 @@
-import React, { Suspense, useMemo, useRef } from 'react';
+import { Suspense, useMemo, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Grid, Text, RoundedBox, Line, Float } from '@react-three/drei';
 import * as THREE from 'three';
@@ -158,7 +158,6 @@ function DeviceMesh({ device, onClick }) {
   const size = DEVICE_SIZE[device?.deviceType].size;
   const vlanId = getVlans(device)[0];
   const  vlanColor = vlanId ? VLAN_COLOR[vlanId % VLAN_COLOR.length]: '#334155';
-  console.log(vlanId, vlanColor);
   const renderModel = () => {
     switch (device?.deviceType) {
       case 'switch':
@@ -219,8 +218,6 @@ function DeviceMesh({ device, onClick }) {
   </group>
 )};
 
-
-
 function LinkMesh({ link, devices, ecmpPaths = [] }) {
   const endpoints = getLinkpoints(link, devices);
   const particlesRef = useRef();
@@ -246,7 +243,7 @@ function LinkMesh({ link, devices, ecmpPaths = [] }) {
 
   useFrame(({ clock }) => {
     if (!linkEnabled || !endpoints?.src?.position || !endpoints?.dst?.position) return;
-    if (!particlesRef.current || !endpoints?.src?.position || !endpoints?.dst?.position) return;
+    if (!particlesRef.current) return;
 
     const start = new THREE.Vector3(endpoints.src.position.x, 0.5, endpoints.src.position.z);
     const end = new THREE.Vector3(endpoints.dst.position.x, 0.5, endpoints.dst.position.z);

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Space, Table, Tag } from 'antd';
 import { getVlans, countDeviceStatus, judgeDeviceStatus, getDeviceStatusLabel } from '../../utils/utils';
 import { useTopology } from '../../utils/topologyContext';
@@ -7,12 +7,12 @@ const { Column } = Table;
 
 export default function MonitoringPanel() {
   const { networkTopology } = useTopology();
-  const devices = useMemo(() => { return networkTopology?.devices || []}, [networkTopology?.devices]);
+  const devices = networkTopology?.devices || [];
   const counts =  countDeviceStatus(networkTopology);
 
   const tableData = useMemo(() => {
     return devices.map((device) => {
-      const s = judgeDeviceStatus(device.status) || 'online';
+      const status = judgeDeviceStatus(device.status) || 'online';
       return {
         key: device.id,
         id: device.id,
@@ -20,18 +20,18 @@ export default function MonitoringPanel() {
         ip: device.ip,
         netmask: device.netmask,
         role: device.role,
-        status: s,
+        status: status,
         ospf: device?.ospf?.area,
         vlan: [...new Set(getVlans(device))].filter(v => Number(v) > 0).join(','),
       };
     });
   }, [devices]);
 
-  const getColor = (s) => {
-    if (s === 'online') return 'green';
-    if (s === 'warning') return 'gold';
-    if (s === 'error') return 'red';
-    if (s === 'maintenance') return 'orange';
+  const getColor = (status) => {
+    if (status === 'online') return 'green';
+    if (status === 'warning') return 'gold';
+    if (status === 'error') return 'red';
+    if (status === 'maintenance') return 'orange';
     return 'gray';
   };
 
@@ -89,7 +89,7 @@ export default function MonitoringPanel() {
             { text: '离线', value: 'offline' },
           ]}
           onFilter={(v, r) => r.status === v}
-          render={(s) => <Tag color={getColor(s)}>{getDeviceStatusLabel(s)}</Tag>}
+          render={(status) => <Tag color={getColor(status)}>{getDeviceStatusLabel(status)}</Tag>}
         />
         <Column
           title="OSPF"

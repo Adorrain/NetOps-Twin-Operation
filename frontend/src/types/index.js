@@ -6,12 +6,6 @@ export const DeviceStatus = {
   MAINTENANCE: 'maintenance'
 };
 
-export const ConnectionStatus = {
-  ACTIVE: 'active',
-  INACTIVE: 'inactive',
-  FAILED: 'failed'
-};
-
 export const DEVICE_SIZE = {
   switch: { size: [2.3, 0.7, 1.7] },
   server: { size: [1.2, 2.5, 1.2] },
