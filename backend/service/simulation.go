@@ -61,10 +61,7 @@ func Ping(body *model.PingBody) model.ApiResponse {
 	if path == nil {
 		return utils.NotFound("路径不可达")
 	}
-	if !utils.PathSupportsVlan(topology, path) {
-		return utils.NotFound("VLAN 不通")
-	}
-	rtt := calculatePathDelay(path, topology) * 2
+	rtt := calculateRouteTotalDelay(path, topology) * 2
 	_ = updateDataBase(topology, "ping", body.TargetId, "Ping 测试", fmt.Sprintf("Ping 测试: %s -> %s", body.SourceId, body.TargetId))
 	return utils.Success("success", map[string]interface{}{
 		"rtt": rtt,
@@ -81,16 +78,13 @@ func Traceroute(body *model.TracerouteBody) model.ApiResponse {
 	if path == nil {
 		return utils.NotFound("路径不可达")
 	}
-	if !utils.PathSupportsVlan(topology, path) {
-		return utils.NotFound("VLAN 不通")
-	}
 	deviceMap := getDeviceMap(topology.Devices)
 	ip := []string{}
 	for _, id := range path {
 		ip = append(ip, deviceMap[id].Ip)
 	}
 	hops := len(path) - 1
-	utilization := calculatePathUtilization(path)
+	utilization := calculateRouteMaxUtilization(path)
 	_ = updateDataBase(topology, "traceroute", body.TargetId, "Traceroute 测试", fmt.Sprintf("Traceroute 测试: %s -> %s", body.SourceId, body.TargetId))
 	return utils.Success("success", map[string]interface{}{
 		"sourceId":    body.SourceId,
@@ -190,17 +184,8 @@ func LoadBalance(body *model.LoadBalanceBody) model.ApiResponse {
 	if path == nil {
 		return utils.NotFound("路径不可达")
 	}
-	filtered := make([][]string, 0, len(path))
-	for _, p := range path {
-		if utils.PathSupportsVlan(topology, p) {
-			filtered = append(filtered, p)
-		}
-	}
-	if len(filtered) == 0 {
-		return utils.NotFound("VLAN 不通")
-	}
 	return utils.Success("success", map[string]interface{}{
-		"path": filtered,
+		"path": path,
 		"cost": cost,
 	})
 }
@@ -236,9 +221,6 @@ func PeakTrafficStart(body *model.PeakTrafficStartBody) model.ApiResponse {
 	if path == nil {
 		return utils.NotFound("路径不可达")
 	}
-	if !utils.PathSupportsVlan(topology, path) {
-		return utils.NotFound("VLAN 不通")
-	}
 	StartPeakTraffic(body.SourceId, body.TargetId, intensityMbps, path)
 	_ = repository.CreateLog("peak_start", body.SourceId, fmt.Sprintf("高峰流量模拟开启: %s -> %s, 强度 %.2f Mbps", body.SourceId, body.TargetId, intensityMbps))
 
@@ -256,7 +238,7 @@ func PeakTrafficStop() model.ApiResponse {
 func PeakTrafficData() model.ApiResponse {
 	topology, _ := getLatestTopology()
 	updatePeakTrafficMetrics(topology)
-	return utils.Success("success", peakTraffic)
+	return utils.Success("success", peakTrafficState)
 }
 
 func SmartRoute(body *model.SmartRouteBody) model.ApiResponse {

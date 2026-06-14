@@ -23,9 +23,7 @@ func initDB() {
 	// db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
 	// 	Logger: logger.Default.LogMode(logger.Info),
 	// })
-	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
-	})
+	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 	if err != nil {
 		log.Fatalf("数据库连接失败: %v", err)
 	}

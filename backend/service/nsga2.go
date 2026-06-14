@@ -25,12 +25,12 @@ func NSGA2Service(body *model.SmartRouteBody) model.ApiResponse {
 	if err != nil {
 		return utils.ServerError(err.Error())
 	}
-	routingGraph := BuildForwardingGraph(topology)
+	graph := BuildForwardingGraph(topology)
 
-	const populationSize = 100
+	const popSize = 100
 	const generations = 50
 	const mutationRate = 0.1
-	population := generatePopulation(populationSize, body.SourceId, body.TargetId, topology, routingGraph)
+	population := generatePopulation(popSize, body.SourceId, body.TargetId, topology, graph)
 	if len(population) == 0 {
 		return utils.NotFound("无法生成初始种群")
 	}
@@ -40,16 +40,16 @@ func NSGA2Service(body *model.SmartRouteBody) model.ApiResponse {
 		for _, front := range fronts {
 			crowdingCalculation(front)
 		}
-		offspring := make(Population, 0, populationSize)
-		for len(offspring) < populationSize {
+		offspring := make(Population, 0, popSize)
+		for len(offspring) < popSize {
 			parents := selection(population, 2)
 			c1, c2 := crossover(parents[0], parents[1])
-			mutate(c1, topology, routingGraph, mutationRate)
-			mutate(c2, topology, routingGraph, mutationRate)
+			mutate(c1, graph, mutationRate)
+			mutate(c2, graph, mutationRate)
 			calculateObjective(c1, topology)
 			calculateObjective(c2, topology)
 			offspring = append(offspring, c1)
-			if len(offspring) < populationSize {
+			if len(offspring) < popSize {
 				offspring = append(offspring, c2)
 			}
 		}
@@ -58,31 +58,26 @@ func NSGA2Service(body *model.SmartRouteBody) model.ApiResponse {
 		for _, front := range fronts {
 			crowdingCalculation(front)
 		}
-		newPop := make(Population, 0, populationSize)
+		newPop := make(Population, 0, popSize)
 		for _, front := range fronts {
-			if len(newPop)+len(front) <= populationSize {
+			if len(newPop)+len(front) <= popSize {
 				newPop = append(newPop, front...)
 			} else {
-				sort.Slice(front, func(i, j int) bool {
-					return front[i].CrowdingDistance >
-						front[j].CrowdingDistance
-				})
-
-				remain := populationSize - len(newPop)
-				newPop = append(newPop, front[:remain]...)
+				sort.Slice(front, func(i, j int) bool { return front[i].CrowdingDistance > front[j].CrowdingDistance })
+				newPop = append(newPop, front[:popSize-len(newPop)]...)
 				break
 			}
 		}
 		population = newPop
 	}
-	finalFronts := fastNonDominatedSort(population)
-	if len(finalFronts) == 0 {
+	fronts := fastNonDominatedSort(population)
+	if len(fronts) == 0 {
 		return utils.NotFound("无结果")
 	}
-	finalFront := finalFronts[0]
+	front := fronts[0]
 	seen := map[string]bool{}
 	result := []map[string]interface{}{}
-	for _, ind := range finalFront {
+	for _, ind := range front {
 		key := strings.Join(ind.Path, "->")
 		if seen[key] {
 			continue
@@ -99,32 +94,14 @@ func NSGA2Service(body *model.SmartRouteBody) model.ApiResponse {
 	scene := strings.ToLower(strings.TrimSpace(body.Scene))
 	if scene != "" && len(result) > 0 {
 		best := result[0]
-		bestVal := math.Inf(1)
-		getVal := func(item map[string]interface{}) float64 {
-			switch scene {
-			case "delay":
-				if v, ok := item["delay"].(float64); ok {
-					return v
-				}
-			case "cost":
-				if v, ok := item["cost"].(float64); ok {
-					return v
-				}
-			case "utilization":
-				if v, ok := item["utilization"].(float64); ok {
-					return v
-				}
-			}
-			return math.Inf(1)
-		}
+		bestValue := math.Inf(1)
 		for _, item := range result {
-			v := getVal(item)
-			if v < bestVal {
-				bestVal = v
+			if v, ok := item[scene].(float64); ok && v < bestValue {
+				bestValue = v
 				best = item
 			}
 		}
-		if bestVal != math.Inf(1) {
+		if bestValue != math.Inf(1) {
 			result = []map[string]interface{}{best}
 		}
 	}
@@ -141,17 +118,14 @@ func (a *Individual) Dominates(b *Individual) bool {
 	return a.Delay < b.Delay || a.Cost < b.Cost || a.Utilization < b.Utilization
 }
 
-func generatePopulation(size int, start, end string, topology *model.TopologyData, routingGraph map[string]map[string]int) Population {
-	paths := PathDFS(routingGraph, start, end, size*6)
+func generatePopulation(size int, start, end string, topology *model.TopologyData, graph map[string]map[string]int) Population {
+	paths := PathDFS(graph, start, end, size*6)
 	rand.Shuffle(len(paths), func(i, j int) {
 		paths[i], paths[j] = paths[j], paths[i]
 	})
 
 	pop := make(Population, 0, size)
 	for _, path := range paths {
-		if !utils.PathSupportsVlan(topology, path) {
-			continue
-		}
 		ind := &Individual{Path: path}
 		calculateObjective(ind, topology)
 		pop = append(pop, ind)
@@ -213,7 +187,7 @@ func crossover(p1, p2 *Individual) (*Individual, *Individual) {
 	return &Individual{Path: c1}, &Individual{Path: c2}
 }
 
-func mutate(ind *Individual, topology *model.TopologyData, graph map[string]map[string]int, rate float64) {
+func mutate(ind *Individual, graph map[string]map[string]int, rate float64) {
 	if rand.Float64() > rate || len(ind.Path) < 4 {
 		return
 	}
@@ -226,17 +200,17 @@ func mutate(ind *Individual, topology *model.TopologyData, graph map[string]map[
 	if i1 == i2 {
 		return
 	}
-	alternativePaths := PathDFS(graph, ind.Path[i1], ind.Path[i2], 12)
-	if len(alternativePaths) == 0 {
+	altPaths := PathDFS(graph, ind.Path[i1], ind.Path[i2], 12)
+	if len(altPaths) == 0 {
 		return
 	}
-	rand.Shuffle(len(alternativePaths), func(i, j int) {
-		alternativePaths[i], alternativePaths[j] = alternativePaths[j], alternativePaths[i]
+	rand.Shuffle(len(altPaths), func(i, j int) {
+		altPaths[i], altPaths[j] = altPaths[j], altPaths[i]
 	})
-	for _, sub := range alternativePaths {
+	for _, sub := range altPaths {
 		newPath := append(append([]string{}, ind.Path[:i1]...), sub...)
 		newPath = append(newPath, ind.Path[i2+1:]...)
-		if utils.PathSupportsVlan(topology, newPath) && isSimplePath(newPath) {
+		if isSimplePath(newPath) {
 			ind.Path = newPath
 			return
 		}
@@ -360,7 +334,6 @@ func crowdingCalculation(front Population) {
 	utilMax := front[n-1].Utilization
 	front[0].CrowdingDistance = math.Inf(1)
 	front[n-1].CrowdingDistance = math.Inf(1)
-
 	if utilMax > utilMin {
 		for i := 1; i < n-1; i++ {
 			front[i].CrowdingDistance += (front[i+1].Utilization - front[i-1].Utilization) / (utilMax - utilMin)
@@ -369,9 +342,9 @@ func crowdingCalculation(front Population) {
 }
 
 func calculateObjective(ind *Individual, topology *model.TopologyData) {
-	ind.Delay = calculatePathDelay(ind.Path, topology)
+	ind.Delay = calculateRouteTotalDelay(ind.Path, topology)
 	ind.Cost = calculatePathCost(ind.Path, topology)
-	ind.Utilization = calculatePathUtilization(ind.Path)
+	ind.Utilization = calculateRouteMaxUtilization(ind.Path)
 }
 
 func calculatePathCost(path []string, topology *model.TopologyData) float64 {

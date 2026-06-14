@@ -25,11 +25,8 @@ const DevicePanel = ({ selectDeviceId, setSelectDevice }) => {
   const { networkTopology } = useTopology();
 
   const device = networkTopology?.devices?.find(d => d.id === selectDeviceId);
-
   if (!device) return null;
-
   const up = judgeDeviceStatus(device.status);
-
   const columns = [
     {
       title: '接口名',

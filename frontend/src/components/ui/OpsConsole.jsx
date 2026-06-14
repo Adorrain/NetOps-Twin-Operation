@@ -45,18 +45,20 @@ const OpsConsole = () => {
   const [logs, setLogs] = useState([]);
   const [logsOpen, setLogsOpen] = useState(false);
 
-  const devices = useMemo(() => networkTopology?.devices || [], [networkTopology]);
-  const links = useMemo(() => networkTopology?.links || [], [networkTopology]);
+  const devices = useMemo(() => networkTopology?.devices ?? [], [networkTopology]);
+  const links = useMemo(() => networkTopology?.links ?? [], [networkTopology]);
 
   const getDeviceInterfaces = (deviceId) => {
-    const device = devices.find(d => d.id === deviceId);
-    return device?.interfaces || [];
+    const target = devices.find(d => d.id === deviceId);
+    return target?.interfaces ?? [];
   };
 
   const fetchLogs = async () => {
     try {
       const res = await opsApi.getLogs();
-      if (res.code === 200) setLogs(prev => [...prev, res.data]);
+      if (res.code === 200) {
+        setLogs(prev => [...prev, res.data]);
+      }
     } catch {
       message.error('获取日志失败');
     }
@@ -69,50 +71,54 @@ const OpsConsole = () => {
     }
   };
 
-  useEffect(() => {
-    return () => {
-      stopPeakPolling();
-    };
-  }, []);
-
-  const applyPeakMetricsToLinks = (data) => {
-    const linkData = Array.isArray(data?.links) ? data.links : [];
-    const m = new Map(linkData.map(item => [String(item.linkId), item]));
+  const applyPeakMetricsToLinks = (trafficData) => {
+    const linkMap = new Map();
+    if (Array.isArray(trafficData?.links)) {
+      trafficData.links.forEach(item => linkMap.set(String(item.linkId), item));
+    }
 
     setNetworkTopology(prev => {
       if (!prev) return prev;
       return {
         ...prev,
-        links: (prev.links || []).map(link => {
-          const Data = m.get(String(link.id));
-          if (!Data) {
-            return {
-              ...link,
-              utilization: undefined,
-              capacity: undefined,
-              linkDelay: undefined,
-            };
+        links: prev.links.map(link => {
+          const data = linkMap.get(String(link.id));
+          if (!data) {
+            return { ...link, utilization: undefined, capacity: undefined, linkDelay: undefined };
           }
-          return {
-            ...link,
-            utilization: Data.utilization,
-            capacity: Data.capacity,
-            linkDelay: Data.linkDelay,
-          };
-        }),
+          return { ...link, utilization: data.utilization, capacity: data.capacity, linkDelay: data.linkDelay };
+        })
       };
     });
   };
 
+  const updateDeviceField = (deviceId, field, value) => {
+    setNetworkTopology(prev => ({
+      ...prev,
+      devices: prev.devices.map(dev => dev.id === deviceId ? { ...dev, [field]: value } : dev)
+    }));
+  };
+
+  const updateLinkField = (linkId, field, value) => {
+    setNetworkTopology(prev => ({
+      ...prev,
+      links: prev.links.map(link => link.id === linkId ? { ...link, [field]: value } : link)
+    }));
+  };
+
+  useEffect(() => {
+    return () => stopPeakPolling();
+  }, []);
+
   const fetchPeakData = async () => {
     try {
       const res = await opsApi.getPeakTrafficData();
-      if (res.code === 200) {
-        const running = Boolean(res.data?.running);
-        setPeakRunning(running);
-        setPeakData(res.data);
-        applyPeakMetricsToLinks(running ? res.data : null);
-      }
+      if (res.code !== 200) return;
+
+      const isRunning = !!res.data?.running;
+      setPeakRunning(isRunning);
+      setPeakData(res.data);
+      applyPeakMetricsToLinks(isRunning ? res.data : null);
     } catch {
       message.error('获取峰值流量指标失败');
     }
@@ -126,7 +132,6 @@ const OpsConsole = () => {
     setPingResult('');
     try {
       const res = await opsApi.ping(sourceId, targetId);
-
       if (res.code === 200) {
         message.success('Ping 成功');
         setPingResult(`延迟: ${res.data?.rtt ?? '-'} ms`);
@@ -147,14 +152,14 @@ const OpsConsole = () => {
       message.warning('请选择源设备和目标设备');
       return;
     }
+
     try {
       const res = await opsApi.traceroute(sourceId, targetId);
       if (res.code === 200) {
-        const data = res.data;
-        setTraceResult((data.path || []).map((n, i) => `${i + 1}. ${n} (${data.ip?.[i] ?? '-'})`));
-        setTraceUtilization(
-          typeof data.utilization === 'number' ? `链路利用率: ${data.utilization.toFixed(2)}%` : ''
-        );
+        const { path = [], ip = [], utilization } = res.data || {};
+        const pathList = path.map((node, idx) => `${idx + 1}. ${node} (${ip[idx] ?? '-'})`);
+        setTraceResult(pathList);
+        setTraceUtilization(typeof utilization === 'number' ? `链路利用率: ${utilization.toFixed(2)}%` : '');
         message.success('路由追踪完成');
       } else {
         message.warning(res.message || '操作失败');
@@ -175,19 +180,22 @@ const OpsConsole = () => {
       message.warning('请选择设备');
       return;
     }
+
     try {
       const res = await opsApi.updateDeviceStatus(sourceId, deviceStatus);
       if (res.code === 200) {
         message.success('状态更新成功');
-        setNetworkTopology(prev => ({ ...prev, devices: devices.map(device => (device.id === sourceId ? { ...device, status: deviceStatus } : device)) }));
+        updateDeviceField(sourceId, 'status', deviceStatus);
       } else {
         message.warning(res.message || '操作失败');
       }
     } catch {
       message.error('更新失败');
+    } finally {
+      fetchLogs();
     }
-    fetchLogs();
   };
+
   const updateLinkStatus = async () => {
     if (!linkId) {
       message.warning('请选择链路');
@@ -197,97 +205,98 @@ const OpsConsole = () => {
       const res = await opsApi.updateLinkStatus(linkId, linkStatus);
       if (res.code === 200) {
         message.success('状态更新成功');
-        setNetworkTopology(prev => ({ ...prev, links: links.map(link => (link.id === linkId ? { ...link, status: linkStatus } : link)) }));
+        updateLinkField(linkId, 'status', linkStatus);
       } else {
         message.warning(res.message || '操作失败');
       }
     } catch {
       message.error('更新失败');
+    } finally {
+      fetchLogs();
     }
-    fetchLogs();
   };
+
   const updateInterfaceStatus = async () => {
     if (!interfaceId) {
       message.warning('请选择接口');
       return;
     }
     try {
-      const res = await opsApi.updateInterfaceStatus(deviceId,interfaceId,interfaceStatus);
+      const res = await opsApi.updateInterfaceStatus(deviceId, interfaceId, interfaceStatus);
       if (res.code === 200) {
         message.success('状态更新成功');
         setNetworkTopology(prev => ({
           ...prev,
-          devices: prev.devices.map(device =>
-            device.id === deviceId
-              ? {
-                  ...device,
-                  interfaces: device.interfaces.map(connector =>
-                    connector.name === interfaceId
-                      ? { ...connector, status: interfaceStatus }
-                      : connector
-                  )
-                }
-              : device
-          )
+          devices: prev.devices.map(dev => {
+            if (dev.id !== deviceId) return dev;
+            return {
+              ...dev,
+              interfaces: dev.interfaces.map(ifc =>
+                ifc.name === interfaceId ? { ...ifc, status: interfaceStatus } : ifc
+              )
+            };
+          })
         }));
       } else {
         message.warning(res.message || '操作失败');
       }
     } catch {
       message.error('更新失败');
+    } finally {
+      fetchLogs();
     }
-    fetchLogs();
   };
+
   const updateVlan = async () => {
     if (!deviceId || !interfaceId || !mode || !vlans.length) {
       message.warning('请选择设备、接口、模式和VLAN ID');
       return;
     }
+
     try {
-      const res = await opsApi.configureVlan(deviceId,interfaceId,mode,vlans);
+      const res = await opsApi.configureVlan(deviceId, interfaceId, mode, vlans);
       if (res.code === 200) {
         message.success('VLAN更新成功');
         setNetworkTopology(prev => ({
           ...prev,
-          devices: prev.devices.map(device =>
-            device.id === deviceId
-              ? {
-                  ...device,
-                  interfaces: device.interfaces.map(connector =>
-                    connector.name === interfaceId
-                      ? { ...connector, mode: mode, vlans: vlans }
-                      : connector
-                  )
-                }
-              : device
-            )
-          }));
+          devices: prev.devices.map(dev => {
+            if (dev.id !== deviceId) return dev;
+            return {
+              ...dev,
+              interfaces: dev.interfaces.map(ifc =>
+                ifc.name === interfaceId ? { ...ifc, mode, vlans } : ifc
+              )
+            };
+          })
+        }));
       } else {
         message.warning(res.message || '操作失败');
       }
     } catch {
       message.error('更新失败');
+    } finally {
+      fetchLogs();
     }
-    fetchLogs();
   };
+
   const ecmp = async () => {
-    if (!ecmpSourceId || !ecmpTargetId ) {
+    if (!ecmpSourceId || !ecmpTargetId) {
       message.warning('请选择源设备、目标设备');
       return;
     }
+    setEcmpResultCost(null);
+
     try {
-      setEcmpResultCost(null);
       const res = await opsApi.ospfLoadBalance(ecmpSourceId, ecmpTargetId);
       if (res.code === 200) {
-        const cost = res.data?.cost;
-        const raw = res.data?.path;
-        let paths = raw;
-        if (Array.isArray(paths) && paths.length > 0 && typeof paths[0] === 'string') {
-          paths = [paths];
+        const { cost, path } = res.data || {};
+        let pathList = Array.isArray(path) ? path : [];
+        if (pathList.length > 0 && typeof pathList[0] === 'string') {
+          pathList = [pathList];
         }
-        if (!Array.isArray(paths)) paths = [];
+
         setEcmpResultCost(typeof cost === 'number' ? cost : null);
-        setNetworkTopology(prev => ({ ...prev, ecmpPaths: paths }));
+        setNetworkTopology(prev => ({ ...prev, ecmpPaths: pathList }));
         message.success('更新成功');
       } else {
         message.warning(res.message || '操作失败');
@@ -296,33 +305,43 @@ const OpsConsole = () => {
     } catch {
       message.error('系统错误');
       setNetworkTopology(prev => ({ ...prev, ecmpPaths: [] }));
+    } finally {
+      fetchLogs();
     }
-    fetchLogs();
   };
+
   const updateCost = async () => {
     if (!ecmpLinkId || !ecmpCost) {
       message.warning('请选择链路和成本');
       return;
     }
+
     try {
       const res = await opsApi.updateOspfCost(ecmpLinkId, ecmpCost);
       if (res.code === 200) {
         message.success('更新成功');
-        setNetworkTopology(prev => ({ ...prev, links: links.map(link => (link.id === ecmpLinkId ? { ...link, cost: ecmpCost } : link)) }));
+        updateLinkField(ecmpLinkId, 'cost', ecmpCost);
       } else {
         message.warning(res.message || '操作失败');
       }
     } catch {
       message.error('更新失败');
+    } finally {
+      fetchLogs();
     }
-    fetchLogs();
   };
+
   const traceSmartRoute = async () => {
     if (!smartDeviceId || !smartTargetDeviceId) {
       message.warning('请选择源设备、目标设备');
       return;
     }
-    const resetResult = (msg) => { setSmartRouteSummary(''); setSmartRouteResult([msg]); };
+
+    const resetResult = (msg) => {
+      setSmartRouteSummary('');
+      setSmartRouteResult([msg]);
+    };
+
     try {
       const res = await opsApi.traceSmartRoute(smartDeviceId, smartTargetDeviceId, smartScene);
       if (res.code !== 200) {
@@ -330,26 +349,38 @@ const OpsConsole = () => {
         resetResult('操作失败');
         return;
       }
-      const chosen = res.data?.solutions?.[0] || {};
-      const path = Array.isArray(chosen.path) ? chosen.path : [];
-      if (!path.length) { resetResult('未找到路径'); return; }
-      const fmt = (v, s) => typeof v === 'number' ? `${v}${s}` : '-';
-      setSmartRouteSummary(`Delay: ${fmt(chosen.delay, ' ms')} | Utilization: ${fmt(chosen.utilization?.toFixed?.(2), '%')} | Cost: ${fmt(chosen.cost, '')}`);
-      setSmartRouteResult(path.map((n, i) => `${i + 1}. ${n}`));
+
+      const solution = res.data?.solutions?.[0] ?? {};
+      const path = Array.isArray(solution.path) ? solution.path : [];
+      if (!path.length) {
+        resetResult('未找到路径');
+        return;
+      }
+      const fmt = (val, unit = '') => typeof val === 'number' ? `${val}${unit}` : '-';
+      const delay = fmt(solution.delay, ' ms');
+      const util = fmt(solution.utilization?.toFixed?.(2), '%');
+      const cost = fmt(solution.cost);
+
+      setSmartRouteSummary(`Delay: ${delay} | Utilization: ${util} | Cost: ${cost}`);
+      setSmartRouteResult(path.map((node, idx) => `${idx + 1}. ${node}`));
       message.success('路由更新成功');
     } catch {
       message.error('系统错误');
       resetResult('系统错误');
+    } finally {
+      fetchLogs();
     }
-    fetchLogs();
   };
+
   const startPeakTraffic = async () => {
     if (!peakSourceId || !peakTargetId || !peakFlowIntensity) {
       message.warning('请选择源设备、目标设备和流量强度');
       return;
     }
+
     stopPeakPolling();
     applyPeakMetricsToLinks(null);
+
     try {
       const res = await opsApi.startPeakTraffic(peakSourceId, peakTargetId, peakFlowIntensity);
       if (res.code === 200) {
@@ -363,12 +394,14 @@ const OpsConsole = () => {
       }
     } catch {
       message.error('系统错误');
+    } finally {
+      fetchLogs();
     }
-    fetchLogs();
   };
 
   const stopPeakTraffic = async () => {
     stopPeakPolling();
+
     try {
       const res = await opsApi.stopPeakTraffic();
       if (res.code === 200) {
@@ -381,8 +414,9 @@ const OpsConsole = () => {
       }
     } catch {
       message.error('系统错误');
+    } finally {
+      fetchLogs();
     }
-    fetchLogs();
   };
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>

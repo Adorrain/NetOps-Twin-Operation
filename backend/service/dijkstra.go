@@ -68,9 +68,9 @@ func dijkstra(graph map[string]map[string]int, start, end string) ([]string, int
 		return nil, -1
 	}
 	var path []string
-	for curr := end; curr != ""; curr = prev[curr] {
-		path = append(path, curr)
-		if curr == start {
+	for cur := end; cur != ""; cur = prev[cur] {
+		path = append(path, cur)
+		if cur == start {
 			break
 		}
 	}

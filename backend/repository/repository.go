@@ -67,7 +67,6 @@ func GetLatestSnapshot() (*TopologySnapshot, error) {
 	var snapshot TopologySnapshot
 
 	err := db.Order("created_at DESC").First(&snapshot).Error
-
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +82,6 @@ func GetLatestLog() (*OperationLog, error) {
 	var log OperationLog
 
 	err := db.Order("created_at DESC").First(&log).Error
-
 	if err != nil {
 		return nil, err
 	}
