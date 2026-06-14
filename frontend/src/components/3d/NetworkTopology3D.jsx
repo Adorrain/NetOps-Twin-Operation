@@ -214,10 +214,7 @@ function DeviceItem({ device, onClick }) {
   return (
     <group
       position={[device.position.x, device.position.y + size[1] / 2, device.position.z]}
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick(device);
-      }}
+      onClick={(e) => { e.stopPropagation(); onClick(device); }}
     >
       <Float speed={2} rotationIntensity={0.2} floatIntensity={0.2}>
         <DeviceModel size={size} />

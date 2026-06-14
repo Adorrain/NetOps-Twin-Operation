@@ -47,7 +47,6 @@ func UploadTopology(fileHeader *multipart.FileHeader) (*model.TopologyData, erro
 	data, _ := json.Marshal(topology)
 	_ = repository.CreateSnapshot(string(data))
 
-	// 记录日志
 	_ = repository.CreateLog("TopologyUpload", fileHeader.Filename, "上传拓扑配置")
 
 	return &topology, nil
