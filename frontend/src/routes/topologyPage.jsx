@@ -12,17 +12,20 @@ const { Title, Text } = Typography;
 export default function TopologyPage() {
   const { networkTopology } = useTopology();
 
-  const [selectedId, setSelectedId] = useState(null);
-  const [open, setOpen] = useState(false);
+  const [selectedDeviceId, setSelectedDeviceId] = useState(null);
+  const [monitorModalOpen, setMonitorModalOpen] = useState(false);
+
+  const handleDeviceClick = (device) => {
+    setSelectedDeviceId(device?.id);
+  };
 
   return (
     <Layout style={{ height: '100%', overflow: 'hidden' }}>
- 
       <Content style={{ position: 'relative', background: '#111217' }}>
-        {networkTopology ? ( 
+        {networkTopology ? (
           <NetworkTopology3D
             networkTopology={networkTopology}
-            onDeviceClick={(d) => setSelectedId(d?.id)}
+            onDeviceClick={handleDeviceClick}
           />
         ) : (
           <div
@@ -46,8 +49,8 @@ export default function TopologyPage() {
         )}
 
         <DevicePanel
-          selectDeviceId={selectedId}
-          setSelectDevice={setSelectedId}
+          selectDeviceId={selectedDeviceId}
+          setSelectDevice={setSelectedDeviceId}
         />
       </Content>
 
@@ -75,32 +78,26 @@ export default function TopologyPage() {
             <div>
               <Text type="secondary">参考带宽：</Text>
               <Text style={{ color: '#fff', marginLeft: 6 }}>
-                {networkTopology?.ospfReferenceBandwidth || '-'}
+                {networkTopology?.ospfReferenceBandwidth ?? '-'}
               </Text>
             </div>
 
-            <Button size="small" onClick={() => setOpen(true)}>
+            <Button size="small" onClick={() => setMonitorModalOpen(true)}>
               监控面板
             </Button>
           </div>
         </div>
 
-        <div
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            padding: 12,
-          }}
-        >
+        <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
           <OpsConsole />
         </div>
       </Sider>
 
       <Modal
         title="监控面板"
-        open={open}
+        open={monitorModalOpen}
         footer={null}
-        onCancel={() => setOpen(false)}
+        onCancel={() => setMonitorModalOpen(false)}
         width="80%"
       >
         <MonitoringPanel />

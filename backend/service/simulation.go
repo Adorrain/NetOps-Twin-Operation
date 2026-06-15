@@ -250,9 +250,9 @@ func SmartRoute(body *model.SmartRouteBody) model.ApiResponse {
 
 	solutions, ok := nsga2Response.Data.(map[string]interface{})["solutions"].([]map[string]interface{})
 	if !ok || len(solutions) == 0 {
-		return utils.NotFound("未能找到 NSGA-II 算法的解决方案")
+		return utils.NotFound("未能找到智能路由算法的解决方案")
 	}
-	_ = repository.CreateLog("smart_route", "-", fmt.Sprintf("NSGA-II 算法路由完成: %s -> %s", body.SourceId, body.TargetId))
+	_ = repository.CreateLog("smart_route", "-", fmt.Sprintf("NSGA-II算法路由完成: %s -> %s", body.SourceId, body.TargetId))
 	return utils.Success("success", map[string]interface{}{
 		"solutions": solutions,
 	})
