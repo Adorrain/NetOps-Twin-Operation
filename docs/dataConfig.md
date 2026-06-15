@@ -21,7 +21,7 @@ host    netops    netops_user     0.0.0.0/0   md5
 \du
 
 # 增加数据库用户
-ALTER USER netops_user WITH SUPERUSER;
+CREATE USER netops_user WITH PASSWORD '123456';
 
 #给予用户权限
 ALTER USER netops_user WITH SUPERUSER;
